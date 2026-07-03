@@ -1,0 +1,21 @@
+[project]
+name = "tenderiq-api"
+version = "0.0.0"
+description = "TenderIQ FastAPI uygulaması (REST /api/v1, auth, SSE)."
+requires-python = ">=3.12"
+dependencies = [
+    "tenderiq-core",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "email-validator>=2.2.0",
+]
+
+[tool.uv.sources]
+tenderiq-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tenderiq_api"]

@@ -1,0 +1,32 @@
+{
+  "name": "tenderiq",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TenderIQ — AI destekli ihale/RFP analiz platformu (monorepo)",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "lint:py": "uv run ruff check .",
+    "format:py": "uv run ruff format .",
+    "format:py:check": "uv run ruff format --check .",
+    "typecheck:py": "uv run mypy -p tenderiq_core -p tenderiq_api -p tenderiq_worker",
+    "test:py": "uv run pytest",
+    "api:dev": "uv run uvicorn tenderiq_api.main:app --reload --host 0.0.0.0 --port 8000",
+    "worker:dev": "uv run celery -A tenderiq_worker.celery_app:celery_app worker --loglevel=info",
+    "openapi:export": "uv run python scripts/export_openapi.py",
+    "web:dev": "pnpm --filter @tenderiq/web dev",
+    "web:build": "pnpm --filter @tenderiq/web build",
+    "web:lint": "pnpm --filter @tenderiq/web lint",
+    "web:typecheck": "pnpm --filter @tenderiq/web typecheck",
+    "api-client:generate": "pnpm --filter @tenderiq/api-client generate",
+    "lint": "pnpm run lint:py",
+    "typecheck": "pnpm run typecheck:py",
+    "test": "pnpm run test:py",
+    "up": "docker compose -f infra/compose/docker-compose.yml up -d",
+    "down": "docker compose -f infra/compose/docker-compose.yml down",
+    "logs": "docker compose -f infra/compose/docker-compose.yml logs -f"
+  }
+}

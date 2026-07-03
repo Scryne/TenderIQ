@@ -1,0 +1,19 @@
+[project]
+name = "tenderiq-worker"
+version = "0.0.0"
+description = "TenderIQ Celery worker (parsing/indexing/extraction task'ları)."
+requires-python = ">=3.12"
+dependencies = [
+    "tenderiq-core",
+    "celery[redis]>=5.4.0",
+]
+
+[tool.uv.sources]
+tenderiq-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tenderiq_worker"]

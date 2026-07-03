@@ -1,0 +1,103 @@
+name: tenderiq
+
+# api/worker: RLS'ye TABİ non-superuser rol (tenderiq_app).
+# migrate: ayrıcalıklı owner/superuser rol (tenderiq). Bkz. ADR-0003.
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg://tenderiq_app:tenderiq_app@postgres:5432/tenderiq
+  REDIS_URL: redis://redis:6379/0
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: tenderiq
+      POSTGRES_PASSWORD: tenderiq
+      POSTGRES_DB: tenderiq
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tenderiq -d tenderiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Migration'ları çalıştırıp çıkan tek seferlik servis (ayrıcalıklı rol).
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://tenderiq:tenderiq@postgres:5432/tenderiq
+      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - path: ../../.env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      <<: *app-env
+    env_file:
+      - path: ../../.env
+        required: false
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/worker.Dockerfile
+    environment:
+      <<: *app-env
+    env_file:
+      - path: ../../.env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # NEXT_PUBLIC_API_URL build anında gömülür (tarayıcı host'tan erişir → localhost).
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

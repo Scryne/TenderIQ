@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_FROZEN: "1"
+
+jobs:
+  backend:
+    name: Backend — lint · tip · test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: tenderiq
+          POSTGRES_PASSWORD: tenderiq
+          POSTGRES_DB: tenderiq
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tenderiq -d tenderiq"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://tenderiq:tenderiq@localhost:5432/tenderiq
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - name: uv kurulumu
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - name: Bağımlılıklar
+        run: uv sync --frozen
+      - name: Ruff (lint)
+        run: uv run ruff check .
+      - name: Ruff (format)
+        run: uv run ruff format --check .
+      - name: Mypy (strict)
+        run: uv run mypy -p tenderiq_core -p tenderiq_api -p tenderiq_worker
+      - name: Migration (upgrade head)
+        run: uv run alembic upgrade head
+      - name: Testler (pytest)
+        run: uv run pytest
+
+  contract:
+    name: API sözleşme drift (OpenAPI→TS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: uv kurulumu
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: OpenAPI şemasını üret
+        run: uv run python scripts/export_openapi.py
+      - name: Drift kontrolü (şema commit'lenenle aynı olmalı)
+        run: git diff --exit-code -- packages/api-client/openapi.json
+
+  frontend:
+    name: Frontend — lint · tip · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: pnpm kurulumu
+        uses: pnpm/action-setup@v4
+      - name: Node kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Bağımlılıklar
+        run: pnpm install --frozen-lockfile
+      - name: api-client tiplerini üret (OpenAPI→TS)
+        run: pnpm --filter @tenderiq/api-client generate
+      - name: api-client drift kontrolü (üretilen tip commit'lenenle aynı olmalı)
+        run: git diff --exit-code -- packages/api-client/src/schema.d.ts
+      - name: Lint (eslint)
+        run: pnpm --filter @tenderiq/web lint
+      - name: api-client tip denetimi
+        run: pnpm --filter @tenderiq/api-client typecheck
+      - name: Build (Next.js — tip denetimi dâhil)
+        run: pnpm --filter @tenderiq/web build
+      - name: Web tip denetimi (tsc)
+        run: pnpm --filter @tenderiq/web typecheck
+
+  security:
+    name: Güvenlik taraması
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks (sır taraması)
+        run: >-
+          docker run --rm -v "${{ github.workspace }}:/repo"
+          ghcr.io/gitleaks/gitleaks:latest detect --source=/repo --no-banner --redact
+      - name: uv kurulumu
+        uses: astral-sh/setup-uv@v4
+      - name: Bağımlılık denetimi (pip-audit)
+        run: |
+          uv export --frozen --no-dev --no-emit-workspace -o /tmp/req.txt \
+            || uv export --frozen --no-dev -o /tmp/req.txt
+          uvx pip-audit -r /tmp/req.txt || true
+
+  # NOT: AI golden-set regresyon kapısı (evals/) Faz 2 Sprint 2.4'te aktif hâle gelecek.
