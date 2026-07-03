@@ -1,0 +1,10 @@
+packages:
+  - "apps/web"
+  - "packages/api-client"
+
+# Kurulum (postinstall) script'lerine izin verilen paketler (pnpm 11 varsayılan
+# olarak hepsini bloklar). sharp: Next.js görüntü optimizasyonu; unrs-resolver:
+# eslint import çözümleyicisinin yerel bağlaması.
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
