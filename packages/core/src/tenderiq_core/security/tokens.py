@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 ALGORITHM = "HS256"
 DEFAULT_EXPIRE_HOURS = 12
@@ -43,6 +43,14 @@ def create_access_token(
 
 
 def decode_access_token(token: str, secret: str) -> TokenPayload:
-    """JWT'yi doğrular ve içeriğini döndürür (geçersizse ``jwt`` istisnası)."""
-    data = jwt.decode(token, secret, algorithms=[ALGORITHM])
-    return TokenPayload.model_validate(data)
+    """JWT'yi doğrular ve içeriğini döndürür (geçersizse ``jwt`` istisnası).
+
+    İmzası geçerli ama şeması beklenenden farklı token'lar da (ör. eksik
+    ``tenant_id``) ``jwt.InvalidTokenError``'a eşlenir; çağıran tek tip
+    ``PyJWTError`` yakalayarak 401 dönebilir.
+    """
+    data = jwt.decode(token, secret, algorithms=[ALGORITHM], options={"require": ["exp"]})
+    try:
+        return TokenPayload.model_validate(data)
+    except ValidationError as exc:
+        raise jwt.InvalidTokenError("Token içeriği beklenen şemaya uymuyor.") from exc

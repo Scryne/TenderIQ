@@ -42,6 +42,9 @@ services:
     command: ["alembic", "upgrade", "head"]
     environment:
       DATABASE_URL: postgresql+psycopg://tenderiq:tenderiq@postgres:5432/tenderiq
+      # .env'deki DATABASE_ADMIN_URL localhost'a bakar; container içinde geçersiz →
+      # burada postgres servis adına override et (environment, env_file'ı ezer).
+      DATABASE_ADMIN_URL: postgresql+psycopg://tenderiq:tenderiq@postgres:5432/tenderiq
       REDIS_URL: redis://redis:6379/0
     env_file:
       - path: ../../.env
@@ -62,6 +65,16 @@ services:
         required: false
     ports:
       - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,7 +110,8 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:

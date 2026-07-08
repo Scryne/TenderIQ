@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Request, Response, status
 from redis.asyncio import Redis
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tenderiq_api.schemas import HealthResponse, ReadinessComponent, ReadinessResponse
 from tenderiq_core.config import get_settings
-from tenderiq_core.db.session import create_engine
 
 router = APIRouter(tags=["health"])
 
@@ -19,16 +19,14 @@ async def healthz() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-async def _check_database() -> ReadinessComponent:
-    engine = create_engine()
+async def _check_database(engine: AsyncEngine) -> ReadinessComponent:
+    """Uygulamanın havuzlu engine'i üzerinden DB erişimini yoklar."""
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return ReadinessComponent(name="database", healthy=True)
     except Exception as exc:
         return ReadinessComponent(name="database", healthy=False, detail=str(exc))
-    finally:
-        await engine.dispose()
 
 
 async def _check_redis() -> ReadinessComponent:
@@ -43,9 +41,10 @@ async def _check_redis() -> ReadinessComponent:
 
 
 @router.get("/readyz", response_model=ReadinessResponse)
-async def readyz(response: Response) -> ReadinessResponse:
+async def readyz(request: Request, response: Response) -> ReadinessResponse:
     """Readiness — DB ve Redis erişilebilir mi; değilse 503 döner."""
-    components = [await _check_database(), await _check_redis()]
+    engine: AsyncEngine = request.app.state.engine
+    components = [await _check_database(engine), await _check_redis()]
     ready = all(component.healthy for component in components)
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
