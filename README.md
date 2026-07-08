@@ -16,7 +16,7 @@ Frontend backend'e yalnızca üretilen `packages/api-client` üzerinden erişir 
 
 | Katman | Teknoloji |
 |---|---|
-| Frontend | Next.js (App Router) + React + TypeScript + Tailwind/shadcn (Faz 0.1'de eklenir) |
+| Frontend | Next.js (App Router) + React + TypeScript + Tailwind/shadcn |
 | API | FastAPI (async) — `/api/v1`, sağlık uçları, tutarlı hata modeli, SSE |
 | Worker | Celery + Redis — asenkron işleme hattı |
 | Çekirdek | SQLAlchemy 2.0 (async) · Pydantic · yapılandırılmış loglama (structlog) |
@@ -81,12 +81,12 @@ imajları derleyerek ayağa kaldırır; `pnpm down` durdurur.
 ```
 tender-iq/
 ├─ apps/
-│  ├─ web/        # Next.js frontend (Faz 0.1)
+│  ├─ web/        # Next.js frontend
 │  ├─ api/        # FastAPI — /api/v1, health, hata modeli, SSE
 │  └─ worker/     # Celery worker — işleme hattı task'ları
 ├─ packages/
 │  ├─ core/       # Ortak Python: config, loglama, db, servisler, AI hattı
-│  └─ api-client/ # OpenAPI'dan üretilen TypeScript istemci (Faz 0.1)
+│  └─ api-client/ # OpenAPI'dan üretilen TypeScript istemci
 ├─ migrations/    # Alembic (pgvector + RLS)
 ├─ evals/         # AI golden-set + değerlendirme (Faz 1)
 ├─ infra/         # Dockerfile'lar + docker-compose
@@ -104,11 +104,12 @@ tender-iq/
 
 | Faz | Kapsam | Durum |
 |---|---|---|
-| **0** | Temeller: monorepo, auth+RLS, yükleme, parsing spike | 🚧 Devam ediyor |
-| 1 | Çekirdek işleme hattı (parse→chunk→embed→index) + golden-set | ⏳ |
+| 0 | Temeller: monorepo, auth+RLS, yükleme, parsing spike | ✅ Tamam (2026-07-04; 2026-07-08 denetimiyle sertleştirildi) |
+| **1** | Çekirdek işleme hattı (parse→chunk→embed→index) + golden-set | 🚧 Sırada |
 | 2 | Çıkarım ajanları + zorunlu grounding + eval (en kritik) | ⏳ |
-| 3 | İnceleme UI + kaynak vurgusu + export + ödeme | ⏳ |
+| 3 | İnceleme UI + kaynak vurgusu + export + ödeme + hesap yaşam döngüsü | ⏳ |
 | 4 | Beta + ilk müşteriler + KVKK/trust | ⏳ |
+| GA | Yayına alma: dağıtım/DR/SLO/yasal-ticari kontrol listeleri (plan §J) | ⏳ |
 
 Ayrıntı için [`GELISTIRME_PLANI.md`](GELISTIRME_PLANI.md).
 
