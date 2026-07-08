@@ -6,13 +6,13 @@
 | Alan | Değer |
 |---|---|
 | **Belge** | Geliştirme Planı (Engineering Execution Plan) |
-| **Sürüm** | v1.0 |
-| **Tarih** | Temmuz 2026 |
+| **Sürüm** | v1.1 — Faz 0 kapanışı + kod denetimi bulguları + yayına-alma (production-readiness) yol haritası eklendi |
+| **Tarih** | Temmuz 2026 (v1.1: 2026-07-08) |
 | **Sahip** | Berkay (GitHub: Scryne) — tek kurucu-geliştirici |
 | **Kaynak plan** | `TenderIQ_Proje_Plani.docx` v1.0 (bundan sonra **"Ürün Planı"** ve `§X.Y` ile atıf) |
 | **Skill haritası** | `TenderIQ_ClaudeCode_Skills.md` |
-| **Durum** | Yürütmeye hazır — Faz 0 bugün başlatılabilir |
-| **Hedef** | ~14 haftada MVP + kapalı beta; en riskli varsayımı (AI çıkarım doğruluğu) erken doğrulamak |
+| **Durum** | **Faz 0 TAMAM ✅** (2026-07-04; 2026-07-08 kod denetimiyle sertleştirildi) — Faz 1 yürütülüyor |
+| **Hedef** | ~14 haftada MVP + kapalı beta; en riskli varsayımı (AI çıkarım doğruluğu) erken doğrulamak; ardından J bölümüyle **yayınlanabilir (GA) SaaS** |
 
 ---
 
@@ -32,7 +32,8 @@
 - [G. Mimari Karar Kayıtları (ADR) — İlk Set](#g-mimari-karar-kayıtları-adr--i̇lk-set)
 - [H. Riskler (Yürütme Odaklı)](#h-riskler-yürütme-odaklı)
 - [I. Kilometre Taşları & İlk 30/60/90 Gün](#i-kilometre-taşları--i̇lk-306090-gün)
-- [J. Ekler](#j-ekler)
+- [J. Yayına Alma — Production-Readiness Yol Haritası](#j-yayına-alma--production-readiness-yol-haritası)
+- [K. Ekler](#k-ekler)
 
 ---
 
@@ -143,7 +144,7 @@ Tam gerekçeler Ürün Planı §7'de. Buradaki tablo yürütme için sabitlenen 
 | Birincil LLM | Claude (Anthropic) `claude-opus-4-8` / uygun kademe | — |
 | LLM gözlemleme | Langfuse | güncel |
 | Nesne depolama | Cloudflare R2 (S3-uyumlu) | — |
-| Auth | Auth.js (NextAuth) — başlangıç | v5 |
+| Auth | **Backend-JWT (FastAPI + PyJWT + Argon2)** — Faz 0'da uygulanan yol; refresh/oturum sertleştirmesi Faz 3 (bkz. J.2). Auth.js yalnızca web-oturum katmanı olarak Faz 3'te yeniden değerlendirilir | — |
 | Ödeme | iyzico/PayTR (TR) + Stripe (global) | — |
 
 ### B.4 Modern Araç Zinciri (2026 hızlı & tutarlı geliştirme)
@@ -270,16 +271,16 @@ Görev alanı etiketleri: `Backend/API` · `AI/ML` · `Veri` · `Frontend` · `D
 #### Sprint 0.1 (Hafta 1) — İskelet, ortam, CI/CD
 
 `DevOps`
-- [ ] Monorepo iskeleti (B.1 ağacı): `apps/`, `packages/`, `infra/`, `docs/adr/`, `evals/`, `scripts/`.
-- [ ] `uv` ile Python workspace (`packages/core`, `apps/api`, `apps/worker`); `pnpm` ile TS workspace (`apps/web`, `packages/api-client`).
-- [ ] `ruff` + `mypy` + `pytest` (Python) ve `eslint` + `prettier` + `tsc` + `vitest` (TS) yapılandırması; `pre-commit` + `gitleaks`.
-- [ ] `docker-compose.yml`: `postgres`(pgvector) + `redis` + `api` + `worker` + `web`, healthcheck'lerle. `docker compose up` tek komutla ayağa kalkar.
-- [ ] `.github/workflows/ci.yml` iskeleti (C.4 aşamaları — başlangıçta lint+tip+test+build).
-- [ ] `.env.example` + `Settings` (pydantic-settings) katmanı; `README.md` kurulum bölümü.
+- [x] Monorepo iskeleti (B.1 ağacı): `apps/`, `packages/`, `infra/`, `docs/adr/`, `evals/`, `scripts/`.
+- [x] `uv` ile Python workspace (`packages/core`, `apps/api`, `apps/worker`); `pnpm` ile TS workspace (`apps/web`, `packages/api-client`).
+- [x] `ruff` + `mypy` + `pytest` (Python) ve `eslint` + `prettier` + `tsc` (TS) yapılandırması; `pre-commit` + `gitleaks`. (Vitest: web'e ilk birim test ihtiyacıyla — Faz 1.)
+- [x] `docker-compose.yml`: `postgres`(pgvector) + `redis` + `migrate` + `api` + `worker` + `web`, healthcheck'lerle. `docker compose up` tek komutla ayağa kalkar. (2026-07-08: `api` healthcheck + `web`→`api` sağlıklı-bağımlılık eklendi.)
+- [x] `.github/workflows/ci.yml` (C.4 aşamaları: lint+tip+migration+test+drift+güvenlik). (2026-07-08: entegrasyon/RLS testleri CI'da zorunlu adım yapıldı.)
+- [x] `.env.example` + `Settings` (pydantic-settings) katmanı; `README.md` kurulum bölümü. (2026-07-08: production fail-fast guard — zayıf/eksik `AUTH_SECRET` ve `DEBUG=true` ile prod açılışı engellenir.)
 
 `Backend/API`
-- [ ] FastAPI iskeleti: `/api/v1` router yapısı, sağlık uçları (`/healthz`, `/readyz`), tutarlı hata modeli + Pydantic error şeması (§9.1).
-- [ ] Alembic kurulumu; ilk boş migration + `pgvector` extension migration'ı.
+- [x] FastAPI iskeleti: `/api/v1` router yapısı, sağlık uçları (`/healthz`, `/readyz`), tutarlı hata modeli + Pydantic error şeması (§9.1).
+- [x] Alembic kurulumu; ilk boş migration + `pgvector` extension migration'ı.
 
 `Frontend`
 - [x] Next.js 15 (App Router) + Tailwind 4 + shadcn/ui iskeleti; temel layout, tema, TanStack Query provider. Demo: tip-güvenli istemciyle canlı sistem durumu + giriş sayfası.
@@ -290,37 +291,54 @@ Görev alanı etiketleri: `Backend/API` · `AI/ML` · `Veri` · `Frontend` · `D
 #### Sprint 0.2 (Hafta 2) — Auth, çok-kiracılılık, yükleme, parsing spike
 
 `Güvenlik` `Veri`
-- [ ] Veri modeli çekirdeği (§8.1): `Organization(Tenant)`, `User`, `Membership/Role` + SQLAlchemy modelleri.
-- [ ] **RLS temeli:** `tenant_id` konvansiyonu + PostgreSQL RLS politika şablonu; session'a `tenant_id` enjekte eden middleware (skill: `multi-tenant-fastapi`).
-- [ ] **Kiracılar-arası izolasyon testi:** bir kiracının diğerinin verisini göremediğini doğrulayan entegrasyon testi (bu faz kapısının olmazsa-olmazı).
+- [x] Veri modeli çekirdeği (§8.1): `Organization(Tenant)`, `User`, `Membership/Role` + SQLAlchemy modelleri.
+- [x] **RLS temeli:** `tenant_id` konvansiyonu + PostgreSQL RLS politika şablonu (`FORCE ROW LEVEL SECURITY`, fail-closed); transaction-local `set_config` ile kiracı bağlamı (skill: `multi-tenant-fastapi`). Uygulama non-superuser `tenderiq_app` rolüyle bağlanır (ADR-0003).
+- [x] **Kiracılar-arası izolasyon testi:** testcontainers ile DB-katmanı + API-katmanı izolasyon testleri yeşil (2026-07-08'den itibaren CI'da zorunlu adım).
 
 `Backend/API`
-- [ ] Auth.js (NextAuth) entegrasyonu + oturum/JWT; `/api/v1` istekleri kiracı bağlamıyla yetkilendirilir (§9.1).
-- [ ] RBAC iskeleti: admin/üye/izleyici; kaynak-bazlı yetki dekoratörü.
-- [ ] `Document` + `Tender` modelleri; `POST /api/v1/tenders`, `POST /api/v1/tenders/{id}/documents` (imzalı URL ile yükleme başlatma).
+- [x] ~~Auth.js (NextAuth)~~ → **Backend-JWT auth uygulandı** (bilinçli sapma): `/auth/register|login|me`, Argon2 parola özeti, HS256 JWT (user+tenant+rol claim'leri). Gerekçe: API-öncelikli tek doğruluk kaynağı, worker/API simetrisi. Oturum sertleştirmesi (refresh/iptal) J.2'de planlı.
+- [x] RBAC iskeleti: admin/üye/izleyici; `require_role` bağımlılığı ile kaynak-bazlı yetki.
+- [x] `Document` + `Tender` modelleri; `POST /api/v1/tenders`, `POST /api/v1/tenders/{id}/documents` (imzalı URL ile yükleme başlatma).
 
 `DevOps` `Güvenlik`
-- [ ] Cloudflare R2 (S3-uyumlu) entegrasyonu; kiracı-ön-ekli yollar + **süre-sınırlı imzalı URL** (§10.2).
-- [ ] Uçtan uca yükleme akışı: web'den dosya → R2 → DB'de `Document` kaydı + dosya türü/sayfa sayısı tespiti.
+- [x] Cloudflare R2 (S3-uyumlu) entegrasyonu; kiracı-ön-ekli yollar + **süre-sınırlı imzalı URL** (§10.2). (2026-07-08: istemci dosya adı `safe_key_component` ile temizlenerek anahtara yazılır.)
+- [x] Uçtan uca yükleme akışı (backend): imzalı-URL round-trip gerçek R2'de doğrulandı. **Kalan parçalar Faz 1'e taşındı:** web yükleme UI'ı, yükleme-tamamlama ucu (`status=uploaded`, boyut/sayfa tespiti), dosya türü/boyut doğrulaması.
 
 `AI/ML` (Spike — zaman-kutulu, ~2 gün)
-- [ ] 2–3 gerçek TR şartnamesi topla (1 dijital PDF, 1 taranmış, 1 tablo-yoğun). → `spike-docs/`'a bırak.
-- [x] Docling dijital parsing yolu kuruldu (`DoclingParser`, page+bbox+yapı); taranmış/VLM yolu (`do_ocr=True`) hazır — gerçek taranmışta doğrulama Faz 1'e.
-- [x] **Konum koordinatı (bounding box) çıkarılabiliyor mu** doğrulandı — sentetik TR şartnamesinde **%100 bbox kapsamı** (`scripts/parsing_spike.py` + regresyon testi). Gerçek dokümanla teyit bekliyor.
-- [x] Spike bulguları `docs/adr/0004-hybrid-parsing.md`'ye işlendi (Durum: Önerilen).
+- [x] **24 gerçek TR şartnamesi** toplandı (`spike-docs/`; dijital + taranmış + tablo-yoğun karışımı).
+- [x] Docling dijital parsing yolu kuruldu (`DoclingParser`, page+bbox+yapı); taranmış/VLM yolu (`do_ocr=True`) **gerçek taranmış dokümanla doğrulandı** (EasyOCR `tr,en`).
+- [x] **Konum koordinatı (bounding box) çıkarılabiliyor mu** doğrulandı — **7 gerçek dijital + 2 gerçek taranmış** şartnamede **%100 bbox kapsamı** (`scripts/parsing_spike.py` + regresyon testi).
+- [x] Spike bulguları `docs/adr/0004-hybrid-parsing.md`'ye işlendi (Durum: **Kabul**).
 
-> **Spike durumu (2026-07-03):** Ayrıştırma harness'ı kuruldu ve dijital yolda page+bbox fizibilitesi kanıtlandı. **Kalan:** Berkay'in gerçek şartnamelerini (`spike-docs/`) çalıştırıp taranmış yolu + gerçek-doküman doğruluğunu teyit etmek (Faz 0 çıkış kapısı).
+> **Spike durumu (2026-07-04):** Gerçek dokümanlarla dijital **ve** taranmış yol doğrulandı; ikisinde de **%100 bbox**. **Kritik bulgu:** korpusun **~%54'ü taranmış** → OCR çoğunluk yol. Türkçe OCR kalitesi tarama kalitesine bağlı (gürültülüde VLM fallback gerekli — ADR-0004 doğrulandı). Perf: dev'de CPU OCR ~20 sn/sayfa → Faz 1'de GPU/yönetilen kararı.
 
 **Çıktı:** Girişten yüklemeye çalışan dikey dilim; RLS izolasyon testi yeşil; parsing fizibilite raporu.
 
-#### Faz 0 — Çıkış Kapısı (neredeyse tamam)
+#### Faz 0 — Çıkış Kapısı ✅ TAMAM (2026-07-04)
 
 - [x] `docker compose up` temiz ayağa kalkıyor (tam yığın doğrulandı: api `/healthz` 200, web 200). CI: backend+contract+frontend+security job'ları yeşil (yerelde eşdeğer koşuldu; GitHub'da `git init` sonrası çalışacak).
-- [~] Kullanıcı giriş yapıp bir dosyayı R2'ye yükleyebiliyor; DB'de kiracıya bağlı kayıt oluşuyor. → Giriş UI'ı + backend uçları (imzalı-URL yükleme) hazır ve testli; **gerçek R2'ye canlı PUT Berkay'in R2 kimlik bilgilerini bekliyor.**
+- [x] Kullanıcı giriş yapıp bir dosyayı R2'ye yükleyebiliyor; DB'de kiracıya bağlı kayıt oluşuyor. → Giriş UI'ı + backend uçları (imzalı-URL yükleme) hazır ve testli; **gerçek R2'ye canlı round-trip doğrulandı** (imzalı PUT 200 → GET 200 içerik eşleşti → temizlik; `StorageService` gerçek yolu).
 - [x] **Kiracılar-arası veri sızıntısı testi geçiyor** (RLS aktif) — testcontainers entegrasyon testiyle kanıtlı.
-- [~] Parsing spike: **dijitalde %100 bbox kapsamı kanıtlandı**; en az bir gerçek dijital + bir taranmış şartname **Berkay'in dokümanlarını bekliyor** (`spike-docs/`). OCR yolu kod-hazır; motor kurulunca `--ocr` ile çalışır.
+- [x] Parsing spike **tamam**: 7 gerçek dijital + 2 gerçek taranmış şartnamede **%100 bbox kapsamı**; hibrit yönlendirme (dijital=Docling, taranmış=OCR) gerçek dokümanlarda çalışıyor. Korpusun ~%54'ü taranmış (bkz. ADR-0004 gerçek-doküman bulguları).
 
-> **Gate kalanı (2 madde, ikisi de Berkay'in girdisine bağlı):** (1) gerçek R2 kimlik bilgileriyle canlı yükleme; (2) gerçek şartname PDF'leriyle parsing (özellikle 1 taranmış). Kod ve altyapı ikisi için de hazır.
+> **Faz 0 kapandı (2026-07-04):** Dört kapı maddesi de yeşil — tam yığın, RLS izolasyonu, parsing (dijital+taranmış, %100 bbox), R2 canlı yükleme. Yan bulgu: `.env`'den `CORS_ORIGINS` (virgülle ayrılmış) yüklemesini bloke eden pydantic-settings JSON-decode bug'ı düzeltildi (`config.py`, `NoDecode`). **Sıradaki:** Faz 1 Sprint 1.1 (asenkron işleme hattı + iş durum makinesi).
+
+#### Faz 0 — Kapanış Denetimi & Sertleştirme (2026-07-08) ✅
+
+Faz 0 kapanışının ardından kod tabanı uçtan uca denetlendi (güvenlik + doğruluk + CI).
+Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 5 entegrasyon testi yeşil):
+
+- [x] **Pasif kullanıcı girişi (güvenlik bug'ı):** `is_active=false` kullanıcı, parolası doğruysa giriş yapabiliyordu → `authenticate` artık pasif kullanıcıyı reddediyor (+ entegrasyon testi).
+- [x] **JWT şema uyumsuzluğu → 500:** imzası geçerli ama şeması eksik token (ör. `tenant_id` yok) pydantic hatasıyla 500 üretiyordu → `InvalidTokenError`'a sarılıp 401'e eşleniyor; `exp` claim'i artık zorunlu (+2 birim test).
+- [x] **Kayıt yarış durumu → 500:** eşzamanlı aynı e-posta/slug kaydında unique kısıt `IntegrityError` 500 dönüyordu → 409 `conflict`'e eşlendi.
+- [x] **Kullanıcı numaralandırma yan-kanalı:** e-posta yokken parola özeti doğrulanmadığından yanıt süresi farkı oluşuyordu → dummy-hash ile zamanlama eşitlendi.
+- [x] **Depolama anahtarında ham dosya adı:** `a/../b.pdf` gibi girdiler anahtara sızabiliyordu → `safe_key_component` (yol ayraçları/kontrol karakterleri temizlenir; orijinal ad DB'de kalır) (+4 birim test).
+- [x] **CI, RLS testlerini hiç koşmuyordu:** `pytest` varsayılanı `-m 'not integration'` olduğundan Faz 0'ın kalbi olan izolasyon testleri CI dışındaydı → backend job'ına zorunlu `pytest -m integration` adımı eklendi (testcontainers).
+- [x] **`readyz` her çağrıda yeni engine açıyordu** → uygulamanın havuzlu engine'i yeniden kullanılıyor.
+- [x] **Production fail-fast guard:** prod ortamında eksik/kısa (<32 karakter) `AUTH_SECRET` veya `DEBUG=true` ile açılış artık `Settings` doğrulamasında engellenir (+3 birim test).
+- [x] **Compose sertleştirme:** `api` servisine healthcheck; `web`, `api` sağlıklı olmadan başlamaz.
+
+> Denetimde tespit edilip **bilinçli olarak faz planına taşınan** (bugün düzeltilmeyen) kalemler J.2 Güvenlik Sertleştirme Backlog'undadır: refresh token/oturum iptali, login rate-limit, e-posta doğrulama, çoklu-organizasyon seçimi, upload tamamlama ucu, AuditLog.
 
 **İlgili ADR'ler:** ADR-0001 (monorepo), ADR-0003 (RLS çok-kiracılılık), ADR-0009 (FastAPI+Celery), ADR-0010 (tip-güvenli API sözleşmesi).
 **Kurulacak skill'ler:** `multi-tenant-fastapi`, `docker-compose-scaffold`, `github-actions-cicd`, `rest-api-conventions`.
@@ -340,16 +358,25 @@ Görev alanı etiketleri: `Backend/API` · `AI/ML` · `Veri` · `Frontend` · `D
 - [ ] **Idempotent task tasarımı:** bir adım hata alırsa tüm işi tekrarlamadan yeniden deneme; retry/backoff (skill: `async-job-state-machine`).
 - [ ] `GET /api/v1/jobs/{jobId}` durum sorgulama + `Idempotency-Key` ile yükleme güvenliği (§9.1).
 
+`Backend/API` `Güvenlik` (Faz 0 denetiminden devralınan yükleme sertleştirmesi)
+- [ ] **Yükleme tamamlama ucu:** `POST /api/v1/documents/{id}/complete` — R2'de nesnenin varlığı/boyutu `HEAD` ile doğrulanır, `size_bytes` doldurulur, `status: pending_upload → uploaded`, işleme job'ı kuyruğa atılır. Yarım kalan yüklemeler için zamanlanmış temizlik (`pending_upload` > 24 saat → `failed`).
+- [ ] **Dosya doğrulama:** izinli içerik türleri (PDF/DOCX/XLSX allowlist), maksimum boyut sınırı (plan kotasına bağlanır), magic-bytes kontrolü (içerik türü sahteciliği).
+- [ ] **`AuditLog` modeli + kaydı:** kritik işlemler (yükleme, silme, rol değişimi; ileride export) kim-ne-zaman (C.7'nin gereği; yeni tablo şablonu K.2 ile).
+- [ ] **Login rate-limit / brute-force koruması:** IP+e-posta bazlı deneme sınırı (Redis sayaç, `429 rate_limited`); register için de geçerli.
+
 `Frontend`
+- [ ] **Web yükleme UI'ı:** tender oluştur → dosya seç → imzalı URL'e PUT → tamamlama ucu çağrısı (Faz 0'dan devralınan eksik dikey dilim parçası).
 - [ ] **SSE canlı durum:** `GET /api/v1/tenders/{id}/stream`; TanStack Query ile senkron durum bileşeni; yeniden bağlanma mantığı (skill: `sse-live-status`).
 - [ ] Yükleme sonrası ilerleme ekranı (queued→…→review_ready canlı).
+- [ ] **Oturum saklama:** token'ın web'de güvenli saklanması (httpOnly cookie tercih; XSS'e açık `localStorage` yasak) + korumalı sayfa yönlendirmesi. (Login UI şu an token'ı yalnızca gösteriyor.)
 
 #### Sprint 1.2 (Hafta 4) — Hibrit parsing + izlenebilirlik
 
 `AI/ML`
-- [ ] **Sayfa-bazlı yönlendirme:** "dijital metin var mı?" tespiti → dijital=Docling, taranmış/karmaşık=VLM/OCR (§6.2) (skill: `hybrid-document-parsing`).
+- [ ] **Sayfa-bazlı yönlendirme:** "dijital metin var mı?" tespiti → dijital=Docling, taranmış/karmaşık=VLM/OCR (§6.2) (skill: `hybrid-document-parsing`). Spike bulgusu: korpusun ~%54'ü taranmış → OCR **çoğunluk yol**; kapasite/maliyet buna göre.
+- [ ] **OCR paketleme & dil:** OCR motoru (EasyOCR/RapidOCR) bildirilmiş bağımlılık olur (`ocr`/`parsing` grubu); `DoclingParser`'a `ocr_lang` parametresi (`tr,en`). Motor seçimi + **GPU vs yönetilen OCR kararı ADR'ye bağlanır** (CPU ~20 sn/sayfa sürdürülemez).
 - [ ] **Konum koordinatı standardı:** her `ParsedElement` için sayfa + bounding box; `ParsedElement` modeli (§8.1).
-- [ ] Fallback zinciri + hata dayanıklılığı; parsing çıktısının regresyonu için test dokümanları.
+- [ ] Fallback zinciri + hata dayanıklılığı (gürültülü taramada VLM fallback — ADR-0004); parsing çıktısının regresyonu için gerçek test dokümanları.
 
 `Veri`
 - [ ] `ParsedElement` tablosu + ilişkiler (`Document 1—N ParsedElement`).
@@ -465,12 +492,18 @@ Görev alanı etiketleri: `Backend/API` · `AI/ML` · `Veri` · `Frontend` · `D
 - [ ] **`tenderiq-report-template`**: firma logosu, gereksinim/risk/belge tabloları, kaynak referansları (sayfa no) footnote olarak (proje-özel export şablonu).
 - [ ] (Temel) işbirliği/yorum: ekip üyesinin bulguya not düşmesi.
 
-#### Sprint 3.3 (Hafta 13) — Abonelik, kota, ödeme
+#### Sprint 3.3 (Hafta 13) — Abonelik, kota, ödeme + hesap yaşam döngüsü
 
 `Backend/API` `Güvenlik`
 - [ ] `Subscription` + `UsageRecord` modelleri; belge/sayfa **kota takibi**; `GET /api/v1/usage`.
-- [ ] **Ödeme entegrasyonu** (§14.3): iyzico/PayTR; webhook doğrulama; abonelik↔kota senkronizasyonu; `UsageRecord` güncelleme (skill: `payment-integration-tr`).
-- [ ] Kota aşımı kuralları (adil kullanım / ek ücret) ve kullanıcıya gösterim.
+- [ ] **Ödeme entegrasyonu** (§14.3): iyzico/PayTR; **webhook imza doğrulama + idempotent işleme** (aynı webhook iki kez gelirse çift faturalama yok); abonelik↔kota senkronizasyonu; `UsageRecord` güncelleme (skill: `payment-integration-tr`).
+- [ ] Kota aşımı kuralları (adil kullanım / ek ücret) ve kullanıcıya gösterim; kota **enforcement** (yalnızca gösterim değil — aşımda yükleme reddi/uyarı).
+
+`Güvenlik` (hesap & oturum yaşam döngüsü — beta'ya çıkmadan önce zorunlu; J.2 backlog'undan)
+- [ ] **Refresh token + rotasyon:** kısa ömürlü access token (≤1 saat) + tek-kullanımlık refresh token; `POST /auth/refresh`, `POST /auth/logout` (Redis denylist ile iptal).
+- [ ] **E-posta doğrulama + parola sıfırlama:** işlemsel e-posta sağlayıcısı (Resend/Postmark/SES) + tek-kullanımlık, süreli token'lar.
+- [ ] **Çoklu-organizasyon desteği:** login'de aktif üyelik seçimi + `POST /auth/switch-org` (bugün ilk üyelik rastgele seçiliyor); davet akışı (`Membership` + e-posta daveti).
+- [ ] Kullanıcı/organizasyon yönetim ekranları: üye listesi, rol değiştirme (AuditLog'lu), üyelik silme.
 
 **Çıktı:** Kullanıcı analizi inceleyip onaylayabiliyor, Word/Excel indirebiliyor; abonelik/kota ve ödeme temel düzeyde çalışıyor.
 
@@ -503,8 +536,13 @@ Görev alanı etiketleri: `Backend/API` · `AI/ML` · `Veri` · `Frontend` · `D
 - [ ] Kurumsal müşteriler için DPA taslağı.
 
 `Backend/API` `DevOps`
-- [ ] `soft-delete` + zamanlanmış `hard-delete` job'ı; ilişkili tüm tablolarda (Document, Chunk, Embedding, ParsedElement) kademeli silme (§8.3).
+- [ ] `soft-delete` + zamanlanmış `hard-delete` job'ı; ilişkili tüm tablolarda (Document, Chunk, Embedding, ParsedElement) kademeli silme (§8.3) + R2 nesnelerinin silinmesi.
 - [ ] Fiyatlandırmanın canlıya alınması; production'a onaylı deploy; yedek geri-yükleme testi (§11.5).
+- [ ] **Yük/dayanıklılık testi:** eşzamanlı yükleme + işleme senaryosu (ör. 10 kiracı × 100'er sayfa); kuyruk derinliği/işleme süresi hedefleri doğrulanır (J.4 SLO'ları).
+- [ ] **Güvenlik gözden geçirmesi:** OWASP ASVS-hafif öz-denetim + `security-review` taraması; mümkünse üçüncü-taraf hafif pentest (bütçeye göre).
+- [ ] **Status page + uptime izleme** canlı (J.4); olay müdahale runbook'u yazıldı.
+
+> Faz 4 sonu = **kapalı beta**. Halka açık self-service yayına (GA) geçiş, **J bölümündeki kontrol listeleri** tamamlanınca yapılır.
 
 **Çıktı:** Kapalı beta çalışıyor; trust page + KVKK/DPA yayında; en az bir ödeyen müşteriye geçiş.
 
@@ -610,11 +648,12 @@ Güvenlik bir "özellik" değil, kurumsal satın almanın ön koşuludur (Ürün
 
 | Kilometre taşı | Faz | Kanıt |
 |---|---|---|
-| **M0 — İskelet & Yükleme** | Faz 0 sonu | `docker compose up` + RLS izolasyon testi + parsing spike raporu |
+| **M0 — İskelet & Yükleme** ✅ (2026-07-04) | Faz 0 sonu | `docker compose up` + RLS izolasyon testi + parsing spike raporu — tamamlandı; 2026-07-08 denetimiyle sertleştirildi |
 | **M1 — Çekirdek Hat** | Faz 1 sonu | Doküman uçtan uca indeksleniyor + golden-set/eval çalışıyor |
 | **M2 — AI Doğruluğu Kanıtı** | Faz 2 sonu | Grounding'li çıkarım + ölçülen metrikler + aktif regresyon kapısı |
 | **M3 — Kullanılabilir Ürün** | Faz 3 sonu | İnceleme+kaynak vurgusu + export + ödeme; E2E yeşil |
 | **M4 — İlk Müşteri** | Faz 4 | Kapalı beta + trust/KVKK + ilk ödeyen müşteri |
+| **M5 — GA: Halka Açık SaaS** | J bölümü | J.1–J.6 kontrol listeleri kapalı: staging+prod dağıtımı, yedek/restore tatbikatı, SLO+status page, ToS/KVKK/e-fatura, self-service abonelik |
 
 **İlk 30 Gün:** Repo + CI/CD + Docker + auth/çok-kiracılılık iskeleti · uçtan uca yükleme & R2 · 3–5 gerçek şartname ile parsing spike · ilk golden-set etiketleme + eval iskeleti.
 **İlk 60 Gün:** Asenkron hat + indeksleme + hibrit parsing · ilk çıkarım ajanları (gereksinim + belge) + grounding · Langfuse ile maliyet/kalite ölçümü.
@@ -622,9 +661,96 @@ Güvenlik bir "özellik" değil, kurumsal satın almanın ön koşuludur (Ürün
 
 ---
 
-## J. Ekler
+## J. Yayına Alma — Production-Readiness Yol Haritası
 
-### J.1 Skill Kurulum Sırası (özet)
+> Fazlar (D) ürünü **kapalı betaya** taşır; bu bölüm betayı **halka açık, ödeme alan,
+> operasyonel olarak ayakta kalabilen bir SaaS'a** taşır. Kalemler faz görevlerine paralel
+> ilerler; her birinin "en geç" bağlandığı kapı belirtilir. Solo-dev gerçekçiliği:
+> **yönetilen servis > kendi kur**, otomasyon > runbook, az ama bloke edici kontrol.
+
+### J.1 Ortamlar, Dağıtım & Sürümleme
+
+| Kalem | Karar/Görev | En geç |
+|---|---|---|
+| Staging ortamı | Üretimle aynı compose/imajlar; ayrı DB + R2 bucket + sırlar; anonimleştirilmiş örnek veri | Faz 2 sonu |
+| Production barındırma | Tek VPS (Hetzner/DO) + Docker Compose **veya** PaaS (Fly.io/Render) — ADR ile karar; başlangıçta basit tut | Faz 3 sonu |
+| `deploy.yml` | main→staging otomatik; production **manual approval** + imaj etiketi (git SHA) + tek komut rollback | Faz 3 sonu |
+| TLS & alan adı | `app.` (web), `api.` (API) alt alanları; Caddy/Traefik ile otomatik TLS; HSTS | Faz 3 sonu |
+| Migration disiplini | Deploy öncesi `alembic upgrade head` ayrı adım; geriye-uyumlu (expand→migrate→contract) şema değişimi kuralı | Faz 1'den itibaren |
+| Ters proxy & SSE | Proxy'de SSE buffering kapalı (`X-Accel-Buffering: no`), uzun bağlantı zaman aşımı ayarlı | Faz 1 (SSE ile) |
+
+- [ ] Barındırma ADR'si (VPS+Compose vs PaaS) yazıldı ve staging kuruldu.
+- [ ] `deploy.yml` (staging otomatik / prod onaylı) çalışıyor; rollback prova edildi.
+- [ ] Özel alan adı + TLS + güvenlik başlıkları (HSTS, `X-Content-Type-Options`, CSP raporlama modu) canlı.
+
+### J.2 Güvenlik Sertleştirme Backlog'u
+
+Faz 0 denetiminde kapatılanlar için D bölümüne bakınız. Kalan backlog (öncelik sırasıyla):
+
+| # | Kalem | Neden | Nerede |
+|---|---|---|---|
+| 1 | Login/register **rate-limit** (Redis) | Brute-force & kayıt istismarı | Faz 1 Sprint 1.1 |
+| 2 | Yükleme tamamlama + dosya doğrulama (tür/boyut/magic-bytes) | Depolama istismarı, işleme güvenliği | Faz 1 Sprint 1.1 |
+| 3 | `AuditLog` (yükleme/silme/rol/export) | Kurumsal satış ön koşulu (§10.5) | Faz 1 Sprint 1.1 |
+| 4 | Refresh token + rotasyon + logout/iptal (Redis denylist); access token ≤1 saat | 12 saatlik iptal-edilemez JWT beta için kabul edilemez | Faz 3 Sprint 3.3 |
+| 5 | E-posta doğrulama + parola sıfırlama | Hesap ele geçirme & spam kayıt | Faz 3 Sprint 3.3 |
+| 6 | Çoklu-org seçimi + davet + üye yönetimi (bugün ilk üyelik rastgele) | Çok kullanıcılı kiracılar | Faz 3 Sprint 3.3 |
+| 7 | `pip-audit`'i **bloke edici** yap (istisna listesiyle) + Dependabot/Renovate + imaj taraması (trivy) | Tedarik zinciri | Faz 2 sonu |
+| 8 | Sır rotasyon prosedürü (AUTH_SECRET, R2, LLM anahtarları) — çift-anahtar destekli | Sızıntı müdahalesi | GA öncesi |
+| 9 | (Ops.) 2FA/TOTP — kurumsal müşteri isterse | Satış gereksinimi | Talep gelince |
+
+### J.3 Veri Dayanıklılığı & Felaket Kurtarma
+
+- [ ] **Otomatik DB yedeği:** günlük tam + WAL arşivi (mümkünse yönetilen Postgres'e geçişle bedavaya gelir); yedekler ayrı konumda ve şifreli.
+- [ ] **Aylık restore tatbikatı:** yedekten staging'e geri yükleme otomasyonu — "yedek var" değil "geri dönebiliyorum" kanıtı (§11.5).
+- [ ] **Hedefler:** RPO ≤ 24 saat (beta) → ≤ 1 saat (GA, WAL ile); RTO ≤ 4 saat.
+- [ ] **R2:** bucket versioning + yaşam döngüsü kuralları; hard-delete akışıyla uyumlu.
+- [ ] **Veri saklama matrisi (KVKK §10.4):** veri sınıfı → saklama süresi → silme mekanizması tablosu; sözleşme eklerine girer.
+
+### J.4 Gözlemlenebilirlik, SLO & Operasyon
+
+- [ ] **Uptime izleme + uyarı:** dış izleyici (`/healthz`, `/readyz`, web) → e-posta/Telegram; Sentry hata uyarıları.
+- [ ] **SLO'lar (beta hedefleri):** API erişilebilirlik ≥ %99,5 · API p95 < 500 ms (LLM uçları hariç) · 100 sayfalık dijital doküman işleme < 10 dk · işleme başarı oranı ≥ %98.
+- [ ] **Metrik panosu:** kuyruk derinliği, iş süreleri, hata oranı, belge başına maliyet (Langfuse) — basit Grafana veya hosted eşdeğeri.
+- [ ] **Olay müdahale runbook'u:** en olası 5 arıza (DB dolu, kuyruk tıkandı, LLM sağlayıcı kesintisi, OCR patlaması, disk dolu) için teşhis+çözüm adımları.
+- [ ] **Status page** (hosted, ör. Instatus/BetterStack) + planlı bakım duyuru kanalı.
+- [ ] **Log saklama:** yapılandırılmış loglar merkezî yerde ≥ 30 gün; PII maskeleme doğrulanmış.
+
+### J.5 GA (Halka Açık Yayın) Kontrol Listesi
+
+**Yasal & güven (KVKK odaklı):**
+- [ ] Aydınlatma metni + açık rıza akışları + çerez politikası yayında (Faz 4 çıktısı).
+- [ ] Kullanım şartları (ToS) + hizmet seviyesi beyanı; kurumsal için DPA şablonu.
+- [ ] Trust page: veri işleme akışı, zero-retention LLM, alt-işleyen listesi, veri konumu.
+- [ ] VERBİS kaydı gerekliliği değerlendirildi (çalışan sayısı/veri hacmi eşiği).
+
+**Ticari:**
+- [ ] Fiyatlandırma sayfası + self-service abonelik + **e-Arşiv/e-Fatura** kesimi (TR zorunluluğu — entegratör: Paraşüt/BizimHesap vb.).
+- [ ] Deneme süreci (trial) + kota/plan yükseltme akışı + iptal/iade politikası.
+
+**Ürün & destek:**
+- [ ] Onboarding: ilk giriş sihirbazı + örnek şartname ile demo analiz.
+- [ ] Destek kanalı (destek e-postası + SSS); hedef ilk-yanıt süresi tanımlı.
+- [ ] Ürün analitiği (self-host Plausible/PostHog — KVKK-uyumlu) + funnel: kayıt→ilk yükleme→ilk export.
+- [ ] Pazarlama sitesi (landing): değer önerisi + demo video + beta referansları.
+
+**Teknik son kontrol:**
+- [ ] J.1–J.4'ün tüm kutuları kapalı; CI'da tüm kapılar (AI regresyonu dâhil) bloke edici.
+- [ ] Yük testi GA trafik varsayımıyla tekrarlandı; kota/bütçe alarmları canlı.
+
+### J.6 Ölçek & Maliyet Korkulukları
+
+- [ ] **LLM bütçe alarmı:** kiracı-başına ve toplam günlük token bütçesi; aşımda yumuşak durdurma + uyarı (Langfuse verisiyle).
+- [ ] **OCR kapasite planı:** %54 taranmış korpus gerçeğine göre GPU worker havuzu veya yönetilen OCR; sayfa-başına maliyet hedefi belirle (ADR — Faz 1'deki karar).
+- [ ] **Kuyruk adaleti:** kiracı-başına eşzamanlılık sınırı (tek büyük kiracı kuyruğu kilitlemesin); öncelik sınıfları (küçük dosya önce).
+- [ ] **pgvector büyüme planı:** indeks tipi (HNSW) + `tenant_id` bileşik filtre performansı; 1M chunk üzeri için Qdrant'a taşıma eşiği tanımlı (ADR-0002 yükseltme yolu).
+- [ ] **Depolama kotası:** kiracı-başına GB sınırı; plan seviyesine bağlanır.
+
+---
+
+## K. Ekler
+
+### K.1 Skill Kurulum Sırası (özet)
 
 `TenderIQ_ClaudeCode_Skills.md` ile birebir eşlenir:
 
@@ -634,23 +760,23 @@ Güvenlik bir "özellik" değil, kurumsal satın almanın ön koşuludur (Ürün
 4. **Faz 3:** `document-preview-highlight`, `review-approval-workflow-ui`, `docx`/`xlsx` + `tenderiq-report-template`, `payment-integration-tr`.
 5. **Faz 4:** `kvkk-compliance-checklist`, `soft-delete-kvkk-erasure`, `trust-page-content`.
 
-### J.2 Tekrar Kullanılabilir Kontrol Listesi Şablonları
+### K.2 Tekrar Kullanılabilir Kontrol Listesi Şablonları
 
 **Yeni tablo eklerken:** `tenant_id` kolonu → RLS politikası → izolasyon testi → Alembic migration → soft-delete alanı (gerekiyorsa).
 **Yeni çıkarım ajanı eklerken:** Pydantic çıktı şeması → grounding (kaynak konum zorunlu) → şema-dışı çıktı reddi → golden-set beklentisi → Langfuse trace → regresyon testi.
 **Yeni endpoint eklerken:** `/api/v1` altında → Pydantic request/response + hata şeması → kiracı yetki kontrolü → (yazma ise) `Idempotency-Key` → OpenAPI güncel → `api-client` yeniden üretim → AuditLog (kritikse).
 
-### J.3 Terimler
+### K.3 Terimler
 
 Terim sözlüğü için Ürün Planı **Ek A**'ya bakınız (RFP, EKAP, Parsing, OCR, VLM, Chunking, Embedding, RAG, Grounding, RLS, RBAC, Zero-retention, KVKK, MRR/NRR/CAC/LTV).
 
-### J.4 Kaynak Belgeler
+### K.4 Kaynak Belgeler
 
 - `TenderIQ_Proje_Plani.docx` — v1.0 stratejik ürün ve teknik plan (bu belgenin kaynağı).
 - `TenderIQ_ClaudeCode_Skills.md` — faz-bazlı Claude Code skill haritası.
 
 ---
 
-> **Tek cümlelik yürütme özeti:** Dar bir dikeyde (TR kamu BT/yazılım ihaleleri), kaynağına kadar izlenebilir ve KVKK-uyumlu bir AI şartname analiz aracıyla başla; **AI doğruluğunu Faz 2'de ölçülebilir biçimde kanıtla**; sabit maliyeti düşük tutup ilk ödeyen müşterilerle finanse ederek büyü.
+> **Tek cümlelik yürütme özeti:** Dar bir dikeyde (TR kamu BT/yazılım ihaleleri), kaynağına kadar izlenebilir ve KVKK-uyumlu bir AI şartname analiz aracıyla başla; **AI doğruluğunu Faz 2'de ölçülebilir biçimde kanıtla**; sabit maliyeti düşük tutup ilk ödeyen müşterilerle finanse ederek büyü; **J bölümüyle betadan halka açık SaaS'a geç**.
 
-*TenderIQ — Geliştirme Planı v1.0 · Temmuz 2026 · Berkay (Scryne). Kaynak: TenderIQ Proje Planı v1.0.*
+*TenderIQ — Geliştirme Planı v1.1 · Temmuz 2026 · Berkay (Scryne). Kaynak: TenderIQ Proje Planı v1.0.*
