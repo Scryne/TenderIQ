@@ -8,6 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tenderiq_core.models import Membership, Organization, Role, User
 from tenderiq_core.security.passwords import hash_password, verify_password
 
+_dummy_hash_cache: str | None = None
+
+
+def _dummy_hash() -> str:
+    """Kullanıcı bulunamadığında da özet doğrulaması koşmak için sabit özet.
+
+    E-posta var/yok durumları arasındaki yanıt süresi farkını (kullanıcı
+    numaralandırma yan-kanalı) kapatır. İlk çağrıda üretilir, sonra önbellekte.
+    """
+    global _dummy_hash_cache
+    if _dummy_hash_cache is None:
+        _dummy_hash_cache = hash_password("tenderiq-timing-equalizer")
+    return _dummy_hash_cache
+
 
 class EmailAlreadyExistsError(Exception):
     """Bu e-posta ile bir kullanıcı zaten var."""
@@ -57,11 +71,18 @@ async def register(
 async def authenticate(
     session: AsyncSession, *, email: str, password: str
 ) -> tuple[User, Membership] | None:
-    """E-posta/parola doğrular; başarılıysa (kullanıcı, üyelik) döndürür."""
+    """E-posta/parola doğrular; başarılıysa (kullanıcı, üyelik) döndürür.
+
+    Pasif (``is_active=False``) kullanıcılar da parola doğru olsa bile reddedilir;
+    çağırana tüm başarısızlıklar tek tip ``None`` döner (bilgi sızdırmaz).
+    """
     user: User | None = await session.scalar(select(User).where(User.email == email))
     if user is None or user.hashed_password is None:
+        verify_password(password, _dummy_hash())
         return None
     if not verify_password(password, user.hashed_password):
+        return None
+    if not user.is_active:
         return None
     membership: Membership | None = await session.scalar(
         select(Membership).where(Membership.user_id == user.id)

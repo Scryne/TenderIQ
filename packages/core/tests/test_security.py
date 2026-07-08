@@ -38,3 +38,24 @@ def test_token_rejects_wrong_secret() -> None:
     )
     with pytest.raises(jwt.PyJWTError):
         decode_access_token(token, "yanlis")
+
+
+def test_token_rejects_schema_mismatch() -> None:
+    """İmzası geçerli ama şeması eksik token (ör. tenant_id yok) PyJWTError'a eşlenir.
+
+    Regresyon: pydantic ValidationError sarılmazsa get_principal 401 yerine 500 dönerdi.
+    """
+    import time
+
+    stray = jwt.encode({"sub": "x", "exp": int(time.time()) + 60}, "s3cret", algorithm="HS256")
+    with pytest.raises(jwt.InvalidTokenError):
+        decode_access_token(stray, "s3cret")
+
+
+def test_token_requires_exp_claim() -> None:
+    """`exp` içermeyen token reddedilir (süresiz token yasak)."""
+    eternal = jwt.encode(
+        {"sub": "x", "tenant_id": "y", "role": "admin"}, "s3cret", algorithm="HS256"
+    )
+    with pytest.raises(jwt.PyJWTError):
+        decode_access_token(eternal, "s3cret")

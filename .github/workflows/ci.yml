@@ -55,6 +55,8 @@ jobs:
         run: uv run alembic upgrade head
       - name: Testler (pytest)
         run: uv run pytest
+      - name: Entegrasyon testleri (testcontainers — RLS izolasyon kapısı)
+        run: uv run pytest -m integration
 
   contract:
     name: API sözleşme drift (OpenAPI→TS)

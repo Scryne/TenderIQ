@@ -23,6 +23,7 @@ from tenderiq_core.models import (
     Tender,
     TenderStatus,
 )
+from tenderiq_core.storage import safe_key_component
 
 router = APIRouter(prefix="/tenders", tags=["tenders"])
 
@@ -120,7 +121,8 @@ async def create_document(
         raise NotFoundError("İhale bulunamadı.")
 
     document_id = uuid.uuid4()
-    storage_key = f"{principal.tenant_id}/{tender_id}/{document_id}/{body.filename}"
+    safe_filename = safe_key_component(body.filename)
+    storage_key = f"{principal.tenant_id}/{tender_id}/{document_id}/{safe_filename}"
     document = Document(
         id=document_id,
         tenant_id=principal.tenant_id,

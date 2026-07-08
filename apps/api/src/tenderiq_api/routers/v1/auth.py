@@ -6,6 +6,7 @@ import uuid
 
 from fastapi import APIRouter, status
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.exc import IntegrityError
 
 from tenderiq_api.dependencies import PrincipalDep, SessionDep, SettingsDep
 from tenderiq_api.errors import ConflictError, UnauthorizedError
@@ -67,6 +68,10 @@ async def register(body: RegisterRequest, session: SessionDep) -> UserResponse:
         raise ConflictError("Bu e-posta ile bir kullanıcı zaten var.") from exc
     except auth_service.SlugAlreadyExistsError as exc:
         raise ConflictError("Bu slug ile bir organizasyon zaten var.") from exc
+    except IntegrityError as exc:
+        # Ön-kontrol ile INSERT arasındaki yarışta unique kısıt DB'de yakalar;
+        # 500 yerine tutarlı 409 dönmeli.
+        raise ConflictError("Bu e-posta veya organizasyon slug'ı zaten kayıtlı.") from exc
     return UserResponse(
         id=user.id,
         email=user.email,

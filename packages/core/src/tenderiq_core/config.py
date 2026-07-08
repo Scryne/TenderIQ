@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from typing import Annotated, Self
 
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+MIN_AUTH_SECRET_LENGTH = 32  # HS256 için RFC 7518 §3.2 önerisi
 
 
 class Environment(StrEnum):
@@ -32,7 +35,9 @@ class Settings(BaseSettings):
     environment: Environment = Environment.DEVELOPMENT
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    # NoDecode: pydantic-settings'in env değerini JSON olarak çözmesini engeller;
+    # ham string aşağıdaki _split_cors_origins validator'üne gider (virgülle ayrılır).
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
 
     # ── Veri katmanı ─────────────────────────────────────────────────────────
     # Uygulama (api/worker) bağlantısı: RLS'ye TABİ, süper-kullanıcı OLMAYAN rol.
@@ -68,6 +73,20 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @model_validator(mode="after")
+    def _enforce_production_hardening(self) -> Self:
+        """Production'da güvensiz varsayılanlarla açılışı engeller (fail-fast)."""
+        if self.environment is Environment.PRODUCTION:
+            if not self.auth_secret or len(self.auth_secret) < MIN_AUTH_SECRET_LENGTH:
+                raise ValueError(
+                    "Production'da AUTH_SECRET zorunludur ve en az "
+                    f"{MIN_AUTH_SECRET_LENGTH} karakter olmalıdır "
+                    "(`openssl rand -base64 32` ile üretin)."
+                )
+            if self.debug:
+                raise ValueError("Production'da DEBUG=true olamaz.")
+        return self
 
     @property
     def is_production(self) -> bool:

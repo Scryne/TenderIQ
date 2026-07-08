@@ -6,10 +6,29 @@ URL'lerle sağlanır (§10.2).
 
 from __future__ import annotations
 
+import re
+import unicodedata
+
 import boto3
 from botocore.config import Config as BotoConfig
 
 from tenderiq_core.config import Settings
+
+# Anahtar bileşeninde izin verilen karakterler dışındakiler "_" ile değiştirilir.
+_KEY_COMPONENT_UNSAFE = re.compile(r"[^\w.\-() ]")
+
+
+def safe_key_component(name: str, *, max_length: int = 255) -> str:
+    """İstemciden gelen dosya adını depolama anahtarında güvenli tek bileşene indirger.
+
+    Yol ayraçları ve kontrol/özel karakterler temizlenir (``a/../b.pdf`` → ``b.pdf``);
+    orijinal ad DB'de (``Document.filename``) olduğu gibi saklanır.
+    """
+    name = name.replace("\\", "/").rsplit("/", 1)[-1]
+    name = unicodedata.normalize("NFKC", name).strip()
+    name = _KEY_COMPONENT_UNSAFE.sub("_", name)
+    name = name.lstrip(".")
+    return name[:max_length] or "dosya"
 
 
 class StorageNotConfiguredError(RuntimeError):
