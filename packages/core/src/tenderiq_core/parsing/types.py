@@ -47,6 +47,9 @@ class ParsedElement:
     kind: ElementKind
     bbox: BoundingBox | None = None
     section: str | None = None  # ait olduğu bölüm başlığı (chunk metadata'sı)
+    # Öğeyi üreten yol; hibrit rotada sayfa bazında değişir (taranmış sayfa → SCANNED).
+    # Gürültülü-OCR öğelerini birebir citation'da işaretleyebilmek için saklanır.
+    source: ParseSource | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -79,3 +79,22 @@ def test_docling_extracts_page_and_bbox(tmp_path: Path) -> None:
         assert box is not None
         assert box.x1 > box.x0
         assert box.y1 > box.y0
+
+
+def test_hybrid_parser_dijital_pdf_dijital_yoldan_gecirir(tmp_path: Path) -> None:
+    """Hibrit rota (Sprint 1.2): dijital PDF pypdf ile tespit edilir, Docling'e gider;
+    öğeler sayfa-bazlı kaynakla (digital) işaretlenir."""
+    pytest.importorskip("docling")
+    pytest.importorskip("pypdf")
+    from tenderiq_core.parsing.hybrid import HybridDocumentParser
+    from tenderiq_core.parsing.types import ParseSource
+
+    pdf_path = tmp_path / "sample.pdf"
+    _make_sample_pdf(pdf_path)
+
+    parsed = HybridDocumentParser().parse(pdf_path)
+
+    assert parsed.source is ParseSource.DIGITAL
+    assert parsed.elements
+    assert all(element.source is ParseSource.DIGITAL for element in parsed.elements)
+    assert all(element.bbox is not None for element in parsed.elements)

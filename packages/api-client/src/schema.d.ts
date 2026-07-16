@@ -64,6 +64,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Upload
+         * @description Yüklemeyi doğrular, dokümanı ``uploaded`` yapar ve işleme job'ını kuyruklar.
+         *
+         *     Idempotent: zaten ``uploaded`` bir doküman için mevcut son iş döndürülür.
+         *     Kiracı bağlamı elle kurulur; job kuyruklama commit SONRASI yapılır (worker'ın
+         *     henüz görünmeyen bir satırı okuma yarışını önler).
+         */
+        post: operations["complete_upload_api_v1_documents__document_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job
+         * @description Tek bir işin durumunu döndürür (RLS: başka kiracınınki 404).
+         */
+        get: operations["get_job_api_v1_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Job
+         * @description ``failed`` bir işi yeniden kuyruklar (``failed → queued``, §5.5).
+         *
+         *     Kuyruklama commit SONRASI yapılır (worker'ın görünmeyen satırı okuma yarışı
+         *     yok); ``attempts`` sıfırlanmaz — toplam deneme geçmişi korunur.
+         */
+        post: operations["retry_job_api_v1_jobs__job_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/version": {
         parameters: {
             query?: never;
@@ -108,6 +175,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenders/{tender_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tender
+         * @description Tek bir ihaleyi döndürür (RLS: başka kiracınınki 404).
+         */
+        get: operations["get_tender_api_v1_tenders__tender_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenders/{tender_id}/documents": {
         parameters: {
             query?: never;
@@ -124,6 +211,9 @@ export interface paths {
         /**
          * Create Document
          * @description Bir ihaleye doküman kaydı açar ve imzalı yükleme URL'i döndürür.
+         *
+         *     ``Idempotency-Key`` başlığı verilirse aynı anahtarla tekrarlanan istek yeni
+         *     kayıt açmaz; mevcut kaydı taze bir imzalı URL ile döndürür.
          */
         post: operations["create_document_api_v1_tenders__tender_id__documents_post"];
         delete?: never;
@@ -177,6 +267,14 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * DocumentCompleteResponse
+         * @description Tamamlanan yükleme: güncel doküman + kuyruğa alınan iş.
+         */
+        DocumentCompleteResponse: {
+            document: components["schemas"]["DocumentResponse"];
+            job: components["schemas"]["JobResponse"] | null;
+        };
+        /**
          * DocumentCreate
          * @description Yeni doküman kaydı (imzalı yükleme URL'i döner).
          */
@@ -209,6 +307,8 @@ export interface components {
              */
             id: string;
             kind: components["schemas"]["DocumentKind"];
+            /** Size Bytes */
+            size_bytes: number | null;
             status: components["schemas"]["DocumentStatus"];
             /**
              * Tender Id
@@ -255,6 +355,42 @@ export interface components {
              */
             status: string;
         };
+        /**
+         * JobResponse
+         * @description İşleme işinin durumu.
+         */
+        JobResponse: {
+            /** Attempts */
+            attempts: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /** Error Message */
+            error_message: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Started At */
+            started_at: string | null;
+            status: components["schemas"]["JobStatus"];
+        };
+        /**
+         * JobStatus
+         * @description İşleme işinin durumu (§5.5).
+         * @enum {string}
+         */
+        JobStatus: "queued" | "parsing" | "indexing" | "extracting" | "review_ready" | "failed";
         /**
          * LoginRequest
          * @description E-posta/parola ile giriş.
@@ -512,6 +648,105 @@ export interface operations {
             };
         };
     };
+    complete_upload_api_v1_documents__document_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentCompleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_api_v1_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_job_api_v1_jobs__job_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     version_api_v1_system_version_get: {
         parameters: {
             query?: never;
@@ -598,6 +833,39 @@ export interface operations {
             };
         };
     };
+    get_tender_api_v1_tenders__tender_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_documents_api_v1_tenders__tender_id__documents_get: {
         parameters: {
             query?: never;
@@ -635,6 +903,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {

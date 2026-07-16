@@ -1,6 +1,30 @@
 {
   "components": {
     "schemas": {
+      "DocumentCompleteResponse": {
+        "description": "Tamamlanan yükleme: güncel doküman + kuyruğa alınan iş.",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/DocumentResponse"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "document",
+          "job"
+        ],
+        "title": "DocumentCompleteResponse",
+        "type": "object"
+      },
       "DocumentCreate": {
         "description": "Yeni doküman kaydı (imzalı yükleme URL'i döner).",
         "properties": {
@@ -59,6 +83,17 @@
           "kind": {
             "$ref": "#/components/schemas/DocumentKind"
           },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
           "status": {
             "$ref": "#/components/schemas/DocumentStatus"
           },
@@ -74,7 +109,8 @@
           "filename",
           "content_type",
           "kind",
-          "status"
+          "status",
+          "size_bytes"
         ],
         "title": "DocumentResponse",
         "type": "object"
@@ -146,6 +182,93 @@
         },
         "title": "HealthResponse",
         "type": "object"
+      },
+      "JobResponse": {
+        "description": "İşleme işinin durumu.",
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "status",
+          "attempts",
+          "error_message",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "JobResponse",
+        "type": "object"
+      },
+      "JobStatus": {
+        "description": "İşleme işinin durumu (§5.5).",
+        "enum": [
+          "queued",
+          "parsing",
+          "indexing",
+          "extracting",
+          "review_ready",
+          "failed"
+        ],
+        "title": "JobStatus",
+        "type": "string"
       },
       "LoginRequest": {
         "description": "E-posta/parola ile giriş.",
@@ -610,6 +733,186 @@
         ]
       }
     },
+    "/api/v1/documents/{document_id}/complete": {
+      "post": {
+        "description": "Yüklemeyi doğrular, dokümanı ``uploaded`` yapar ve işleme job'ını kuyruklar.\n\nIdempotent: zaten ``uploaded`` bir doküman için mevcut son iş döndürülür.\nKiracı bağlamı elle kurulur; job kuyruklama commit SONRASI yapılır (worker'ın\nhenüz görünmeyen bir satırı okuma yarışını önler).",
+        "operationId": "complete_upload_api_v1_documents__document_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentCompleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Upload",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/api/v1/jobs/{job_id}": {
+      "get": {
+        "description": "Tek bir işin durumunu döndürür (RLS: başka kiracınınki 404).",
+        "operationId": "get_job_api_v1_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/api/v1/jobs/{job_id}/retry": {
+      "post": {
+        "description": "``failed`` bir işi yeniden kuyruklar (``failed → queued``, §5.5).\n\nKuyruklama commit SONRASI yapılır (worker'ın görünmeyen satırı okuma yarışı\nyok); ``attempts`` sıfırlanmaz — toplam deneme geçmişi korunur.",
+        "operationId": "retry_job_api_v1_jobs__job_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
     "/api/v1/system/version": {
       "get": {
         "description": "Servis adı, sürümü ve çalışma ortamını döndürür.",
@@ -744,6 +1047,66 @@
         ]
       }
     },
+    "/api/v1/tenders/{tender_id}": {
+      "get": {
+        "description": "Tek bir ihaleyi döndürür (RLS: başka kiracınınki 404).",
+        "operationId": "get_tender_api_v1_tenders__tender_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Tender",
+        "tags": [
+          "tenders"
+        ]
+      }
+    },
     "/api/v1/tenders/{tender_id}/documents": {
       "get": {
         "description": "Bir ihaleye bağlı dokümanları listeler.",
@@ -808,7 +1171,7 @@
         ]
       },
       "post": {
-        "description": "Bir ihaleye doküman kaydı açar ve imzalı yükleme URL'i döndürür.",
+        "description": "Bir ihaleye doküman kaydı açar ve imzalı yükleme URL'i döndürür.\n\n``Idempotency-Key`` başlığı verilirse aynı anahtarla tekrarlanan istek yeni\nkayıt açmaz; mevcut kaydı taze bir imzalı URL ile döndürür.",
         "operationId": "create_document_api_v1_tenders__tender_id__documents_post",
         "parameters": [
           {
@@ -819,6 +1182,23 @@
               "format": "uuid",
               "title": "Tender Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           },
           {

@@ -1,6 +1,12 @@
-"""Doküman ayrıştırma katmanı (§6.2). Faz 0: sözleşmeler; Faz 1: Docling/VLM."""
+"""Doküman ayrıştırma katmanı (§6.2). Sözleşmeler + hibrit yönlendirme (Sprint 1.2).
 
-from tenderiq_core.parsing.base import DocumentParser
+``DoclingParser`` ağır bağımlılık (docling→torch) taşıdığından buradan re-export
+edilmez; ``HybridDocumentParser``'ın import'u hafiftir (docling lazy yüklenir).
+"""
+
+from tenderiq_core.parsing.base import DocumentParser, DocumentParsingError
+from tenderiq_core.parsing.hybrid import HybridDocumentParser
+from tenderiq_core.parsing.routing import RoutingDecision, digital_page_map, route_document
 from tenderiq_core.parsing.types import (
     BoundingBox,
     ElementKind,
@@ -12,8 +18,13 @@ from tenderiq_core.parsing.types import (
 __all__ = [
     "BoundingBox",
     "DocumentParser",
+    "DocumentParsingError",
     "ElementKind",
+    "HybridDocumentParser",
     "ParseSource",
     "ParsedDocument",
     "ParsedElement",
+    "RoutingDecision",
+    "digital_page_map",
+    "route_document",
 ]

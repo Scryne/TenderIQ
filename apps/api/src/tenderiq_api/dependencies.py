@@ -9,6 +9,7 @@ from typing import Annotated, Any
 
 import jwt
 from fastapi import Depends, Header, Request
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tenderiq_api.errors import AppError, ErrorCode, ForbiddenError, UnauthorizedError
@@ -56,13 +57,15 @@ async def get_principal(
     token = _bearer_token(authorization)
     try:
         payload = decode_access_token(token, settings.auth_secret)
-    except jwt.PyJWTError as exc:
+        return Principal(
+            user_id=uuid.UUID(payload.sub),
+            tenant_id=uuid.UUID(payload.tenant_id),
+            role=Role(payload.role),
+        )
+    except (jwt.PyJWTError, ValueError) as exc:
+        # ValueError: imzası geçerli ama claim'i çözümsüz token (ör. UUID olmayan
+        # sub veya artık tanımlı olmayan rol) 500 değil 401 üretmeli.
         raise UnauthorizedError("Geçersiz veya süresi dolmuş token.") from exc
-    return Principal(
-        user_id=uuid.UUID(payload.sub),
-        tenant_id=uuid.UUID(payload.tenant_id),
-        role=Role(payload.role),
-    )
 
 
 async def get_tenant_session(
@@ -88,6 +91,23 @@ def require_role(*roles: Role) -> Callable[..., Coroutine[Any, Any, Principal]]:
     return _checker
 
 
+def get_redis(request: Request) -> Redis:
+    """Uygulamanın paylaşılan async Redis istemcisini döndürür (oran sınırlama)."""
+    redis: Redis = request.app.state.redis
+    return redis
+
+
+# Doküman işleme job'ını kuyruğa atan çağrılabilir (job_id, tenant_id).
+# Varsayılanı lifespan'de Celery üreticisidir; testler stub ile değiştirir.
+DocumentJobEnqueuer = Callable[[uuid.UUID, uuid.UUID], None]
+
+
+def get_document_job_enqueuer(request: Request) -> DocumentJobEnqueuer:
+    """Yapılandırılmış job kuyruklama fonksiyonunu döndürür."""
+    enqueuer: DocumentJobEnqueuer = request.app.state.enqueue_document_job
+    return enqueuer
+
+
 def get_storage(request: Request) -> StorageService:
     """Yapılandırılmış nesne depolama servisini döndürür."""
     storage = request.app.state.storage
@@ -107,3 +127,5 @@ TenantSessionDep = Annotated[AsyncSession, Depends(get_tenant_session)]
 PrincipalDep = Annotated[Principal, Depends(get_principal)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 StorageDep = Annotated[StorageService, Depends(get_storage)]
+RedisDep = Annotated[Redis, Depends(get_redis)]
+EnqueueDep = Annotated[DocumentJobEnqueuer, Depends(get_document_job_enqueuer)]

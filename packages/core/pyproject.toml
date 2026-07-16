@@ -17,6 +17,18 @@ dependencies = [
     "boto3>=1.35.0",
 ]
 
+# Ağır/opsiyonel extras (ADR-0004 paketleme kararı): API bunlarsız çalışır;
+# worker imajı ve parsing geliştirmesi kurar (kök `parsing`/`ocr` grupları üzerinden).
+[project.optional-dependencies]
+parsing = [
+    "docling>=2.0.0",
+    "pypdf>=5.0.0",
+]
+# OCR motoru: EasyOCR (ADR-0011 — TR kalitesi gerçek şartnamelerle doğrulandı).
+ocr = [
+    "easyocr>=1.7.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

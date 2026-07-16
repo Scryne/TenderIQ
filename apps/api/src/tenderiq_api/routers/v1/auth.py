@@ -1,20 +1,75 @@
-"""/api/v1/auth — kayıt, giriş ve mevcut kullanıcı."""
+"""/api/v1/auth — kayıt, giriş ve mevcut kullanıcı (oran sınırlamalı)."""
 
 from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, EmailStr, Field
+from redis.asyncio import Redis
 from sqlalchemy.exc import IntegrityError
 
-from tenderiq_api.dependencies import PrincipalDep, SessionDep, SettingsDep
-from tenderiq_api.errors import ConflictError, UnauthorizedError
+from tenderiq_api.dependencies import PrincipalDep, RedisDep, SessionDep, SettingsDep
+from tenderiq_api.errors import ConflictError, RateLimitedError, UnauthorizedError
+from tenderiq_core.config import Settings
 from tenderiq_core.models import Role, User
 from tenderiq_core.security.tokens import create_access_token
 from tenderiq_core.services import auth as auth_service
+from tenderiq_core.services.rate_limit import (
+    RateLimitExceededError,
+    check_rate_limit,
+    reset_rate_limit,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _client_ip(request: Request, trusted_proxy_count: int) -> str:
+    """Gerçek istemci IP'si: güvenilir proxy arkasında X-Forwarded-For'dan çözülür.
+
+    ``trusted_proxy_count``, XFF listesinin SONDAN kaç girdisinin güvenilir altyapı
+    (Next proxy'si / LB) tarafından eklendiğini söyler; istemcinin sahte öne-ek
+    eklemesi bu girdileri etkileyemez. 0 (varsayılan) → XFF yok sayılır.
+    """
+    if trusted_proxy_count > 0:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            hops = [part.strip() for part in forwarded.split(",") if part.strip()]
+            if hops:
+                return hops[max(len(hops) - trusted_proxy_count, 0)]
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limit_email(email: str) -> str:
+    """E-posta sayaç anahtarı için normalize edilmiş kimlik."""
+    return email.strip().lower()
+
+
+async def _enforce_auth_rate_limit(
+    request: Request, redis: Redis, settings: Settings, *, scope: str, email: str
+) -> None:
+    """IP + e-posta bazlı deneme sınırı (brute-force / kayıt istismarı koruması)."""
+    client_ip = _client_ip(request, settings.trusted_proxy_count)
+    try:
+        await check_rate_limit(
+            redis,
+            scope=f"{scope}:ip",
+            identifier=client_ip,
+            limit=settings.auth_rate_limit_ip_attempts,
+            window_seconds=settings.auth_rate_limit_window_seconds,
+        )
+        await check_rate_limit(
+            redis,
+            scope=f"{scope}:email",
+            identifier=_rate_limit_email(email),
+            limit=settings.auth_rate_limit_attempts,
+            window_seconds=settings.auth_rate_limit_window_seconds,
+        )
+    except RateLimitExceededError as exc:
+        raise RateLimitedError(
+            "Çok fazla deneme yapıldı; lütfen daha sonra yeniden deneyin.",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
 
 
 class RegisterRequest(BaseModel):
@@ -52,8 +107,15 @@ class UserResponse(BaseModel):
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, session: SessionDep) -> UserResponse:
+async def register(
+    body: RegisterRequest,
+    request: Request,
+    session: SessionDep,
+    redis: RedisDep,
+    settings: SettingsDep,
+) -> UserResponse:
     """Yeni bir organizasyon ve admin kullanıcı oluşturur."""
+    await _enforce_auth_rate_limit(request, redis, settings, scope="register", email=body.email)
     try:
         async with session.begin():
             user, membership = await auth_service.register(
@@ -82,14 +144,24 @@ async def register(body: RegisterRequest, session: SessionDep) -> UserResponse:
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, session: SessionDep, settings: SettingsDep) -> TokenResponse:
+async def login(
+    body: LoginRequest,
+    request: Request,
+    session: SessionDep,
+    redis: RedisDep,
+    settings: SettingsDep,
+) -> TokenResponse:
     """Kimlik doğrular ve bir JWT erişim token'ı döndürür."""
     if settings.auth_secret is None:
         raise UnauthorizedError("Sunucu kimlik doğrulaması yapılandırılmamış (AUTH_SECRET).")
+    await _enforce_auth_rate_limit(request, redis, settings, scope="login", email=body.email)
     result = await auth_service.authenticate(session, email=body.email, password=body.password)
     if result is None:
         raise UnauthorizedError("E-posta veya parola hatalı.")
     user, membership = result
+    # Başarılı giriş e-posta penceresini sıfırlar: meşru kullanıcının ardışık
+    # girişleri limiti tüketmez (IP sayacı, dağıtık denemelere karşı korunur).
+    await reset_rate_limit(redis, scope="login:email", identifier=_rate_limit_email(body.email))
     token = create_access_token(
         user_id=user.id,
         tenant_id=membership.organization_id,

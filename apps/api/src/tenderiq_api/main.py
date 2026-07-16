@@ -9,10 +9,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from redis.asyncio import Redis
 
 from tenderiq_api import __version__
 from tenderiq_api.errors import register_exception_handlers
 from tenderiq_api.middleware import RequestContextMiddleware
+from tenderiq_api.queueing import enqueue_process_document
 from tenderiq_api.routers.health import router as health_router
 from tenderiq_api.routers.v1 import api_v1_router
 from tenderiq_core.config import Environment, get_settings
@@ -33,6 +35,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     engine = create_engine()
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
+    app.state.redis = Redis.from_url(settings.redis_url)
+    app.state.enqueue_document_job = enqueue_process_document
     try:
         app.state.storage = StorageService.from_settings(settings)
     except StorageNotConfiguredError:
@@ -40,6 +44,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        await app.state.redis.aclose()
         await engine.dispose()
 
 

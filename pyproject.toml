@@ -28,16 +28,22 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
+    "pytest-timeout>=2.3.0",
     "httpx>=0.27.0",
     "testcontainers[postgres]>=4.8.0",
 ]
-# Faz 0 parsing spike'ı (§6.2) — ağır/opsiyonel; yalnızca `uv sync --group parsing`
-# ile kurulur. Docling ML yığını (torch vb.) getirir. Faz 1'de docling
-# packages/core'un opsiyonel bağımlılığına taşınıp worker tarafından tüketilecek.
+# Hibrit parsing yığını (§6.2, ADR-0004) — ağır/opsiyonel; `uv sync --group parsing`
+# ile kurulur. Asıl bağımlılıklar packages/core'un `parsing` extra'sındadır
+# (docling+pypdf); reportlab yalnızca test PDF'i üretimi içindir. Worker imajı bu
+# grupla + `ocr` grubuyla kurulur (infra/docker/worker.Dockerfile).
 parsing = [
-    "pypdf>=5.0.0",
-    "docling>=2.0.0",
+    "tenderiq-core[parsing]",
     "reportlab>=4.2.0",
+]
+# OCR motoru (EasyOCR, ADR-0011): taranmış yol için; ayrı grup çünkü dijital-yol
+# geliştirmesi bunu gerektirmez. Kurulum: `uv sync --group parsing --group ocr`.
+ocr = [
+    "tenderiq-core[ocr]",
 ]
 
 # ── Ruff (lint + format) ─────────────────────────────────────────────────────
@@ -88,6 +94,9 @@ warn_required_dynamic_aliases = true
 asyncio_mode = "auto"
 testpaths = ["packages", "apps"]
 addopts = "-q --strict-markers --import-mode=importlib -m 'not integration'"
+# Tek bir test asılı kalırsa (ör. kapanmayan SSE akışı) koşuyu saatlerce bloke etmesin.
+timeout = 300
+timeout_method = "thread"
 markers = [
     "integration: gerçek servis (Docker/testcontainers) gerektiren testler",
 ]

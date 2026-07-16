@@ -2,7 +2,8 @@
 
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,21 +14,37 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { api } from "@/lib/api";
 
-export default function LoginPage() {
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const login = useMutation({
     mutationFn: async () => {
-      const { data, error } = await api.POST("/api/v1/auth/login", {
-        body: { email, password },
+      // Token httpOnly cookie'ye sunucu tarafında yazılır; JS token görmez.
+      const response = await fetch("/api/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
-      if (error !== undefined) {
-        throw new Error("E-posta veya parola hatalı.");
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error("Çok fazla deneme yapıldı; lütfen daha sonra yeniden deneyin.");
+        }
+        if (response.status === 401) {
+          throw new Error("E-posta veya parola hatalı.");
+        }
+        throw new Error("Giriş yapılamadı; lütfen daha sonra yeniden deneyin.");
       }
-      return data;
+    },
+    onSuccess: () => {
+      const next = searchParams.get("next");
+      // Yalnızca site-içi yollar: "//evil.com" gibi protokol-göreli URL'ler dışarı kaçırır.
+      const isInternal = next !== null && next.startsWith("/") && !next.startsWith("//");
+      router.push(isInternal ? next : "/tenders");
+      router.refresh();
     },
   });
 
@@ -72,11 +89,6 @@ export default function LoginPage() {
               />
             </div>
             {login.isError && <p className="text-sm text-destructive">{login.error.message}</p>}
-            {login.isSuccess && (
-              <p className="text-sm text-primary">
-                Giriş başarılı — token alındı ({login.data.token_type}).
-              </p>
-            )}
           </CardContent>
           <CardFooter className="flex-col items-stretch gap-3">
             <Button type="submit" disabled={login.isPending}>
@@ -89,5 +101,13 @@ export default function LoginPage() {
         </form>
       </Card>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

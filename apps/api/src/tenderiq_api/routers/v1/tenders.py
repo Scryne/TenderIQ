@@ -1,12 +1,19 @@
-"""/api/v1/tenders — ihale projeleri ve doküman yükleme (kiracı-özel, RLS + RBAC)."""
+"""/api/v1/tenders — ihale projeleri, doküman yükleme ve SSE canlı durum."""
 
 from __future__ import annotations
 
+import asyncio
+import json
 import uuid
+from collections.abc import AsyncIterator
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, Query, Request, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tenderiq_api.dependencies import (
     PrincipalDep,
@@ -14,21 +21,31 @@ from tenderiq_api.dependencies import (
     TenantSessionDep,
     require_role,
 )
-from tenderiq_api.errors import NotFoundError
+from tenderiq_api.errors import ConflictError, NotFoundError, ValidationFailedError
+from tenderiq_core.db.tenant import set_tenant_context
 from tenderiq_core.models import (
+    AuditAction,
     Document,
     DocumentKind,
     DocumentStatus,
+    Job,
     Role,
     Tender,
     TenderStatus,
 )
+from tenderiq_core.services.audit import record_audit
 from tenderiq_core.storage import safe_key_component
+from tenderiq_core.uploads import is_allowed_content_type
 
 router = APIRouter(prefix="/tenders", tags=["tenders"])
 
 # Yazma işlemleri admin/üye gerektirir; izleyici yalnızca okuyabilir.
 _writer = Depends(require_role(Role.ADMIN, Role.MEMBER))
+
+# SSE: DB poll aralığı, heartbeat periyodu ve akış ömrü tavanı (poll tık sayısı).
+_SSE_POLL_SECONDS = 1.0
+_SSE_HEARTBEAT_TICKS = 15
+_SSE_MAX_TICKS = 900  # ~15 dk; EventSource şeffaf yeniden bağlanır
 
 
 class TenderCreate(BaseModel):
@@ -67,6 +84,7 @@ class DocumentResponse(BaseModel):
     content_type: str
     kind: DocumentKind
     status: DocumentStatus
+    size_bytes: int | None
 
 
 class DocumentUploadResponse(BaseModel):
@@ -85,12 +103,21 @@ async def create_tender(
 ) -> TenderResponse:
     """Aktif kiracı için yeni bir ihale projesi oluşturur."""
     tender = Tender(
+        id=uuid.uuid4(),
         tenant_id=principal.tenant_id,
         title=body.title,
         status=TenderStatus.DRAFT,
         created_by=principal.user_id,
     )
     session.add(tender)
+    record_audit(
+        session,
+        tenant_id=principal.tenant_id,
+        action=AuditAction.TENDER_CREATED,
+        resource_type="tender",
+        resource_id=tender.id,
+        actor_user_id=principal.user_id,
+    )
     await session.flush()
     return TenderResponse.model_validate(tender)
 
@@ -100,6 +127,15 @@ async def list_tenders(session: TenantSessionDep) -> list[TenderResponse]:
     """Aktif kiracının ihalelerini listeler (RLS ile filtrelenir)."""
     result = await session.execute(select(Tender).order_by(Tender.created_at.desc()))
     return [TenderResponse.model_validate(t) for t in result.scalars().all()]
+
+
+@router.get("/{tender_id}", response_model=TenderResponse)
+async def get_tender(tender_id: uuid.UUID, session: TenantSessionDep) -> TenderResponse:
+    """Tek bir ihaleyi döndürür (RLS: başka kiracınınki 404)."""
+    tender = await session.get(Tender, tender_id)
+    if tender is None:
+        raise NotFoundError("İhale bulunamadı.")
+    return TenderResponse.model_validate(tender)
 
 
 @router.post(
@@ -114,11 +150,35 @@ async def create_document(
     session: TenantSessionDep,
     principal: PrincipalDep,
     storage: StorageDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=255)] = None,
 ) -> DocumentUploadResponse:
-    """Bir ihaleye doküman kaydı açar ve imzalı yükleme URL'i döndürür."""
+    """Bir ihaleye doküman kaydı açar ve imzalı yükleme URL'i döndürür.
+
+    ``Idempotency-Key`` başlığı verilirse aynı anahtarla tekrarlanan istek yeni
+    kayıt açmaz; mevcut kaydı taze bir imzalı URL ile döndürür.
+    """
+    if not is_allowed_content_type(body.content_type):
+        raise ValidationFailedError("Desteklenmeyen içerik türü. İzin verilenler: PDF, DOCX, XLSX.")
+
     tender = await session.get(Tender, tender_id)
     if tender is None:  # RLS: başka kiracının ihalesi de burada None döner
         raise NotFoundError("İhale bulunamadı.")
+
+    if idempotency_key is not None:
+        existing = await session.scalar(
+            select(Document).where(Document.idempotency_key == idempotency_key)
+        )
+        if existing is not None:
+            if existing.tender_id != tender_id:
+                raise ConflictError("Bu Idempotency-Key başka bir kayıt için kullanılmış.")
+            upload_url = storage.presigned_put_url(
+                existing.storage_key, content_type=existing.content_type
+            )
+            return DocumentUploadResponse(
+                document=DocumentResponse.model_validate(existing),
+                upload_url=upload_url,
+                storage_key=existing.storage_key,
+            )
 
     document_id = uuid.uuid4()
     safe_filename = safe_key_component(body.filename)
@@ -132,9 +192,23 @@ async def create_document(
         storage_key=storage_key,
         kind=body.kind,
         status=DocumentStatus.PENDING_UPLOAD,
+        idempotency_key=idempotency_key,
     )
     session.add(document)
-    await session.flush()
+    record_audit(
+        session,
+        tenant_id=principal.tenant_id,
+        action=AuditAction.DOCUMENT_CREATED,
+        resource_type="document",
+        resource_id=document_id,
+        actor_user_id=principal.user_id,
+        meta={"filename": body.filename, "content_type": body.content_type},
+    )
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        # Aynı Idempotency-Key ile eşzamanlı iki istek: ilk INSERT kazanır.
+        raise ConflictError("Bu Idempotency-Key ile eşzamanlı bir istek işlendi.") from exc
 
     upload_url = storage.presigned_put_url(storage_key, content_type=body.content_type)
     return DocumentUploadResponse(
@@ -151,3 +225,115 @@ async def list_documents(tender_id: uuid.UUID, session: TenantSessionDep) -> lis
         select(Document).where(Document.tender_id == tender_id).order_by(Document.created_at.desc())
     )
     return [DocumentResponse.model_validate(d) for d in result.scalars().all()]
+
+
+async def _tender_snapshot(
+    factory: async_sessionmaker[AsyncSession], tenant_id: uuid.UUID, tender_id: uuid.UUID
+) -> dict[str, Any] | None:
+    """SSE için ihale + doküman + son iş durumlarının anlık görüntüsü.
+
+    Her tıkta kısa ömürlü ayrı bir transaction kullanılır; SSE bağlantısı boyunca
+    açık transaction tutulmaz.
+    """
+    async with factory() as session, session.begin():
+        await set_tenant_context(session, tenant_id)
+        tender = await session.get(Tender, tender_id)
+        if tender is None:
+            return None
+        documents = (
+            (
+                await session.execute(
+                    select(Document)
+                    .where(Document.tender_id == tender_id)
+                    .order_by(Document.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        document_ids = [d.id for d in documents]
+        latest_job_by_document: dict[uuid.UUID, Job] = {}
+        if document_ids:
+            jobs = (
+                (
+                    await session.execute(
+                        select(Job)
+                        .where(Job.document_id.in_(document_ids))
+                        .order_by(Job.created_at)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for job in jobs:  # created_at artan sırada → sonuncu kazanır
+                latest_job_by_document[job.document_id] = job
+        return {
+            "tender": {"id": str(tender.id), "status": tender.status.value},
+            "documents": [
+                {
+                    "id": str(d.id),
+                    "filename": d.filename,
+                    "status": d.status.value,
+                    "job": (
+                        {
+                            "id": str(latest_job.id),
+                            "status": latest_job.status.value,
+                            "attempts": latest_job.attempts,
+                            "error_message": latest_job.error_message,
+                        }
+                        if (latest_job := latest_job_by_document.get(d.id)) is not None
+                        else None
+                    ),
+                }
+                for d in documents
+            ],
+        }
+
+
+@router.get("/{tender_id}/stream", include_in_schema=False)
+async def stream_tender_status(
+    tender_id: uuid.UUID,
+    request: Request,
+    principal: PrincipalDep,
+    max_ticks: Annotated[int, Query(ge=1, le=_SSE_MAX_TICKS)] = _SSE_MAX_TICKS,
+) -> StreamingResponse:
+    """SSE: ihalenin doküman/iş durumlarını canlı yayınlar.
+
+    Durum değiştikçe ``status`` event'i, hareketsizlikte periyodik heartbeat
+    yorumu gönderilir. İstemci koptuğunda döngü sonlanır; ayrıca akış en geç
+    ``max_ticks`` poll turu sonunda sunucu tarafından kapatılır (EventSource
+    şeffaf biçimde yeniden bağlanır) — sızan bağlantılar sınırsız yaşayamaz.
+    """
+    factory: async_sessionmaker[AsyncSession] = request.app.state.session_factory
+
+    async def _events() -> AsyncIterator[str]:
+        last_payload: str | None = None
+        idle_ticks = 0
+        for _ in range(max_ticks):
+            if await request.is_disconnected():
+                return
+            snapshot = await _tender_snapshot(factory, principal.tenant_id, tender_id)
+            if snapshot is None:
+                yield "event: not_found\ndata: {}\n\n"
+                return
+            payload = json.dumps(snapshot, ensure_ascii=False)
+            if payload != last_payload:
+                last_payload = payload
+                idle_ticks = 0
+                yield f"event: status\ndata: {payload}\n\n"
+            else:
+                idle_ticks += 1
+                if idle_ticks >= _SSE_HEARTBEAT_TICKS:
+                    idle_ticks = 0
+                    yield ": keep-alive\n\n"
+            await asyncio.sleep(_SSE_POLL_SECONDS)
+
+    return StreamingResponse(
+        _events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
