@@ -61,6 +61,7 @@ class AppError(Exception):
         code: ErrorCode | None = None,
         status_code: int | None = None,
         details: list[dict[str, Any]] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -69,6 +70,7 @@ class AppError(Exception):
         if status_code is not None:
             self.status_code = status_code
         self.details = details
+        self.headers = headers
 
 
 class NotFoundError(AppError):
@@ -99,6 +101,20 @@ class ConflictError(AppError):
     code = ErrorCode.CONFLICT
 
 
+class ValidationFailedError(AppError):
+    """İçerik doğrulaması başarısız (400) — istek şeması değil, iş kuralı ihlali."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    code = ErrorCode.VALIDATION_ERROR
+
+
+class RateLimitedError(AppError):
+    """Oran sınırı aşıldı (429)."""
+
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = ErrorCode.RATE_LIMITED
+
+
 _HTTP_STATUS_TO_CODE: dict[int, ErrorCode] = {
     status.HTTP_400_BAD_REQUEST: ErrorCode.VALIDATION_ERROR,
     status.HTTP_401_UNAUTHORIZED: ErrorCode.UNAUTHORIZED,
@@ -114,9 +130,10 @@ def _error_response(
     code: ErrorCode,
     message: str,
     details: list[dict[str, Any]] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     payload = ErrorResponse(error=ErrorDetail(code=code, message=message, details=details))
-    return JSONResponse(status_code=status_code, content=jsonable_encoder(payload))
+    return JSONResponse(status_code=status_code, content=jsonable_encoder(payload), headers=headers)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
@@ -124,7 +141,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(AppError)
     async def _handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
-        return _error_response(exc.status_code, exc.code, exc.message, exc.details)
+        return _error_response(exc.status_code, exc.code, exc.message, exc.details, exc.headers)
 
     @app.exception_handler(RequestValidationError)
     async def _handle_validation_error(

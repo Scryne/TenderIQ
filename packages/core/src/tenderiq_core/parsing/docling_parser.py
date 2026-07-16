@@ -13,6 +13,7 @@ Faz 1'de docling `packages/core`'un opsiyonel bir bağımlılığına (extra) ta
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -45,11 +46,20 @@ class DoclingParser:
 
     ``do_ocr=False`` (varsayılan) dijital yol içindir; taranmış/karmaşık dokümanlar
     için ``do_ocr=True`` ile ayrı bir örnek kullanın (§6.2 hibrit yönlendirme).
+    OCR motoru EasyOCR'dır (ADR-0011); dil listesi ``ocr_lang`` ile verilir —
+    Türkçe şartnameler için varsayılan ``("tr", "en")``.
     """
 
-    def __init__(self, *, do_ocr: bool = False, do_table_structure: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        do_ocr: bool = False,
+        do_table_structure: bool = True,
+        ocr_lang: Sequence[str] = ("tr", "en"),
+    ) -> None:
         self._do_ocr = do_ocr
         self._do_table_structure = do_table_structure
+        self._ocr_lang = tuple(ocr_lang)
         self._converter: Any = None  # lazy — ilk parse'ta kurulur
 
     def _converter_instance(self) -> Any:
@@ -62,6 +72,10 @@ class DoclingParser:
             options = PdfPipelineOptions()
             options.do_ocr = self._do_ocr
             options.do_table_structure = self._do_table_structure
+            if self._do_ocr:
+                from docling.datamodel.pipeline_options import EasyOcrOptions
+
+                options.ocr_options = EasyOcrOptions(lang=list(self._ocr_lang))
             self._converter = DocumentConverter(
                 format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)}
             )

@@ -28,6 +28,21 @@ def test_cors_origins_default_when_unset(monkeypatch: pytest.MonkeyPatch) -> Non
     assert settings.cors_origins == ["http://localhost:3000"]
 
 
+def test_parsing_ocr_languages_parses_comma_separated_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`PARSING_OCR_LANGUAGES=tr, en ,de` → ["tr", "en", "de"] (CSV, JSON değil)."""
+    monkeypatch.setenv("PARSING_OCR_LANGUAGES", "tr, en ,de")
+    settings = Settings(_env_file=None)
+    assert settings.parsing_ocr_languages == ["tr", "en", "de"]
+
+
+def test_parsing_ocr_languages_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PARSING_OCR_LANGUAGES", raising=False)
+    settings = Settings(_env_file=None)
+    assert settings.parsing_ocr_languages == ["tr", "en"]
+
+
 def test_production_requires_strong_auth_secret(monkeypatch: pytest.MonkeyPatch) -> None:
     """Production, AUTH_SECRET eksik ya da kısayken açılışı reddeder (fail-fast)."""
     monkeypatch.setenv("ENVIRONMENT", "production")

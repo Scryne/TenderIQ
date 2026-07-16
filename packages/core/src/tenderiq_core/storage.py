@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
+from pathlib import Path
 
 import boto3
 from botocore.config import Config as BotoConfig
+from botocore.exceptions import ClientError
 
 from tenderiq_core.config import Settings
 
@@ -33,6 +36,17 @@ def safe_key_component(name: str, *, max_length: int = 255) -> str:
 
 class StorageNotConfiguredError(RuntimeError):
     """Nesne depolama ayarları (bucket/erişim anahtarları) eksik."""
+
+
+@dataclass(frozen=True)
+class ObjectInfo:
+    """Depolamadaki bir nesnenin üstverisi (HEAD sonucu)."""
+
+    size_bytes: int
+    content_type: str
+
+
+_NOT_FOUND_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
 
 
 class StorageService:
@@ -87,3 +101,32 @@ class StorageService:
             ExpiresIn=expires_in,
         )
         return url
+
+    def head_object(self, key: str) -> ObjectInfo | None:
+        """Nesnenin varlığını/boyutunu doğrular; yoksa ``None`` döner (blocking I/O)."""
+        try:
+            response = self._client.head_object(Bucket=self._bucket, Key=key)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in _NOT_FOUND_CODES:
+                return None
+            raise
+        return ObjectInfo(
+            size_bytes=int(response["ContentLength"]),
+            content_type=str(response.get("ContentType", "")),
+        )
+
+    def read_prefix(self, key: str, *, length: int) -> bytes:
+        """Nesnenin ilk ``length`` baytını okur (magic-bytes kontrolü; blocking I/O)."""
+        response = self._client.get_object(
+            Bucket=self._bucket, Key=key, Range=f"bytes=0-{length - 1}"
+        )
+        data: bytes = response["Body"].read()
+        return data
+
+    def download_file(self, key: str, destination: Path) -> None:
+        """Nesneyi yerel dosyaya indirir (worker parse fazı; blocking I/O)."""
+        self._client.download_file(self._bucket, key, str(destination))
+
+    def delete_object(self, key: str) -> None:
+        """Nesneyi siler (doğrulamayı geçemeyen yüklemelerin temizliği; blocking I/O)."""
+        self._client.delete_object(Bucket=self._bucket, Key=key)

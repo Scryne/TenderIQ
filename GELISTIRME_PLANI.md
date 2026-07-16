@@ -350,36 +350,49 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 **Amaç.** Yüklenen dokümanı asenkron olarak **ayrıştır → parçala → gömül → indeksle** hattından geçiren, durumunu canlı yansıtan çekirdeği kurmak; ve **AI kalitesini ölçülebilir kılan golden-set'i** başlatmak.
 **Doğrulanan Risk (§12.6).** İşleme hattı & ölçek; hibrit parsing gerçek çeşitlilikte çalışıyor mu.
 
-#### Sprint 1.1 (Hafta 3) — Asenkron hat & durum makinesi
+#### Sprint 1.1 (Hafta 3) — Asenkron hat & durum makinesi ✅ (2026-07-16)
 
 `Backend/API` `DevOps`
-- [ ] Celery + Redis kuyruğu; worker giriş noktası (`apps/worker`).
-- [ ] **İş durum makinesi** (§5.5): `queued → parsing → indexing → extracting → review_ready → failed`; `Job` modeli + geçiş kuralları.
-- [ ] **Idempotent task tasarımı:** bir adım hata alırsa tüm işi tekrarlamadan yeniden deneme; retry/backoff (skill: `async-job-state-machine`).
-- [ ] `GET /api/v1/jobs/{jobId}` durum sorgulama + `Idempotency-Key` ile yükleme güvenliği (§9.1).
+- [x] Celery + Redis kuyruğu; worker giriş noktası (`apps/worker`) — task ad/kuyruk sözleşmesi `packages/core/queueing.py`'de; API worker kodunu import etmeden `send_task` ile yayınlar.
+- [x] **İş durum makinesi** (§5.5): `queued → parsing → indexing → extracting → review_ready → failed`; `Job` modeli + geçiş kuralları (`transition_to`, tanımsız geçiş → hata; `failed → queued` yeniden kuyruklama). Migration `0004_job_audit_log` (RLS dahil).
+- [x] **Idempotent task tasarımı:** her faz kendi transaction'ında; task yeniden çalıştığında kaldığı fazdan devam eder (entegrasyon testiyle kanıtlı); retry/backoff (üstel, 5→300 sn, 5 deneme; tükenince `failed` + hata mesajı).
+- [x] `GET /api/v1/jobs/{jobId}` durum sorgulama + `Idempotency-Key` ile yükleme güvenliği (tenant+key unique; aynı anahtar mevcut kaydı taze imzalı URL ile döndürür).
 
 `Backend/API` `Güvenlik` (Faz 0 denetiminden devralınan yükleme sertleştirmesi)
-- [ ] **Yükleme tamamlama ucu:** `POST /api/v1/documents/{id}/complete` — R2'de nesnenin varlığı/boyutu `HEAD` ile doğrulanır, `size_bytes` doldurulur, `status: pending_upload → uploaded`, işleme job'ı kuyruğa atılır. Yarım kalan yüklemeler için zamanlanmış temizlik (`pending_upload` > 24 saat → `failed`).
-- [ ] **Dosya doğrulama:** izinli içerik türleri (PDF/DOCX/XLSX allowlist), maksimum boyut sınırı (plan kotasına bağlanır), magic-bytes kontrolü (içerik türü sahteciliği).
-- [ ] **`AuditLog` modeli + kaydı:** kritik işlemler (yükleme, silme, rol değişimi; ileride export) kim-ne-zaman (C.7'nin gereği; yeni tablo şablonu K.2 ile).
-- [ ] **Login rate-limit / brute-force koruması:** IP+e-posta bazlı deneme sınırı (Redis sayaç, `429 rate_limited`); register için de geçerli.
+- [x] **Yükleme tamamlama ucu:** `POST /api/v1/documents/{id}/complete` — HEAD doğrulama, `size_bytes`, `pending_upload → uploaded`, job kuyruklama (commit SONRASI — görünürlük yarışı yok). Zamanlanmış temizlik: `cleanup_stale_uploads` beat task'ı (saatlik; `pending_upload` > 24 saat → `failed`; RLS gereği kiracı kiracı dolaşır).
+- [x] **Dosya doğrulama:** PDF/DOCX/XLSX allowlist (kayıt anında), maksimum boyut (`UPLOAD_MAX_SIZE_BYTES`, 100 MB), magic-bytes kontrolü (ranged GET); doğrulamayı geçemeyen nesne depodan silinir.
+- [x] **`AuditLog` modeli + kaydı:** tender/doküman oluşturma, yükleme tamamlama/red; RLS yalnızca SELECT+INSERT (append-only — uygulama rolü kayıt değiştiremez/silemez).
+- [x] **Login rate-limit / brute-force koruması:** IP (20/5 dk) + e-posta (5/5 dk) sayaçları (Redis, `429 rate_limited` + `Retry-After`); register dahil; Redis kesintisinde fail-open (loglanır).
 
 `Frontend`
-- [ ] **Web yükleme UI'ı:** tender oluştur → dosya seç → imzalı URL'e PUT → tamamlama ucu çağrısı (Faz 0'dan devralınan eksik dikey dilim parçası).
-- [ ] **SSE canlı durum:** `GET /api/v1/tenders/{id}/stream`; TanStack Query ile senkron durum bileşeni; yeniden bağlanma mantığı (skill: `sse-live-status`).
-- [ ] Yükleme sonrası ilerleme ekranı (queued→…→review_ready canlı).
-- [ ] **Oturum saklama:** token'ın web'de güvenli saklanması (httpOnly cookie tercih; XSS'e açık `localStorage` yasak) + korumalı sayfa yönlendirmesi. (Login UI şu an token'ı yalnızca gösteriyor.)
+- [x] **Web yükleme UI'ı:** `/tenders` (liste+oluştur) ve `/tenders/[id]` (dosya seç → imzalı PUT → complete); tür seçimi, hata mesajları.
+- [x] **SSE canlı durum:** `GET /api/v1/tenders/{id}/stream` (DB poll, değişimde `status` event, heartbeat, `max_ticks` ömür tavanı); web'de `useTenderStream` hook'u — kopunca 3 sn'de yeniden bağlanır.
+- [x] Yükleme sonrası ilerleme ekranı (queued→…→review_ready canlı adım göstergesi; hata durumu mesajıyla).
+- [x] **Oturum saklama:** token httpOnly cookie'de (`/api/session` route handler'ı yazar; JS token'ı hiç görmez); tüm API çağrıları aynı-origin `/api/v1/[...path]` proxy'sinden (cookie→Authorization çevirisi, SSE dahil akış geçirme); `middleware.ts` korumalı sayfa yönlendirmesi.
 
-#### Sprint 1.2 (Hafta 4) — Hibrit parsing + izlenebilirlik
+> **R2 CORS gereksinimi (2026-07-16):** Tarayıcı imzalı URL'e doğrudan PUT yaptığı için R2 bucket'ında CORS kuralı şarttır (yoksa "Failed to fetch"): `AllowedOrigins` içinde web origin'i (dev: `http://localhost:3000`; staging/prod alan adları J.1'de eklenecek), `AllowedMethods: PUT,GET,HEAD`, `AllowedHeaders: content-type`. `.env`'deki nesne-kapsamlı token bucket ayarı değiştiremez (PutBucketCors → AccessDenied) — kural Cloudflare panelinden yönetilir.
+>
+> **Sprint 1.1 kapanış notları (2026-07-16):** (1) `RequestContextMiddleware`, `BaseHTTPMiddleware`'den saf ASGI'ye çevrildi — BaseHTTPMiddleware `http.disconnect`'i SSE generator'ına iletmiyordu (test 4 saat asılı kaldı); ayrıca SSE akışına sunucu taraflı ömür tavanı (`max_ticks`, ~15 dk) eklendi ve `pytest-timeout` (300 sn) devrede. (2) Web artık backend'e CORS ile değil aynı-origin Next proxy'siyle konuşur; compose'da web servisine runtime `API_URL=http://api:8000` eklendi. (3) Test durumu: 53 birim + 8 entegrasyon yeşil (uçtan uca akış: kayıt→tender→doküman→complete→pipeline→SSE→RLS izolasyonu; magic-bytes reddi; ara durumdan devam; süpürme task'ı).
+
+#### Sprint 1.2 (Hafta 4) — Hibrit parsing + izlenebilirlik ✅ (2026-07-16)
 
 `AI/ML`
-- [ ] **Sayfa-bazlı yönlendirme:** "dijital metin var mı?" tespiti → dijital=Docling, taranmış/karmaşık=VLM/OCR (§6.2) (skill: `hybrid-document-parsing`). Spike bulgusu: korpusun ~%54'ü taranmış → OCR **çoğunluk yol**; kapasite/maliyet buna göre.
-- [ ] **OCR paketleme & dil:** OCR motoru (EasyOCR/RapidOCR) bildirilmiş bağımlılık olur (`ocr`/`parsing` grubu); `DoclingParser`'a `ocr_lang` parametresi (`tr,en`). Motor seçimi + **GPU vs yönetilen OCR kararı ADR'ye bağlanır** (CPU ~20 sn/sayfa sürdürülemez).
-- [ ] **Konum koordinatı standardı:** her `ParsedElement` için sayfa + bounding box; `ParsedElement` modeli (§8.1).
-- [ ] Fallback zinciri + hata dayanıklılığı (gürültülü taramada VLM fallback — ADR-0004); parsing çıktısının regresyonu için gerçek test dokümanları.
+- [x] **Sayfa-bazlı yönlendirme:** "dijital metin var mı?" tespiti (`routing.py`, pypdf) → tümü dijital=Docling(`do_ocr=False`); tek taranmış sayfa bile OCR yolunu açar (`do_ocr=True` yalnız bitmap alanları OCR'lar → dijital sayfalar programatik metnini korur = fiilen sayfa-bazlı rota). `HybridDocumentParser` (`hybrid.py`); öğeler sayfa bazında `digital/scanned` kaynağıyla işaretlenir.
+- [x] **OCR paketleme & dil:** **EasyOCR** bildirilmiş bağımlılık (`packages/core` extras: `parsing`/`ocr`; kök gruplar bunları işaret eder; worker imajı `--group parsing --group ocr` ile kurulur — API imajı hafif kalır). `DoclingParser`'a `ocr_lang` parametresi; `PARSING_OCR_LANGUAGES` ayarı (varsayılan `tr,en`). Motor + **GPU vs yönetilen karar → ADR-0011** (CPU-önce; GA öncesi GPU worker; yönetilen/VLM fallback opsiyon).
+- [x] **Konum koordinatı standardı:** her öğe sayfa + bbox (TOPLEFT origin) + kaynak; `ParsedElement` ORM modeli (§8.1) parse sözleşmesiyle aynı enum'ları kullanır.
+- [x] Fallback zinciri + hata dayanıklılığı: dijital → OCR → (Faz 2'de takılacak) VLM; kalite kapısı = boş çıktı reddi + PDF'te ≥%90 bbox kapsamı; zincir tükenirse `DocumentParsingError` → worker retry/backoff → `failed`. Regresyon: sentetik PDF'lerle birim + docling entegrasyon testleri (gerçek şartnameler KVKK gereği repoya giremez; spike-docs ile elle doğrulanır).
 
 `Veri`
-- [ ] `ParsedElement` tablosu + ilişkiler (`Document 1—N ParsedElement`).
+- [x] `parsed_element` tablosu (migration `0005`, RLS'li) + `document.page_count`; `Document 1—N ParsedElement`; idempotent yeniden-parse (delete+insert, `uq_parsed_element_document_seq`). Worker parse fazı canlı: indir → hibrit ayrıştır → öğeleri yaz (`tenderiq_worker/parsing.py`).
+
+> **Sprint 1.2 kapanış notları (2026-07-16):** (1) Uzun indirme/ayrıştırma DB transaction'ı DIŞINDA yapılır; sonuç tek transaction'da yazılır. (2) DOCX/XLSX sayfa haritasına girmez (dijital sayılır) ve bbox kalite kapısından muaftır — akış-tabanlı formatlarda sayfa kavramı yok. (3) Test durumu: 67 birim + 7 entegrasyon yeşil (hibrit zincir/yönlendirme birim testleri; pipeline testi parse verisini ve idempotent yeniden-parse'ı doğrular; docling dijital-yol + hibrit regresyonu). OCR uçtan uca yolu gerçek taranmış şartnameyle elle doğrulanacak (CPU ~20 sn/sayfa — ADR-0011).
+>
+> **Sprint 1.1/1.2 kod denetimi (2026-07-16, kapanış sonrası):** Çalışma ağacı uçtan uca denetlendi; bulunan hatalar aynı gün düzeltildi (68 birim + 10 entegrasyon testi yeşil):
+> (1) **Kayıp kuyruklama:** iş kuyruklaması commit SONRASI yapıldığından broker kesintisinde iş DB'de sonsuza dek `queued` kalabiliyordu → idempotent `complete` artık hâlâ `queued` görünen işi yeniden yayınlar (task idempotent, mükerrer teslim güvenli; entegrasyon testi güncellendi).
+> (2) **401 yönlendirme döngüsü:** cookie var ama JWT geçersizken web `/login ↔ /tenders` arasında dönüyordu → proxy 401'de oturum cookie'sini temizler.
+> (3) **Rota tespiti kırılganlığı:** bozuk/şifreli PDF'te pypdf hatası hibrit zinciri hiç denemeden düşürüyordu → rota bilinemezse tam zincir (dijital→OCR→VLM) denenir (+1 birim test).
+> (4) Parse geçici dosya uzantısı artık (magic-bytes'la doğrulanmış) `content_type`'tan türetilir — kullanıcı dosya adı içerikle çelişebilir. (5) Süpürme task'ı yarım yüklemenin depodaki yetim nesnesini de best-effort siler. (6) Retry'lar arasında `error_message` yazılır (SSE'de sebepsiz takılma görünmez). (7) `get_principal`: imzası geçerli ama claim'i çözümsüz token (ör. kalkmış rol) 500 değil 401 döner. (8) Web: login `next` open-redirect (`//`) koruması; yükleme hatalarında backend mesajı UI'da gösterilir; oturum servisi backend kesintisinde 502 zarfı döner; SSE `not_found`'da "Canlı" rozeti kapanır.
+> (9) **Oran sınırlama proxy düzeltmesi:** web istekleri Next proxy'sinden geldiğinden backend hep proxy IP'sini görüyordu (IP limiti tüm web kullanıcıları için ortak havuzdu) → proxy `X-Forwarded-For` iletir; backend `TRUSTED_PROXY_COUNT` ayarıyla (compose api: 1, varsayılan 0=güvenme) XFF'in sondan N girdisine güvenir (+6 birim test). (10) **Başarılı giriş e-posta sayacını sıfırlar** — meşru kullanıcının ardışık girişleri limiti tüketmez (+2 birim test). (11) **`POST /api/v1/jobs/{id}/retry`:** `failed → queued` yeniden kuyruklama artık API'den tetiklenebilir (writer rolü, AuditLog `job.retried`, commit-sonrası yayın; entegrasyon testli). Bilinçli ertelenen: Idempotency-Key'in failed kayıtta ölü sokak kalması ve replay'de gövde-uyuşmazlığı 409'u (web her denemede yeni anahtar üretir; J.2 backlog).
 
 #### Sprint 1.3 (Hafta 5) — Chunking + embedding + pgvector
 
@@ -689,9 +702,9 @@ Faz 0 denetiminde kapatılanlar için D bölümüne bakınız. Kalan backlog (ö
 
 | # | Kalem | Neden | Nerede |
 |---|---|---|---|
-| 1 | Login/register **rate-limit** (Redis) | Brute-force & kayıt istismarı | Faz 1 Sprint 1.1 |
-| 2 | Yükleme tamamlama + dosya doğrulama (tür/boyut/magic-bytes) | Depolama istismarı, işleme güvenliği | Faz 1 Sprint 1.1 |
-| 3 | `AuditLog` (yükleme/silme/rol/export) | Kurumsal satış ön koşulu (§10.5) | Faz 1 Sprint 1.1 |
+| 1 | ~~Login/register **rate-limit** (Redis)~~ ✅ 2026-07-16 | Brute-force & kayıt istismarı | Faz 1 Sprint 1.1 |
+| 2 | ~~Yükleme tamamlama + dosya doğrulama (tür/boyut/magic-bytes)~~ ✅ 2026-07-16 | Depolama istismarı, işleme güvenliği | Faz 1 Sprint 1.1 |
+| 3 | ~~`AuditLog` (yükleme/silme/rol/export)~~ ✅ 2026-07-16 (yükleme/oluşturma kayıtları; silme/rol/export uçları geldikçe eklenecek) | Kurumsal satış ön koşulu (§10.5) | Faz 1 Sprint 1.1 |
 | 4 | Refresh token + rotasyon + logout/iptal (Redis denylist); access token ≤1 saat | 12 saatlik iptal-edilemez JWT beta için kabul edilemez | Faz 3 Sprint 3.3 |
 | 5 | E-posta doğrulama + parola sıfırlama | Hesap ele geçirme & spam kayıt | Faz 3 Sprint 3.3 |
 | 6 | Çoklu-org seçimi + davet + üye yönetimi (bugün ilk üyelik rastgele) | Çok kullanıcılı kiracılar | Faz 3 Sprint 3.3 |

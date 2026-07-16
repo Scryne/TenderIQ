@@ -14,3 +14,7 @@ class DocumentParser(Protocol):
     def parse(self, path: Path) -> ParsedDocument:
         """Dosyayı ayrıştırır; her öğe için sayfa + konum (bbox) döndürmelidir."""
         ...
+
+
+class DocumentParsingError(RuntimeError):
+    """Parse zinciri (birincil + tüm fallback'ler) kabul edilebilir çıktı üretemedi."""

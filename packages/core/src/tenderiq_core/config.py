@@ -66,12 +66,30 @@ class Settings(BaseSettings):
     # ── Kimlik ────────────────────────────────────────────────────────────────
     auth_secret: str | None = None
 
-    @field_validator("cors_origins", mode="before")
+    # ── Yükleme sınırları (Sprint 1.1 güvenlik) ──────────────────────────────
+    upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB; ileride plan kotasına bağlanır
+    upload_pending_ttl_hours: int = 24  # yarım kalan yüklemeler bu süreden sonra failed olur
+
+    # ── Oran sınırlama (login/register brute-force) ──────────────────────────
+    auth_rate_limit_attempts: int = 5  # e-posta başına pencere içi deneme
+    auth_rate_limit_ip_attempts: int = 20  # IP başına (ofis NAT'ı için daha gevşek)
+    auth_rate_limit_window_seconds: int = 300
+    # Güvenilir ters-proxy sayısı: X-Forwarded-For'un SONDAN kaç girdisinin güvenilir
+    # altyapı (Next proxy'si / LB) tarafından eklendiği. 0 = XFF yok sayılır (soket
+    # IP'si kullanılır). Web istekleri her zaman Next proxy'sinden geldiği için
+    # compose'da api servisine 1 verilir; önüne LB eklenirse artırılır (J.1).
+    trusted_proxy_count: int = 0
+
+    # ── Parsing (Sprint 1.2 hibrit hat, ADR-0011) ────────────────────────────
+    # EasyOCR dil listesi (virgülle ayrılmış env: PARSING_OCR_LANGUAGES=tr,en).
+    parsing_ocr_languages: Annotated[list[str], NoDecode] = ["tr", "en"]
+
+    @field_validator("cors_origins", "parsing_ocr_languages", mode="before")
     @classmethod
-    def _split_cors_origins(cls, value: object) -> object:
-        """Virgülle ayrılmış CORS listesini env'den ayrıştırır."""
+    def _split_csv_list(cls, value: object) -> object:
+        """Virgülle ayrılmış env değerini (JSON değil, düz string) listeye ayrıştırır."""
         if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
+            return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
     @model_validator(mode="after")

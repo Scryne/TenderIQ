@@ -1,30 +1,42 @@
-"""İstek bağlamı middleware'i: request_id üretimi + loglama bağlamı."""
+"""İstek bağlamı middleware'i: request_id üretimi + loglama bağlamı.
+
+Saf ASGI middleware'dir (BaseHTTPMiddleware değil): BaseHTTPMiddleware,
+``http.disconnect`` mesajının iç uygulamaya akışını bozarak SSE gibi uzun ömürlü
+stream'lerin istemci kopuşunu görmesini engeller.
+"""
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Awaitable, Callable
 
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from tenderiq_core.logging import request_id_var
 
 REQUEST_ID_HEADER = "X-Request-ID"
 
 
-class RequestContextMiddleware(BaseHTTPMiddleware):
+class RequestContextMiddleware:
     """Her istek için bir ``request_id`` üretir/yayar ve log bağlamına bağlar."""
 
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        request_id = request.headers.get(REQUEST_ID_HEADER) or uuid.uuid4().hex
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request_id = Headers(scope=scope).get(REQUEST_ID_HEADER) or uuid.uuid4().hex
         token = request_id_var.set(request_id)
+
+        async def send_with_request_id(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message)[REQUEST_ID_HEADER] = request_id
+            await send(message)
+
         try:
-            response = await call_next(request)
+            await self.app(scope, receive, send_with_request_id)
         finally:
             request_id_var.reset(token)
-        response.headers[REQUEST_ID_HEADER] = request_id
-        return response

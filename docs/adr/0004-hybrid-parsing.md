@@ -124,5 +124,6 @@ worker imajı büyür; hibrit yönlendirme ek karmaşıklık getirir.
 
 ## İlgili
 Geliştirme Planı §6.2, §12.6, A.4/5; Sprint 0.2 (#15) ve Faz 1 Sprint 1.2; ADR-0006
-(zorunlu grounding). Kod: `packages/core/src/tenderiq_core/parsing/`,
-`scripts/parsing_spike.py`.
+(zorunlu grounding); **ADR-0011** (OCR motoru seçimi + GPU/yönetilen kapasite kararı —
+bu ADR'nin Sprint 1.2 devamı). Kod: `packages/core/src/tenderiq_core/parsing/`
+(`hybrid.py` sayfa-bazlı yönlendirme + fallback zinciri), `scripts/parsing_spike.py`.

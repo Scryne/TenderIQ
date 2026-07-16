@@ -1,7 +1,7 @@
 """Celery uygulaması — broker/backend Redis (ayarlardan).
 
-İş durum makinesi (queued→parsing→indexing→extracting→review_ready→failed, §5.5)
-task'ları Faz 1'de bu uygulama üzerine eklenecektir. Task'lar idempotent tasarlanır.
+İş durum makinesi task'ları (queued→parsing→indexing→extracting→review_ready→failed,
+§5.5) ``tasks.documents`` modülündedir; task'lar idempotent tasarlanır.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 from celery import Celery
 
 from tenderiq_core.config import get_settings
+from tenderiq_core.queueing import QUEUE_DEFAULT, TASK_CLEANUP_STALE_UPLOADS
 
 
 def create_celery_app() -> Celery:
@@ -18,17 +19,24 @@ def create_celery_app() -> Celery:
         "tenderiq",
         broker=settings.redis_url,
         backend=settings.redis_url,
-        include=["tenderiq_worker.tasks.system"],
+        include=["tenderiq_worker.tasks.system", "tenderiq_worker.tasks.documents"],
     )
     app.conf.update(
         task_acks_late=True,
         task_reject_on_worker_lost=True,
         task_track_started=True,
         worker_prefetch_multiplier=1,
-        task_default_queue="tenderiq",
+        task_default_queue=QUEUE_DEFAULT,
         result_expires=3600,
         timezone="UTC",
         enable_utc=True,
+        # Zamanlanmış bakım (worker `-B` bayrağıyla veya ayrı beat servisiyle koşar).
+        beat_schedule={
+            "cleanup-stale-uploads": {
+                "task": TASK_CLEANUP_STALE_UPLOADS,
+                "schedule": 3600.0,  # saatte bir
+            },
+        },
     )
     return app
 

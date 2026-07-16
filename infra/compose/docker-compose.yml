@@ -60,6 +60,9 @@ services:
       dockerfile: infra/docker/api.Dockerfile
     environment:
       <<: *app-env
+      # Web istekleri Next proxy'sinden (web servisi) gelir; X-Forwarded-For'un
+      # sondan 1 girdisi güvenilirdir (oran sınırlama gerçek istemci IP'sini görür).
+      TRUSTED_PROXY_COUNT: "1"
     env_file:
       - path: ../../.env
         required: false
@@ -101,12 +104,16 @@ services:
         condition: service_completed_successfully
 
   # NEXT_PUBLIC_API_URL build anında gömülür (tarayıcı host'tan erişir → localhost).
+  # API_URL çalışma anında sunucu tarafı proxy (/api/v1/[...path]) içindir:
+  # web container'ı backend'e compose ağı üzerinden (api:8000) ulaşır.
   web:
     build:
       context: ../..
       dockerfile: infra/docker/web.Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    environment:
+      API_URL: http://api:8000
     ports:
       - "3000:3000"
     depends_on:
