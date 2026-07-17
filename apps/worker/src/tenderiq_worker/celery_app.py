@@ -9,12 +9,14 @@ from __future__ import annotations
 from celery import Celery
 
 from tenderiq_core.config import get_settings
+from tenderiq_core.observability import init_sentry
 from tenderiq_core.queueing import QUEUE_DEFAULT, TASK_CLEANUP_STALE_UPLOADS
 
 
 def create_celery_app() -> Celery:
     """Yapılandırılmış bir Celery uygulaması üretir."""
     settings = get_settings()
+    init_sentry(settings)  # DSN yoksa no-op; CeleryIntegration task hatalarını yakalar
     app = Celery(
         "tenderiq",
         broker=settings.redis_url,

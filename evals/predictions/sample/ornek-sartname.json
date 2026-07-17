@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "case_id": "ornek-sartname",
+  "predictions": {
+    "requirements": [
+      "Teklifler Türk Lirası (TRY) cinsinden verilecektir.",
+      "Tüm teslimatlar işe başlama tarihinden itibaren 90 takvim günü içinde tamamlanmalıdır.",
+      "Teklif edilen cihazlar en az 2 yıl garantili olacaktır.",
+      "Cihaz kurulumu ve kullanıcı eğitimi yüklenici tarafından ücretsiz yapılacaktır.",
+      "Numuneler teklif ile birlikte idareye teslim edilecektir."
+    ],
+    "deliverables": [
+      "Geçici teminat mektubu (teklif bedelinin en az %3'ü)",
+      "İmza sirküleri veya imza beyannamesi",
+      "Ticaret ve/veya sanayi odası kayıt belgesi",
+      "ISO 9001 kalite yönetim sistemi belgesi"
+    ],
+    "risks": [
+      "Gecikilen her takvim günü için sözleşme bedelinin binde 3'ü oranında gecikme cezası kesilir.",
+      "İdare iş miktarını %20'ye kadar artırma veya eksiltme hakkını saklı tutar."
+    ]
+  }
+}

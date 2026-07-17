@@ -16,6 +16,7 @@ from tenderiq_api.errors import AppError, ErrorCode, ForbiddenError, Unauthorize
 from tenderiq_core.config import Settings, get_settings
 from tenderiq_core.db.tenant import set_tenant_context
 from tenderiq_core.models import Role
+from tenderiq_core.observability import bind_sentry_tags
 from tenderiq_core.security.tokens import decode_access_token
 from tenderiq_core.storage import StorageService
 
@@ -57,7 +58,7 @@ async def get_principal(
     token = _bearer_token(authorization)
     try:
         payload = decode_access_token(token, settings.auth_secret)
-        return Principal(
+        principal = Principal(
             user_id=uuid.UUID(payload.sub),
             tenant_id=uuid.UUID(payload.tenant_id),
             role=Role(payload.role),
@@ -66,6 +67,9 @@ async def get_principal(
         # ValueError: imzası geçerli ama claim'i çözümsüz token (ör. UUID olmayan
         # sub veya artık tanımlı olmayan rol) 500 değil 401 üretmeli.
         raise UnauthorizedError("Geçersiz veya süresi dolmuş token.") from exc
+    # Hata raporları kiracı/kullanıcı korelasyonu taşır (yalnız ID — PII değil).
+    bind_sentry_tags(tenant_id=principal.tenant_id, user_id=principal.user_id)
+    return principal
 
 
 async def get_tenant_session(

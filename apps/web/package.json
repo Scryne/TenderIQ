@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.65.0",
     "@tanstack/react-query": "^5.62.7",
     "@tenderiq/api-client": "workspace:*",
     "class-variance-authority": "^0.7.1",
