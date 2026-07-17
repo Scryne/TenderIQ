@@ -96,6 +96,18 @@ class Settings(BaseSettings):
     embedding_dim: int = 1024
     embedding_batch_size: int = 16
 
+    # ── Getirim (Sprint 2.1: hibrit getirim + reranker, §6.6, ADR-0012) ─────
+    retrieval_semantic_top_k: int = 24  # pgvector cosine aday sayısı
+    retrieval_keyword_top_k: int = 24  # BM25 aday sayısı
+    retrieval_rrf_k: int = 60  # Reciprocal Rank Fusion sabiti (literatür varsayılanı)
+    retrieval_rerank_candidates: int = 32  # cross-encoder'a giden en fazla aday
+    retrieval_top_n: int = 8  # tek sorgunun döndürdüğü sonuç sayısı
+    retrieval_agent_context_limit: int = 12  # ajan başına bağlam tavanı (sorgu birleşimi sonrası)
+    # "local" (CrossEncoder; sentence-transformers = kök `embedding` grubu) | "none"
+    # (reranker atlanır, RRF sırası korunur — hafif ortamlar/testler için).
+    retrieval_reranker_provider: str = "local"
+    retrieval_reranker_model: str = "BAAI/bge-reranker-v2-m3"
+
     @field_validator("cors_origins", "parsing_ocr_languages", mode="before")
     @classmethod
     def _split_csv_list(cls, value: object) -> object:

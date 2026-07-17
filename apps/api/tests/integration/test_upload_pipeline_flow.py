@@ -1,10 +1,11 @@
-"""Sprint 1.1–1.3 uçtan uca akış: doküman kaydı → tamamlama → işleme hattı → parse
-verisi → chunk + embedding (pgvector).
+"""Sprint 1.1–2.1 uçtan uca akış: doküman kaydı → tamamlama → işleme hattı → parse
+verisi → chunk + embedding (pgvector) → extracting (hibrit getirim + LangGraph).
 
 Nesne depolama sahte (in-memory) servisle, kuyruklama stub ile, hibrit parser
 sahte parser'la, embedding modeli sahte embedder'la değiştirilir (Docling/BGE-M3
-gerektirmez); worker pipeline'ı Celery broker'sız, senkron çağrılarak aynı test
-DB'sinde koşar. pgvector yazımı GERÇEKTİR (vector(1024) kolon sözleşmesi dahil).
+gerektirmez); reranker kapalıdır (RRF sırası). Worker pipeline'ı Celery
+broker'sız, senkron çağrılarak aynı test DB'sinde koşar. pgvector yazımı ve
+semantik getirim sorgusu GERÇEKTİR (vector(1024) kolon sözleşmesi dahil).
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
 import tenderiq_worker.db as worker_db
+import tenderiq_worker.extraction as worker_extraction
 import tenderiq_worker.indexing as worker_indexing
 import tenderiq_worker.parsing as worker_parsing
 from tenderiq_core.models import Chunk, Document, Embedding, Job, JobStatus
@@ -30,6 +32,7 @@ from tenderiq_core.parsing import (
     ParsedElement,
     ParseSource,
 )
+from tenderiq_core.retrieval import HybridRetriever, load_corpus, semantic_search
 from tenderiq_core.storage import ObjectInfo
 from tenderiq_worker.tasks import documents as document_tasks
 from tenderiq_worker.tasks.documents import _run_pipeline, cleanup_stale_uploads
@@ -150,6 +153,9 @@ def pipeline_client(
     monkeypatch.setattr(worker_parsing, "_storage", fake_storage)
     monkeypatch.setattr(worker_parsing, "_parser", FakeDocumentParser())
     monkeypatch.setattr(worker_indexing, "_embedder", FakeEmbedder())
+    # Extracting fazı: reranker kapalı ((None,) = "yüklendi, kapalı") — cross-encoder
+    # indirmesi gerektirmez; embedder'ı indexing ile paylaşır (yukarıdaki fake).
+    monkeypatch.setattr(worker_extraction, "_reranker_cache", (None,))
     # Worker sync engine, bu fixture'ın DATABASE_URL'ini görsün diye sıfırlanır.
     worker_db._engine = None
     worker_db._factory = None
@@ -303,6 +309,32 @@ def test_yukleme_tamamlama_ve_pipeline(
             list(session.scalars(select(Embedding.id).where(Embedding.chunk_id.in_(chunk_ids))))
         )
         assert embedding_count == 1
+
+    # Hibrit getirim gerçek pgvector üzerinde (Sprint 2.1): TR sorgu hem semantik
+    # hem BM25 yolundan chunk'ı bulur; citation zinciri (sayfa+öğe aralığı) taşınır.
+    with worker_db.tenant_session(tenant_uuid) as session:
+        corpus = load_corpus(session, [document_uuid])
+    assert len(corpus) == 1
+    shared_embedder = worker_indexing.get_embedder()
+
+    def _semantic(query_vector: Sequence[float], top_k: int) -> list[tuple[uuid.UUID, float]]:
+        with worker_db.tenant_session(tenant_uuid) as session:
+            return semantic_search(
+                session,
+                query_vector=query_vector,
+                document_ids=[document_uuid],
+                model=shared_embedder.model_name,
+                top_k=top_k,
+            )
+
+    retriever = HybridRetriever(corpus=corpus, embedder=shared_embedder, semantic_search=_semantic)
+    hits = retriever.retrieve("yüklenici zorunlu maddeler")
+    assert hits, "hibrit getirim sonuç dönmedi"
+    assert hits[0].entry.chunk_id == corpus.entries[0].chunk_id
+    assert hits[0].semantic_rank == 1  # pgvector cosine yolu
+    assert hits[0].keyword_rank == 1  # BM25 yolu ("yüklenici")
+    assert (hits[0].entry.page_start, hits[0].entry.page_end) == (1, 2)
+    assert (hits[0].entry.element_seq_start, hits[0].entry.element_seq_end) == (0, 1)
 
     # SSE: ilk status event'i anlık görüntüyü taşır. Akış, max_ticks ile sunucu
     # tarafından kapatılır; test istemci iptaline (TestClient'ta güvenilmez) dayanmaz.

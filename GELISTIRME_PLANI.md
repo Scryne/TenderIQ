@@ -11,7 +11,7 @@
 | **Sahip** | Berkay (GitHub: Scryne) — tek kurucu-geliştirici |
 | **Kaynak plan** | `TenderIQ_Proje_Plani.docx` v1.0 (bundan sonra **"Ürün Planı"** ve `§X.Y` ile atıf) |
 | **Skill haritası** | `TenderIQ_ClaudeCode_Skills.md` |
-| **Durum** | **Faz 1 TAMAM ✅** (2026-07-17: Sprint 1.1–1.4 + çıkış kapısı; gerçek dijital+taranmış şartname pgvector'a uçtan uca indekslendi) — sıradaki: Faz 2 Sprint 2.1 |
+| **Durum** | **Faz 2 başladı — Sprint 2.1 TAMAM ✅** (2026-07-17: hibrit getirim [pgvector+BM25+RRF+reranker] + LangGraph iskeleti + `extracting` fazı canlı) — sıradaki: Sprint 2.2 (çıkarım ajanları + grounding) |
 | **Hedef** | ~14 haftada MVP + kapalı beta; en riskli varsayımı (AI çıkarım doğruluğu) erken doğrulamak; ardından J bölümüyle **yayınlanabilir (GA) SaaS** |
 
 ---
@@ -436,12 +436,14 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 
 > Bu faz, A.4/5. ilke gereği ürünün "yaşar mı" sorusunu yanıtlar. Çıkış Kapısı ölçütleri diğer fazlardan daha katıdır.
 
-#### Sprint 2.1 (Hafta 7) — Hibrit getirim + orkestrasyon iskeleti
+#### Sprint 2.1 (Hafta 7) — Hibrit getirim + orkestrasyon iskeleti ✅ (2026-07-17)
 
 `AI/ML`
-- [ ] **Hibrit getirim** (§6.6): semantic (pgvector) + anahtar kelime (BM25) birleştirme + **reranker**; ihale/mevzuat terimlerine özel test sorguları (skill: `hybrid-retrieval-rerank`).
-- [ ] **LangGraph orkestrasyon iskeleti** (§6.7): durumlu, dallanabilir, yeniden denenebilir graph; ajanlar-arası bağlam paylaşımı (skill: `langgraph-extraction-agents`).
-- [ ] `Extraction Orchestrator`: durum makinesine `extracting` entegrasyonu; RAG bağlamını her ajana besleme.
+- [x] **Hibrit getirim** (§6.6): `tenderiq_core/retrieval/` — semantik (pgvector cosine, model+RLS filtreli) + anahtar kelime (**süreç-içi Okapi BM25**, TR-farkında tokenizasyon: İ/I katlaması, stem'siz — morfolojiyi semantik yol taşır) + **RRF (k=60)** birleştirme + **cross-encoder reranker** (`BAAI/bge-reranker-v2-m3`, `Reranker` protokolü + fabrika, `RETRIEVAL_RERANKER_PROVIDER=none` ile kapatılabilir). Tüm eşikler `RETRIEVAL_*` ayarlarında; ihale/mevzuat terimli birim testleri (geçici teminat, cezai şart, iş deneyim belgesi, SLA...). **Karar → ADR-0012.**
+- [x] **LangGraph orkestrasyon iskeleti** (§6.7): `tenderiq_core/agents/` — pydantic `ExtractionState` (reducer'lı: `findings` sözlük-birleşimi, `errors` liste-eki), `build_extraction_graph` (retrieve → paralel ajan düğümleri → finalize; düğüm-içi `RetryPolicy` + Celery faz-düzeyi retry = çifte katman), `ContextRetriever`/`AgentRunner` protokolleriyle bağımlılık enjeksiyonu (testler sahtelerle koşar). `langgraph` core'un sabit bağımlılığı (hafif, saf-Python). **Karar → ADR-0005.**
+- [x] `Extraction Orchestrator`: `tenderiq_worker/extraction.py` — `extracting` fazı canlı: korpus tek transaction'da yüklenir, sorgu embedding'i/BM25/rerank transaction DIŞINDA, pgvector sorgusu kısa oturumlu closure; embedder indexing fazıyla paylaşılır (süreç-tekil BGE-M3), reranker süreç-tekil. RAG bağlamı 4 ajan şablonuna TR ihale-alanı sorgularıyla beslenir (`AGENT_QUERY_TEMPLATES`); ajan koşucuları Sprint 2.2'de kaydolacak.
+
+> **Sprint 2.1 kapanış notları (2026-07-17):** (1) BM25 süreç-içidir (Postgres FTS değil): getirim kapsamı tek ihalenin dokümanları (10²–10³ chunk), skor deterministik, TR tokenizasyon kontrolü bizde; 1M+ chunk küresel arama gerekirse FTS/GIN yükseltme yolu ADR-0012'de. (2) İki getirim yolu da embedding ile aynı metni görür (bölüm başlığı öne eklenmiş). (3) Reranker testlerde/CI'da kapalıdır (`none` → RRF sırası nihai); gerçek cross-encoder yolu Faz 2 çıkış kapısında gerçek şartnameyle doğrulanacak. (4) RRF k / top-k / bağlam tavanı eşikleri kalibre edilmedi — Sprint 2.4 golden-set kapısıyla birlikte ayarlanacak. (5) mypy notu: `add_node`'a `Callable` tipli değişken geçmek langgraph 1.2 overload'larında `Never`'a çözülüyor; düğüm fabrikası dönüş tipi `StateNode[ExtractionState, None]` yapıldı (`langgraph.graph._node` — public re-export yok). (6) Test durumu: 145 birim + 11 entegrasyon yeşil; pipeline entegrasyon testi extracting fazını gerçek pgvector üzerinde koşuyor (semantik+BM25 çift yol kanıtı + citation zinciri asertleri).
 
 #### Sprint 2.2 (Hafta 8) — Çıkarım ajanları + grounding
 
