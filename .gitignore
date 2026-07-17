@@ -58,3 +58,7 @@ scratch/
 # --- Gizli spike/eval dokümanları (KVKK — gerçek şartnameler ASLA commit edilmez) ---
 spike-docs/
 spike-out/
+
+# Gerçek şartname etiketleri de doküman içeriği taşır (KVKK) — commit edilmez.
+evals/golden/private/
+evals/predictions/private/

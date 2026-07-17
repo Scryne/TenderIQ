@@ -20,6 +20,7 @@ from tenderiq_api.routers.v1 import api_v1_router
 from tenderiq_core.config import Environment, get_settings
 from tenderiq_core.db import create_engine, create_session_factory
 from tenderiq_core.logging import configure_logging
+from tenderiq_core.observability import init_sentry
 from tenderiq_core.storage import StorageNotConfiguredError, StorageService
 
 # Windows'ta psycopg'nin async modu ProactorEventLoop ile çalışmaz; selector
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     """Yapılandırılmış bir FastAPI uygulaması üretir."""
     settings = get_settings()
     configure_logging(json_logs=settings.environment is not Environment.DEVELOPMENT)
+    init_sentry(settings)  # DSN yoksa no-op (tenderiq_core.observability)
 
     app = FastAPI(
         title="TenderIQ API",

@@ -57,6 +57,11 @@ jobs:
         run: uv run pytest
       - name: Entegrasyon testleri (testcontainers — RLS izolasyon kapısı)
         run: uv run pytest -m integration
+      - name: AI eval iskeleti (golden-set format + script doğrulaması; kapı DEĞİL)
+        # Faz 2 Sprint 2.4'te --gate ile bloke edici regresyon kapısına dönüşür (E bölümü).
+        run: >-
+          uv run python evals/run_eval.py
+          --golden evals/golden/sample --predictions evals/predictions/sample
 
   contract:
     name: API sözleşme drift (OpenAPI→TS)
@@ -119,4 +124,5 @@ jobs:
             || uv export --frozen --no-dev -o /tmp/req.txt
           uvx pip-audit -r /tmp/req.txt || true
 
-  # NOT: AI golden-set regresyon kapısı (evals/) Faz 2 Sprint 2.4'te aktif hâle gelecek.
+  # NOT: AI golden-set eval İSKELETİ backend job'ında koşuyor (sample fixture).
+  # Bloke edici regresyon kapısı (--gate + gerçek golden-set) Faz 2 Sprint 2.4'te aktifleşir.

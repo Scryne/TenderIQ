@@ -15,6 +15,8 @@ dependencies = [
     "pyjwt>=2.9.0",
     "pwdlib[argon2]>=0.2.1",
     "boto3>=1.35.0",
+    # Hata izleme (C.6): DSN yoksa no-op; FastAPI/Celery entegrasyonları otomatik.
+    "sentry-sdk>=2.19.0",
 ]
 
 # Ağır/opsiyonel extras (ADR-0004 paketleme kararı): API bunlarsız çalışır;

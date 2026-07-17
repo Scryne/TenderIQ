@@ -32,6 +32,7 @@ from tenderiq_core.models import (
     Tender,
     TenderStatus,
 )
+from tenderiq_core.observability import bind_sentry_tags
 from tenderiq_core.queueing import TASK_CLEANUP_STALE_UPLOADS, TASK_PROCESS_DOCUMENT
 from tenderiq_core.storage import StorageNotConfiguredError
 from tenderiq_worker.celery_app import celery_app
@@ -162,6 +163,8 @@ def process_document(self: Task, *, job_id: str, tenant_id: str) -> str:
     """Bir dokümanın işleme hattını yürütür (idempotent; hata → backoff'lu retry)."""
     job_uuid = uuid.UUID(job_id)
     tenant_uuid = uuid.UUID(tenant_id)
+    # Sentry hata raporları iş/kiracı korelasyonu taşır (DSN yoksa no-op).
+    bind_sentry_tags(tenant_id=tenant_uuid, job_id=job_uuid)
     try:
         return _run_pipeline(job_uuid, tenant_uuid)
     except InvalidJobTransitionError as exc:

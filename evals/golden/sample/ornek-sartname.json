@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "case_id": "ornek-sartname",
+  "document": {
+    "filename": "ornek_sartname.pdf",
+    "kind": "administrative",
+    "source": "digital",
+    "page_count": 4,
+    "notes": "SENTETİK örnek — format fixture'ı; gerçek doküman içeriği taşımaz. CI iskelet adımı bu case ile koşar."
+  },
+  "labels": {
+    "requirements": [
+      {
+        "id": "req-1",
+        "text": "İstekliler tekliflerini Türk Lirası (TRY) cinsinden vereceklerdir.",
+        "type": "financial",
+        "mandatory": true,
+        "page": 1
+      },
+      {
+        "id": "req-2",
+        "text": "Yüklenici, işe başlama tarihinden itibaren 90 takvim günü içinde tüm teslimatları tamamlamak zorundadır.",
+        "type": "administrative",
+        "mandatory": true,
+        "page": 2
+      },
+      {
+        "id": "req-3",
+        "text": "Teklif edilen cihazlar en az 2 yıl garanti kapsamında olacaktır.",
+        "type": "technical",
+        "mandatory": true,
+        "page": 2
+      },
+      {
+        "id": "req-4",
+        "text": "Cihazların kurulumu ve kullanıcı eğitimi yüklenici tarafından ücretsiz sağlanacaktır.",
+        "type": "technical",
+        "mandatory": true,
+        "page": 3
+      },
+      {
+        "id": "req-5",
+        "text": "İstekli, son beş yıl içinde benzer nitelikte en az bir iş deneyimini belgeleyecektir.",
+        "type": "administrative",
+        "mandatory": true,
+        "page": 3
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "del-1",
+        "name": "Geçici teminat mektubu (teklif bedelinin en az %3'ü)",
+        "mandatory": true,
+        "page": 1
+      },
+      {
+        "id": "del-2",
+        "name": "İmza sirküleri veya imza beyannamesi",
+        "mandatory": true,
+        "page": 1
+      },
+      {
+        "id": "del-3",
+        "name": "Ticaret ve/veya sanayi odası kayıt belgesi",
+        "mandatory": true,
+        "page": 2
+      },
+      {
+        "id": "del-4",
+        "name": "İş deneyim belgesi (teklif bedelinin en az %25'i oranında)",
+        "mandatory": true,
+        "page": 3
+      },
+      {
+        "id": "del-5",
+        "name": "ISO 9001 kalite yönetim sistemi belgesi",
+        "mandatory": false,
+        "page": 3
+      }
+    ],
+    "risks": [
+      {
+        "id": "risk-1",
+        "description": "Gecikilen her takvim günü için sözleşme bedelinin binde 3'ü oranında gecikme cezası uygulanır.",
+        "severity": "high",
+        "page": 4
+      },
+      {
+        "id": "risk-2",
+        "description": "İdare, sözleşme süresi içinde iş miktarını %20'ye kadar artırma veya eksiltme hakkını saklı tutar.",
+        "severity": "medium",
+        "page": 4
+      }
+    ]
+  }
+}

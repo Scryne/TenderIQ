@@ -6,5 +6,14 @@ packages:
 # olarak hepsini bloklar). sharp: Next.js görüntü optimizasyonu; unrs-resolver:
 # eslint import çözümleyicisinin yerel bağlaması.
 allowBuilds:
+  # @sentry/cli postinstall binary indirir; source-map yükleme kullanılmadığından
+  # bilinçli olarak REDDEDİLİR (build-time @sentry/bundler-plugin gerekmiyor).
+  "@sentry/cli": false
   sharp: true
   unrs-resolver: true
+
+# Registry aynası caniuse-lite'ın en güncel sürümünü henüz sunmuyor; mevcut en
+# yeniye sabitlenir (browserslist küçük veri-sürümü farkına dayanıklıdır).
+# Ayna güncellenince bu override kaldırılabilir.
+overrides:
+  caniuse-lite: 1.0.30001800
