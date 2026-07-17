@@ -7,8 +7,8 @@ Tasarım:
   eder: tamamlanmış iş için no-op, ara durumda kalan iş için o fazdan devam.
 - Deneme tükenince iş ``failed``'e çekilir ve hata mesajı kaydedilir.
 
-Faz gövdeleri Sprint 1.2 (parsing), 1.3 (chunk/embed/index) ve Faz 2
-(extraction) tarafından doldurulacak iskeletlerdir.
+Faz gövdeleri: parsing (Sprint 1.2), indexing (Sprint 1.3), extracting
+(Sprint 2.1 — RAG bağlamı + LangGraph iskeleti; LLM ajanları Sprint 2.2'de).
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ from tenderiq_core.queueing import TASK_CLEANUP_STALE_UPLOADS, TASK_PROCESS_DOCU
 from tenderiq_core.storage import StorageNotConfiguredError
 from tenderiq_worker.celery_app import celery_app
 from tenderiq_worker.db import get_session_factory, tenant_session
+from tenderiq_worker.extraction import run_extraction_phase
 from tenderiq_worker.indexing import run_indexing_phase
 from tenderiq_worker.parsing import get_storage, run_parsing_phase
 
@@ -79,8 +80,9 @@ def _index_document(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
 
 
 def _extract_findings(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
-    """Extracting fazı — Faz 2'de LangGraph çıkarım ajanlarına bağlanacak."""
+    """Extracting fazı — RAG bağlamı + LangGraph orkestrasyon (``tenderiq_worker.extraction``)."""
     logger.info("extract_adimi", job_id=str(job_id), tenant_id=str(tenant_id))
+    run_extraction_phase(job_id, tenant_id)
 
 
 _PHASE_HANDLERS = {
