@@ -11,7 +11,7 @@
 | **Sahip** | Berkay (GitHub: Scryne) — tek kurucu-geliştirici |
 | **Kaynak plan** | `TenderIQ_Proje_Plani.docx` v1.0 (bundan sonra **"Ürün Planı"** ve `§X.Y` ile atıf) |
 | **Skill haritası** | `TenderIQ_ClaudeCode_Skills.md` |
-| **Durum** | **Faz 0 TAMAM ✅** (2026-07-04; 2026-07-08 kod denetimiyle sertleştirildi) — Faz 1 yürütülüyor |
+| **Durum** | **Faz 1 TAMAM ✅** (2026-07-17: Sprint 1.1–1.4 + çıkış kapısı; gerçek dijital+taranmış şartname pgvector'a uçtan uca indekslendi) — sıradaki: Faz 2 Sprint 2.1 |
 | **Hedef** | ~14 haftada MVP + kapalı beta; en riskli varsayımı (AI çıkarım doğruluğu) erken doğrulamak; ardından J bölümüyle **yayınlanabilir (GA) SaaS** |
 
 ---
@@ -404,24 +404,26 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 
 > **Sprint 1.3 kapanış notları (2026-07-17):** (1) Embedding hesabı, parsing'le aynı desenle DB transaction'ı DIŞINDA yapılır; sonuç tek transaction'da yazılır. (2) Boyut sözleşmesi üç yerde kilitli (migration 0006 ↔ `models.embedding.EMBEDDING_DIM` ↔ `EMBEDDING_DIM` ayarı) — farklı boyutlu modele geçiş migration ister (ADR-0008). (3) Test durumu: 98 birim + 11 entegrasyon yeşil; entegrasyon testi chunk+embedding yazımını GERÇEK pgvector'a (vector(1024) sözleşmesi dahil), idempotent yeniden-indekslemeyi ve kiracılar-arası chunk/embedding izolasyonunu doğrular. BGE-M3'ün kendisi testte sahte embedder'la ikame edilir (~2 GB model indirmesi CI'a uygun değil); gerçek modelle uçtan uca yol Faz 1 çıkış kapısında gerçek şartnameyle elle doğrulanacak (CPU-önce kapasite yolu ADR-0008'de).
 
-#### Sprint 1.4 (Hafta 6) — Golden-set & değerlendirme iskeleti
+#### Sprint 1.4 (Hafta 6) — Golden-set & değerlendirme iskeleti ✅ (2026-07-17)
 
 `AI/ML`
-- [ ] **Golden-set v1** (§6.10): birkaç gerçek şartnameyi el ile etiketle (beklenen gereksinim/belge/risk çıktıları) — format `evals/` altında standart.
-- [ ] Değerlendirme iskeleti: precision/recall + **kaçırılan zorunlu belge oranı** (kritik metrik) hesaplayan script (skill: `golden-set-eval`).
-- [ ] `evals/`'i CI'a iskelet olarak bağla (Faz 2'de ajanlar gelince aktif kapı olacak).
+- [x] **Golden-set v1** (§6.10): 3 gerçek doküman etiketlendi (idari şartname + sözleşme tasarısı + teknik şartname: 41 gereksinim, 19 belge [14 zorunlu], 14 risk) — format standardı `evals/README.md` + `run_eval.py` pydantic şemaları (`GoldenCase`/`PredictionSet`, schema_version=1). Gerçek etiketler doküman içeriği taşıdığından `evals/golden/private/` altında (gitignore, KVKK); commit'lenen sentetik `sample/` case CI fixture'ıdır.
+- [x] Değerlendirme iskeleti: `evals/run_eval.py` — kategori başına precision/recall/F1 (mikro-ortalama) + **kaçırılan zorunlu belge oranı** (kritik metrik). Eşleme deterministik (TR-farkında normalize + SequenceMatcher ∨ token Jaccard ≥ eşik, bire-bir açgözlü) — LLM yok, CI'da tekrarlanabilir. `--gate` bayrağı eşik ihlalinde çıkış kodu 2 üretir.
+- [x] `evals/` CI'a iskelet olarak bağlı: backend job'ı sample fixture ile script'i koşar (format+script doğrulaması, kapı DEĞİL); Sprint 2.4'te `--gate` ile bloke edici olacak.
 
 `DevOps`
-- [ ] Sentry entegrasyonu (backend/frontend); `tenant_id` bağlamı, PII maskeleme (skill: `sentry-error-tracking`).
+- [x] **Sentry entegrasyonu:** backend — `tenderiq_core/observability.py` (`init_sentry` DSN yoksa no-op; `send_default_pii=False` + `before_send` scrub: istek gövdesi/cookie/hassas başlık/sorgu dizesi gitmez, kullanıcı yalnız ID) ; `tenant_id`/`user_id` tag'i principal çözümünde, `tenant_id`/`job_id` worker task'ında bağlanır. Frontend — `@sentry/nextjs` (instrumentation + instrumentation-client + global-error; `NEXT_PUBLIC_SENTRY_DSN` boşken tam no-op; replay/APM kapalı). `@sentry/cli` postinstall bilinçli reddedildi (source-map yükleme J.1'de).
 
-**Çıktı:** Bir doküman yüklenince otomatik parse→chunk→embed→index olup `review_ready`'ye ulaşıyor; durum canlı izleniyor; golden-set + eval script çalışıyor.
+> **Sprint 1.4 kapanış notları (2026-07-17):** (1) Eval eşleme eşiği (0.6) sample fixture üzerinde ayarlandı; Faz 2'de gerçek ajan çıktısıyla yeniden kalibre edilecek (eşik `--threshold` ile parametrik). (2) Gate eşikleri (`--min-recall 0.8`, `--max-missed-mandatory 0.05`) başlangıç önerisidir — Sprint 2.4'te ürün kararıyla kesinleşir. (3) Sentry'de `traces_sample_rate=0` (yalnız hata izleme); APM/replay maliyet analizi Faz 4'e ertelendi. (4) pnpm notları: `caniuse-lite` registry aynası eskisinde kaldığından `pnpm-workspace.yaml`'da geçici override var; `@sentry/cli` build script'i bilinçli reddedildi. (5) Test durumu: 113 birim + 11 entegrasyon yeşil.
 
-#### Faz 1 — Çıkış Kapısı ✅
+**Çıktı:** Bir doküman yüklenince otomatik parse→chunk→embed→index olup `review_ready`'ye ulaşıyor; durum canlı izleniyor; golden-set + eval script çalışıyor. ✓ (gerçek dijital + taranmış şartnameyle doğrulandı — Çıkış Kapısı kanıtları aşağıda)
 
-- [ ] Gerçek bir şartname (dijital **ve** taranmış) uçtan uca hattan geçip pgvector'a indeksleniyor.
-- [ ] Her `ParsedElement`/`Chunk` **sayfa + konum** taşıyor (izlenebilirlik verisi hazır).
-- [ ] İş durum makinesi tüm geçişleri canlı (SSE) yansıtıyor; bir adım hatasında iş idempotent şekilde yeniden denenebiliyor.
-- [ ] Golden-set v1 etiketli; eval script precision/recall + kaçırılan zorunlu belge oranı üretiyor.
+#### Faz 1 — Çıkış Kapısı ✅ (2026-07-17)
+
+- [x] Gerçek bir şartname (dijital **ve** taranmış) uçtan uca hattan geçip pgvector'a indeksleniyor — `scripts/faz1_gate_check.py` gerçek pipeline'ı (`_run_pipeline`) gerçek BGE-M3 ile koşar (tek ikame: yerel dosya sunan depolama). Kanıt (2026-07-17): dijital idari şartname 15 s. → 325 öğe (%100 bbox) → 77 chunk+embedding (189 sn, model indirme dahil); taranmış teknik şartname 6 s. → EasyOCR → 140 öğe (%100 bbox, kaynak=scanned) → 16 chunk+embedding (180 sn). Cosine getirim kanıtı: "geçici teminat oranı ve süresi" sorgusu ilk sırada **Madde 26 - Geçici teminat** chunk'ını döndürdü (benzerlik 0.68, sayfa+bölüm izlenebilir).
+- [x] Her `ParsedElement`/`Chunk` **sayfa + konum** taşıyor: öğe → sayfa+bbox+kaynak; chunk → bölüm + sayfa aralığı + kaynak öğe `seq` aralığı (citation zinciri; entegrasyon testli).
+- [x] İş durum makinesi tüm geçişleri canlı (SSE) yansıtıyor; hata durumunda retry/backoff + `POST /jobs/{id}/retry` ile idempotent yeniden deneme (Sprint 1.1/1.2'de kanıtlandı; indexing fazı da aynı idempotent desende).
+- [x] Golden-set v1 etiketli (3 gerçek doküman, private); eval script precision/recall + kaçırılan zorunlu belge oranı üretiyor ve CI'da iskelet olarak koşuyor.
 
 **İlgili ADR'ler:** ADR-0002 (pgvector), ADR-0004 (hibrit parsing), ADR-0008 (BGE-M3 embedding).
 **Kurulacak skill'ler:** `async-job-state-machine`, `hybrid-document-parsing`, `structure-aware-chunking`, `pgvector-schema-migrations`, `golden-set-eval`, `sse-live-status`, `sentry-error-tracking`.
@@ -664,7 +666,7 @@ Güvenlik bir "özellik" değil, kurumsal satın almanın ön koşuludur (Ürün
 | Kilometre taşı | Faz | Kanıt |
 |---|---|---|
 | **M0 — İskelet & Yükleme** ✅ (2026-07-04) | Faz 0 sonu | `docker compose up` + RLS izolasyon testi + parsing spike raporu — tamamlandı; 2026-07-08 denetimiyle sertleştirildi |
-| **M1 — Çekirdek Hat** | Faz 1 sonu | Doküman uçtan uca indeksleniyor + golden-set/eval çalışıyor |
+| **M1 — Çekirdek Hat** ✅ (2026-07-17) | Faz 1 sonu | Doküman uçtan uca indeksleniyor + golden-set/eval çalışıyor — tamamlandı (gerçek dijital+taranmış şartname kanıtıyla) |
 | **M2 — AI Doğruluğu Kanıtı** | Faz 2 sonu | Grounding'li çıkarım + ölçülen metrikler + aktif regresyon kapısı |
 | **M3 — Kullanılabilir Ürün** | Faz 3 sonu | İnceleme+kaynak vurgusu + export + ödeme; E2E yeşil |
 | **M4 — İlk Müşteri** | Faz 4 | Kapalı beta + trust/KVKK + ilk ödeyen müşteri |
