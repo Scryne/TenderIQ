@@ -45,6 +45,11 @@ parsing = [
 ocr = [
     "tenderiq-core[ocr]",
 ]
+# Embedding yığını (BGE-M3 / sentence-transformers, ADR-0008): indexing fazı
+# yalnız worker'da koşar; API imajı bu grubu kurmaz.
+embedding = [
+    "tenderiq-core[embedding]",
+]
 
 # ── Ruff (lint + format) ─────────────────────────────────────────────────────
 [tool.ruff]
@@ -76,7 +81,15 @@ plugins = ["pydantic.mypy"]
 mypy_path = ["packages/core/src", "apps/api/src", "apps/worker/src"]
 
 [[tool.mypy.overrides]]
-module = ["celery.*", "boto3.*", "botocore.*", "docling.*", "docling_core.*"]
+module = [
+    "celery.*",
+    "boto3.*",
+    "botocore.*",
+    "docling.*",
+    "docling_core.*",
+    "pgvector.*",
+    "sentence_transformers.*",
+]
 ignore_missing_imports = true
 
 # Celery'nin @task dekoratörü tipsizdir; task modüllerinde bu kuralı gevşetiriz.

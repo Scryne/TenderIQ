@@ -36,6 +36,7 @@ from tenderiq_core.queueing import TASK_CLEANUP_STALE_UPLOADS, TASK_PROCESS_DOCU
 from tenderiq_core.storage import StorageNotConfiguredError
 from tenderiq_worker.celery_app import celery_app
 from tenderiq_worker.db import get_session_factory, tenant_session
+from tenderiq_worker.indexing import run_indexing_phase
 from tenderiq_worker.parsing import get_storage, run_parsing_phase
 
 logger = get_logger("tenderiq.worker.documents")
@@ -71,8 +72,9 @@ def _parse_document(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
 
 
 def _index_document(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
-    """Indexing fazı — Sprint 1.3'te chunk→embedding→pgvector'a bağlanacak."""
+    """Indexing fazı — chunk→embedding→pgvector (ayrıntı: ``tenderiq_worker.indexing``)."""
     logger.info("index_adimi", job_id=str(job_id), tenant_id=str(tenant_id))
+    run_indexing_phase(job_id, tenant_id)
 
 
 def _extract_findings(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
