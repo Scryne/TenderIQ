@@ -1,14 +1,17 @@
-"""Sprint 1.1/1.2 uçtan uca akış: doküman kaydı → tamamlama → işleme hattı → parse verisi.
+"""Sprint 1.1–1.3 uçtan uca akış: doküman kaydı → tamamlama → işleme hattı → parse
+verisi → chunk + embedding (pgvector).
 
 Nesne depolama sahte (in-memory) servisle, kuyruklama stub ile, hibrit parser
-sahte parser'la değiştirilir (Docling gerektirmez); worker pipeline'ı Celery
-broker'sız, senkron çağrılarak aynı test DB'sinde koşar.
+sahte parser'la, embedding modeli sahte embedder'la değiştirilir (Docling/BGE-M3
+gerektirmez); worker pipeline'ı Celery broker'sız, senkron çağrılarak aynı test
+DB'sinde koşar. pgvector yazımı GERÇEKTİR (vector(1024) kolon sözleşmesi dahil).
 """
 
 from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -16,8 +19,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
 import tenderiq_worker.db as worker_db
+import tenderiq_worker.indexing as worker_indexing
 import tenderiq_worker.parsing as worker_parsing
-from tenderiq_core.models import Document, Job, JobStatus
+from tenderiq_core.models import Chunk, Document, Embedding, Job, JobStatus
 from tenderiq_core.models import ParsedElement as ParsedElementRow
 from tenderiq_core.parsing import (
     BoundingBox,
@@ -97,6 +101,24 @@ class FakeDocumentParser:
         return FAKE_PARSED
 
 
+class FakeEmbedder:
+    """EmbeddingModel sözleşmesinin deterministik eşleniği.
+
+    dim=1024, DB'deki ``vector(1024)`` kolon sözleşmesini GERÇEK insert ile sınar
+    (yanlış boyut pgvector tarafından reddedilirdi).
+    """
+
+    model_name = "fake-bge-m3"
+    dim = 1024
+
+    def __init__(self) -> None:
+        self.inputs: list[str] = []
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        self.inputs.extend(texts)
+        return [[float(index + 1)] + [0.0] * (self.dim - 1) for index in range(len(texts))]
+
+
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
@@ -123,9 +145,11 @@ def pipeline_client(
     api_client.app.state.enqueue_document_job = (  # type: ignore[attr-defined]
         lambda job_id, tenant_id: enqueued.append((job_id, tenant_id))
     )
-    # Parse fazı sahte depolama + sahte parser kullanır (Docling/R2 gerektirmez).
+    # Parse fazı sahte depolama + sahte parser kullanır (Docling/R2 gerektirmez);
+    # indexing fazı sahte embedder kullanır (BGE-M3 indirmesi gerektirmez).
     monkeypatch.setattr(worker_parsing, "_storage", fake_storage)
     monkeypatch.setattr(worker_parsing, "_parser", FakeDocumentParser())
+    monkeypatch.setattr(worker_indexing, "_embedder", FakeEmbedder())
     # Worker sync engine, bu fixture'ın DATABASE_URL'ini görsün diye sıfırlanır.
     worker_db._engine = None
     worker_db._factory = None
@@ -235,6 +259,26 @@ def test_yukleme_tamamlama_ve_pipeline(
         assert doc_row is not None
         assert doc_row.page_count == 2
 
+        # Indexing fazı yapı-farkında chunk'ı + pgvector embedding'ini yazdı:
+        # başlık + paragraf tek chunk'ta, bölüm/sayfa/öğe aralığı izlenebilir.
+        chunk_rows = list(
+            session.scalars(
+                select(Chunk).where(Chunk.document_id == document_uuid).order_by(Chunk.seq)
+            )
+        )
+        assert len(chunk_rows) == 1
+        chunk_row = chunk_rows[0]
+        assert chunk_row.text == "1. KAPSAM\nYüklenici tüm maddeleri karşılamak zorundadır."
+        assert chunk_row.section == "1. KAPSAM"
+        assert (chunk_row.page_start, chunk_row.page_end) == (1, 2)
+        assert (chunk_row.element_seq_start, chunk_row.element_seq_end) == (0, 1)
+        embedding_rows = list(
+            session.scalars(select(Embedding).where(Embedding.chunk_id == chunk_row.id))
+        )
+        assert len(embedding_rows) == 1
+        assert embedding_rows[0].model == "fake-bge-m3"
+        assert len(list(embedding_rows[0].vector)) == 1024  # vector(1024) gidiş-dönüş
+
     # Parse fazı idempotent: yeniden koşum öğeleri çoğaltmaz (delete+insert).
     worker_parsing.run_parsing_phase(uuid.UUID(job_id), tenant_uuid)
     with worker_db.tenant_session(tenant_uuid) as session:
@@ -246,6 +290,19 @@ def test_yukleme_tamamlama_ve_pipeline(
             )
         )
         assert count == 2
+
+    # Indexing fazı idempotent: yeniden koşum chunk/embedding çoğaltmaz
+    # (delete+insert; embedding'ler FK cascade ile birlikte yenilenir).
+    worker_indexing.run_indexing_phase(uuid.UUID(job_id), tenant_uuid)
+    with worker_db.tenant_session(tenant_uuid) as session:
+        chunk_ids = list(
+            session.scalars(select(Chunk.id).where(Chunk.document_id == document_uuid))
+        )
+        assert len(chunk_ids) == 1
+        embedding_count = len(
+            list(session.scalars(select(Embedding.id).where(Embedding.chunk_id.in_(chunk_ids))))
+        )
+        assert embedding_count == 1
 
     # SSE: ilk status event'i anlık görüntüyü taşır. Akış, max_ticks ile sunucu
     # tarafından kapatılır; test istemci iptaline (TestClient'ta güvenilmez) dayanmaz.
@@ -260,10 +317,14 @@ def test_yukleme_tamamlama_ve_pipeline(
         assert payload["tender"]["status"] == "review_ready"
         assert payload["documents"][0]["job"]["status"] == "review_ready"
 
-    # Kiracılar arası sızıntı: B, A'nın işini göremez (RLS → 404).
-    _tenant_b, token_b = _register_and_login(client, slug="org-flow-b", email="b@flowb.com")
+    # Kiracılar arası sızıntı: B, A'nın işini göremez (RLS → 404); A'nın
+    # chunk/embedding satırları da B'nin bağlamında görünmez (getirim izolasyonu).
+    tenant_b, token_b = _register_and_login(client, slug="org-flow-b", email="b@flowb.com")
     cross = client.get(f"/api/v1/jobs/{job_id}", headers=_auth(token_b))
     assert cross.status_code == 404
+    with worker_db.tenant_session(uuid.UUID(tenant_b)) as session:
+        assert list(session.scalars(select(Chunk.id))) == []
+        assert list(session.scalars(select(Embedding.id))) == []
 
 
 def test_magic_bytes_sahteciligi_reddedilir(
@@ -332,11 +393,12 @@ def test_pipeline_ara_durumdan_devam_eder(
     assert mid["status"] == "parsing"
     assert mid["attempts"] == 1
 
-    # Faz düzelir; ikinci koşum baştan değil, kaldığı fazdan devam eder.
+    # Faz düzelir (gerçek parse handler'ı geri konur — indexing fazı parse
+    # verisine ihtiyaç duyar); ikinci koşum baştan değil, kaldığı fazdan devam eder.
     monkeypatch.setitem(
         document_tasks._PHASE_HANDLERS,
         document_tasks.JobStatus.PARSING,
-        lambda job, tenant: None,
+        document_tasks._parse_document,
     )
     assert _run_pipeline(uuid.UUID(job_id), uuid.UUID(tenant_id)) == "review_ready"
     final = client.get(f"/api/v1/jobs/{job_id}", headers=_auth(token)).json()

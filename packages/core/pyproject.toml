@@ -28,6 +28,11 @@ parsing = [
 ocr = [
     "easyocr>=1.7.0",
 ]
+# Embedding: BGE-M3, sentence-transformers üzerinden (ADR-0008). Torch yığınını
+# docling ile paylaşır; yalnız worker imajına kurulur (kök `embedding` grubu).
+embedding = [
+    "sentence-transformers>=3.0.0",
+]
 
 [build-system]
 requires = ["hatchling"]

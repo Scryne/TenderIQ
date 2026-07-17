@@ -84,6 +84,18 @@ class Settings(BaseSettings):
     # EasyOCR dil listesi (virgülle ayrılmış env: PARSING_OCR_LANGUAGES=tr,en).
     parsing_ocr_languages: Annotated[list[str], NoDecode] = ["tr", "en"]
 
+    # ── İndeksleme (Sprint 1.3: chunking + embedding, §6.3–6.5, ADR-0008) ───
+    # Chunk sınırları karakter cinsindendir; varsayılanlar
+    # tenderiq_core.indexing.chunking ile aynıdır (~400-600 token hedefi).
+    indexing_chunk_max_chars: int = 1800
+    indexing_chunk_overlap_chars: int = 200
+    # "local" (BGE-M3, süreç içi) | "managed" (ADR-0008 yükseltme yolu, henüz yok).
+    embedding_provider: str = "local"
+    embedding_model: str = "BAAI/bge-m3"
+    # DB'deki vector kolonuyla SÖZLEŞMELİ boyut (migration 0006): birlikte değişir.
+    embedding_dim: int = 1024
+    embedding_batch_size: int = 16
+
     @field_validator("cors_origins", "parsing_ocr_languages", mode="before")
     @classmethod
     def _split_csv_list(cls, value: object) -> object:
