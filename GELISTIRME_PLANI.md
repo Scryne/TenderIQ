@@ -11,7 +11,7 @@
 | **Sahip** | Berkay (GitHub: Scryne) — tek kurucu-geliştirici |
 | **Kaynak plan** | `TenderIQ_Proje_Plani.docx` v1.0 (bundan sonra **"Ürün Planı"** ve `§X.Y` ile atıf) |
 | **Skill haritası** | `TenderIQ_ClaudeCode_Skills.md` |
-| **Durum** | **Faz 2 başladı — Sprint 2.1 TAMAM ✅** (2026-07-17: hibrit getirim [pgvector+BM25+RRF+reranker] + LangGraph iskeleti + `extracting` fazı canlı) — sıradaki: Sprint 2.2 (çıkarım ajanları + grounding) |
+| **Durum** | **Faz 2 sürüyor — Sprint 2.2 TAMAM ✅** (2026-07-18: şema-zorlamalı çıkarım ajanları [Claude structured outputs] + zorunlu grounding + Requirement/Deliverable tabloları + kaynaklı API uçları) — sıradaki: Sprint 2.3 (risk, takvim, gap analizi) |
 | **Hedef** | ~14 haftada MVP + kapalı beta; en riskli varsayımı (AI çıkarım doğruluğu) erken doğrulamak; ardından J bölümüyle **yayınlanabilir (GA) SaaS** |
 
 ---
@@ -445,14 +445,19 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 
 > **Sprint 2.1 kapanış notları (2026-07-17):** (1) BM25 süreç-içidir (Postgres FTS değil): getirim kapsamı tek ihalenin dokümanları (10²–10³ chunk), skor deterministik, TR tokenizasyon kontrolü bizde; 1M+ chunk küresel arama gerekirse FTS/GIN yükseltme yolu ADR-0012'de. (2) İki getirim yolu da embedding ile aynı metni görür (bölüm başlığı öne eklenmiş). (3) Reranker testlerde/CI'da kapalıdır (`none` → RRF sırası nihai); gerçek cross-encoder yolu Faz 2 çıkış kapısında gerçek şartnameyle doğrulanacak. (4) RRF k / top-k / bağlam tavanı eşikleri kalibre edilmedi — Sprint 2.4 golden-set kapısıyla birlikte ayarlanacak. (5) mypy notu: `add_node`'a `Callable` tipli değişken geçmek langgraph 1.2 overload'larında `Never`'a çözülüyor; düğüm fabrikası dönüş tipi `StateNode[ExtractionState, None]` yapıldı (`langgraph.graph._node` — public re-export yok). (6) Test durumu: 145 birim + 11 entegrasyon yeşil; pipeline entegrasyon testi extracting fazını gerçek pgvector üzerinde koşuyor (semantik+BM25 çift yol kanıtı + citation zinciri asertleri).
 
-#### Sprint 2.2 (Hafta 8) — Çıkarım ajanları + grounding
+#### Sprint 2.2 (Hafta 8) — Çıkarım ajanları + grounding ✅ (2026-07-18)
 
 `AI/ML`
-- [ ] **Grounding altyapısı** (§6.9) — tüm ajanların temeli: her çıkarılan öğe bir kaynak `ParsedElement`'e bağlanmak **zorunda**; bağlanamayan "düşük güven" işaretlenir veya gösterilmez (skill: `structured-output-grounding`).
-- [ ] **Şema zorlaması:** her ajan çıktısı önceden tanımlı Pydantic/JSON şemasına uymak zorunda; uymayan reddedilir ve yeniden istenir (tool use / structured outputs).
-- [ ] **Requirement Extractor** → gereksinim listesi: metin, tip (teknik/idari/mali), zorunluluk, kaynak konum (§6.7, §8.1 `Requirement`).
-- [ ] **Deliverables Extractor** → belge/sertifika/teminat listesi + kaynak (`Deliverable`).
-- [ ] İlgili uçlar: `GET /api/v1/tenders/{id}/requirements`, `.../deliverables` (kaynaklarıyla).
+- [x] **Grounding altyapısı** (§6.9) — tüm ajanların temeli: `tenderiq_core/agents/grounding.py` — her öğe `source_index` ([KAYNAK n]) + birebir `source_quote` bildirir; alıntı deterministik doğrulanır (LLM'siz: TR İ/I katlaması + tipografik noktalama eşdeğerliği + boşluk normalizasyonu) ve `ParsedElement`e bağlanır. Çözünürlük: **ELEMENT** (tek öğede doğrulandı → bbox'a hazır) / **CHUNK** (öğe sınırı aşan alıntı → aralık başı öğesi) / **UNGROUNDED** (doğrulanamadı → düşük güven: DB'ye `source_element_id=NULL` yazılır, API'den DÖNMEZ). (skill: `structured-output-grounding`)
+- [x] **Şema zorlaması:** `tenderiq_core/llm/` — `StructuredLLM` protokolü + `create_structured_llm()` fabrikası (`LLM_PROVIDER=anthropic|none`; testler sahtelerle). İki katman: (1) Anthropic **structured outputs** (`messages.parse`, adaptive thinking) çıktıyı şemaya token düzeyinde kısıtlar; (2) yine de uymayan çıktı (ör. max_tokens kesmesi) doğrulama hatasıyla birlikte **reddedilip yeniden istenir** (`LLM_SCHEMA_MAX_ATTEMPTS=3`; tavan → `SchemaEnforcementError` → Celery retry). `stop_reason=refusal` kalıcı hatadır, istem tekrarlanmaz. Ajan çıktı şemaları `agents/schemas.py` (pydantic); enum'lar `tenderiq_core/findings.py`'de tek kaynak (ORM ↔ ajan sözleşmesi ayrışamaz).
+- [x] **Requirement Extractor** → `agents/extractors.py` (`ExtractionRunner`, `AgentRunner` protokolünü uygular): metin, tip (technical/administrative/financial), zorunluluk, kaynak konum (§6.7, §8.1 `Requirement`). TR ihale-alanı istemleri `agents/prompts.py` (Sprint 2.4'te `packages/prompts`e taşınır).
+- [x] **Deliverables Extractor** → belge/sertifika/teminat listesi + kaynak (`Deliverable`; kind: document/certificate/guarantee/other).
+- [x] İlgili uçlar: `GET /api/v1/tenders/{id}/requirements`, `.../deliverables` — kaynak konum (`FindingSource`: element_id/seq + sayfa + bbox + bölüm + alıntı + çözünürlük) ile; **inner join kaynaksız bulguyu yapısal olarak dışarıda bırakır** (ADR-0006 kanıtı entegrasyon testinde). OpenAPI→TS sözleşmesi yenilendi.
+
+`Veri`
+- [x] `Requirement` + `Deliverable` tabloları (migration `0007`, RLS'li): `N—1` kaynak `ParsedElement` (UNGROUNDED'da NULL), `uq_*_document_seq` idempotency kilidi; extracting fazı bulguları tek transaction'da delete+insert yazar. Re-parse öğeleri yenilediğinde türetilmiş bulgular FK cascade ile silinir (bayat kaynağa işaret eden bulgu kalamaz) — fazın yeniden koşumu yeni öğelere bağlayarak yeniden üretir (entegrasyon testli).
+
+> **Sprint 2.2 kapanış notları (2026-07-18):** (1) LLM istemcisi `anthropic` SDK'sıyla (`claude-opus-4-8`, `messages.parse` + structured outputs + adaptive thinking; non-streaming güvenli tavan `LLM_MAX_OUTPUT_TOKENS=16000`); istemci süreç-tekil, `LLM_PROVIDER=none` extracting fazını 2.1 iskelet moduna düşürür (testler/CI/anahtarsız dev). (2) UNGROUNDED bulgular bilinçli olarak DB'ye yazılır (gözlemlenebilirlik + Sprint 2.4 eval'inde hallucination oranı ölçümü) ama hiçbir API yanıtına giremez. (3) Enum'lar `tenderiq_core/findings.py`'ye alındı (models ← agents bağımlılık yönü, B.2 — döngüsel import kırıldı). (4) Gerçek Claude çağrısıyla uçtan uca yol Faz 2 çıkış kapısında gerçek şartnameyle doğrulanacak; golden-set kalibrasyonu ve prompt/eşik ayarı Sprint 2.4'te. (5) Test durumu: 169 birim + 11 entegrasyon yeşil — şema-ret/yeniden-isteme, refusal, grounding TR katlaması, ajan koşucuları sahte LLM'le birim; pipeline entegrasyon testi bulgu yazımı + cascade + idempotent yeniden-çıkarım + grounding'li API uçları + kiracı izolasyonunu gerçek pgvector üzerinde doğrular.
 
 #### Sprint 2.3 (Hafta 9) — Risk, takvim, gap analizi
 
@@ -464,7 +469,7 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 - [ ] (Ops.) **Cost Estimator** → kaba maliyet göstergesi + varsayımlar.
 
 `Veri`
-- [ ] `Requirement`, `Deliverable`, `RiskFlag`, `ComplianceResult` tabloları; her biri `N—1` kaynak `ParsedElement` ilişkisi (§8.2).
+- [ ] `RiskFlag`, `ComplianceResult` tabloları (`Requirement`/`Deliverable` Sprint 2.2'de kuruldu); her biri `N—1` kaynak `ParsedElement` ilişkisi (§8.2).
 
 #### Sprint 2.4 (Hafta 10) — Maliyet, gözlemlenebilirlik, eval kapısı
 

@@ -23,12 +23,16 @@ from tenderiq_api.dependencies import (
 )
 from tenderiq_api.errors import ConflictError, NotFoundError, ValidationFailedError
 from tenderiq_core.db.tenant import set_tenant_context
+from tenderiq_core.findings import DeliverableKind, GroundingResolution, RequirementKind
 from tenderiq_core.models import (
     AuditAction,
+    Deliverable,
     Document,
     DocumentKind,
     DocumentStatus,
     Job,
+    ParsedElement,
+    Requirement,
     Role,
     Tender,
     TenderStatus,
@@ -93,6 +97,65 @@ class DocumentUploadResponse(BaseModel):
     document: DocumentResponse
     upload_url: str
     storage_key: str
+
+
+class FindingSource(BaseModel):
+    """Bulgunun kaynak konumu — citation zinciri: öğe → sayfa + bbox (§6.9).
+
+    Kaynağa bağlanamayan bulgu API'den hiç dönmediği için (ADR-0006) tüm
+    alanlar kaynak öğeden doludur; bbox yalnız konumsuz formatlarda (DOCX/XLSX)
+    boştur.
+    """
+
+    element_id: uuid.UUID
+    element_seq: int
+    page: int
+    section: str | None
+    bbox_x0: float | None
+    bbox_y0: float | None
+    bbox_x1: float | None
+    bbox_y1: float | None
+    quote: str
+    resolution: GroundingResolution
+
+
+class RequirementResponse(BaseModel):
+    """Çıkarılmış gereksinim (kaynaklı)."""
+
+    id: uuid.UUID
+    document_id: uuid.UUID
+    text: str
+    kind: RequirementKind
+    is_mandatory: bool
+    source: FindingSource
+
+
+class DeliverableResponse(BaseModel):
+    """Çıkarılmış istenen belge (kaynaklı)."""
+
+    id: uuid.UUID
+    document_id: uuid.UUID
+    name: str
+    kind: DeliverableKind
+    is_mandatory: bool
+    source: FindingSource
+
+
+def _finding_source(
+    element: ParsedElement, *, quote: str, resolution: GroundingResolution
+) -> FindingSource:
+    return FindingSource(
+        element_id=element.id,
+        element_seq=element.seq,
+        page=element.page,
+        section=element.section,
+        bbox_x0=element.bbox_x0,
+        bbox_y0=element.bbox_y0,
+        bbox_x1=element.bbox_x1,
+        bbox_y1=element.bbox_y1,
+        quote=quote,
+        resolution=resolution,
+    )
 
 
 @router.post(
@@ -225,6 +288,69 @@ async def list_documents(tender_id: uuid.UUID, session: TenantSessionDep) -> lis
         select(Document).where(Document.tender_id == tender_id).order_by(Document.created_at.desc())
     )
     return [DocumentResponse.model_validate(d) for d in result.scalars().all()]
+
+
+@router.get("/{tender_id}/requirements", response_model=list[RequirementResponse])
+async def list_requirements(
+    tender_id: uuid.UUID, session: TenantSessionDep
+) -> list[RequirementResponse]:
+    """İhalenin çıkarılmış gereksinimlerini kaynaklarıyla listeler.
+
+    Zorunlu grounding (ADR-0006): kaynak ``ParsedElement``e bağlanamayan bulgu
+    bu uçtan DÖNMEZ — inner join kaynaksız satırı yapısal olarak dışarıda bırakır.
+    """
+    if await session.get(Tender, tender_id) is None:
+        raise NotFoundError("İhale bulunamadı.")
+    result = await session.execute(
+        select(Requirement, ParsedElement)
+        .join(ParsedElement, Requirement.source_element_id == ParsedElement.id)
+        .where(Requirement.tender_id == tender_id)
+        .order_by(Requirement.document_id, Requirement.seq)
+    )
+    return [
+        RequirementResponse(
+            id=row.id,
+            document_id=row.document_id,
+            text=row.text,
+            kind=row.kind,
+            is_mandatory=row.is_mandatory,
+            source=_finding_source(
+                element, quote=row.source_quote, resolution=row.grounding_resolution
+            ),
+        )
+        for row, element in result.all()
+    ]
+
+
+@router.get("/{tender_id}/deliverables", response_model=list[DeliverableResponse])
+async def list_deliverables(
+    tender_id: uuid.UUID, session: TenantSessionDep
+) -> list[DeliverableResponse]:
+    """İhalenin çıkarılmış istenen belgelerini kaynaklarıyla listeler.
+
+    Grounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).
+    """
+    if await session.get(Tender, tender_id) is None:
+        raise NotFoundError("İhale bulunamadı.")
+    result = await session.execute(
+        select(Deliverable, ParsedElement)
+        .join(ParsedElement, Deliverable.source_element_id == ParsedElement.id)
+        .where(Deliverable.tender_id == tender_id)
+        .order_by(Deliverable.document_id, Deliverable.seq)
+    )
+    return [
+        DeliverableResponse(
+            id=row.id,
+            document_id=row.document_id,
+            name=row.name,
+            kind=row.kind,
+            is_mandatory=row.is_mandatory,
+            source=_finding_source(
+                element, quote=row.source_quote, resolution=row.grounding_resolution
+            ),
+        )
+        for row, element in result.all()
+    ]
 
 
 async def _tender_snapshot(

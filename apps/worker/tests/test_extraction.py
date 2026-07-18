@@ -9,7 +9,7 @@ import pytest
 
 import tenderiq_worker.extraction as worker_extraction
 from tenderiq_core.retrieval import CorpusEntry, RetrievedChunk
-from tenderiq_worker.extraction import _GraphContextRetriever, get_reranker
+from tenderiq_worker.extraction import _GraphContextRetriever, get_reranker, get_structured_llm
 
 
 class StubHybridRetriever:
@@ -65,4 +65,14 @@ def test_get_reranker_surec_basina_bir_kez_kurulur(monkeypatch: pytest.MonkeyPat
     assert get_reranker() is None
     assert get_reranker() is None
     # "yüklendi, kapalı" (None) durumu önbelleğe alınır — fabrika tek kez çağrılır.
+    assert calls == [1]
+
+
+def test_get_structured_llm_surec_basina_bir_kez_kurulur(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+    monkeypatch.setattr(worker_extraction, "_llm_cache", None)
+    monkeypatch.setattr(worker_extraction, "create_structured_llm", lambda: calls.append(1) or None)
+    assert get_structured_llm() is None
+    assert get_structured_llm() is None
+    # "yüklendi, kapalı" (LLM_PROVIDER=none) durumu da önbelleğe alınır.
     assert calls == [1]

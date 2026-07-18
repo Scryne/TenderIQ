@@ -1,14 +1,18 @@
-"""Extracting fazı (Sprint 2.1): RAG bağlamı + LangGraph orkestrasyon iskeleti.
+"""Extracting fazı (Sprint 2.1 iskelet + Sprint 2.2 ajanlar): RAG → LLM → bulgu yazımı.
 
 Tasarım (parsing/indexing fazlarıyla simetrik):
-- Korpus tek kısa transaction'da yüklenir; uzun süren işler (sorgu embedding'i,
-  BM25, rerank, graph) transaction DIŞINDA koşar. Semantik pgvector sorgusu
-  sorgu başına kısa bir kiracı-oturumu açar (closure — çekirdek, oturum
-  yönetimini bilmez).
-- Embedding modeli indexing fazıyla PAYLAŞILIR (``worker_indexing.get_embedder``,
-  süreç başına tek BGE-M3); reranker da süreç başına tek yüklenir.
-- Idempotent: Sprint 2.1 iskeleti DB'ye yazmaz (bulgular Sprint 2.2'de
-  delete+insert deseniyle yazılacak); yeniden koşum güvenlidir.
+- Korpus + öğe indeksi tek kısa transaction'da yüklenir; uzun süren işler
+  (sorgu embedding'i, BM25, rerank, LLM çağrıları) transaction DIŞINDA koşar.
+  Semantik pgvector sorgusu sorgu başına kısa bir kiracı-oturumu açar.
+- Embedding modeli indexing fazıyla PAYLAŞILIR (süreç başına tek BGE-M3);
+  reranker ve LLM istemcisi de süreç başına tek kurulur.
+- Idempotent: bulgular tek transaction'da delete+insert yazılır
+  (``uq_requirement_document_seq`` / ``uq_deliverable_document_seq`` çift
+  kaydı DB düzeyinde de engeller); yeniden koşum güvenlidir.
+- Zorunlu grounding (ADR-0006): UNGROUNDED bulgular ``source_element_id=NULL``
+  ile yazılır (gözlemlenebilirlik/eval) ama API'den dönmez.
+- ``LLM_PROVIDER=none`` ise ajanlar devre dışıdır — faz 2.1 iskelet modunda
+  koşar (bağlam getirimi çalışır, bulgu yazılmaz); testler/CI bu modu kullanır.
 - Durumdaki ``errors`` boş değilse faz hatayla biter → Celery backoff'la
   yeniden dener (ajanlar bu kanala yalnız ölümcül sorun yazar, ADR-0005).
 """
@@ -16,12 +20,28 @@ Tasarım (parsing/indexing fazlarıyla simetrik):
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
-from tenderiq_core.agents import ContextChunk, build_extraction_graph, run_extraction
+from sqlalchemy import delete, select
+
+from tenderiq_core.agents import (
+    AgentFinding,
+    AgentName,
+    AgentRunner,
+    ContextChunk,
+    ElementView,
+    GroundedSource,
+    GroundingResolution,
+    build_extraction_graph,
+    create_extractor_runners,
+    run_extraction,
+)
+from tenderiq_core.agents.schemas import ExtractedDeliverable, ExtractedRequirement
 from tenderiq_core.config import get_settings
+from tenderiq_core.llm import StructuredLLM, create_structured_llm
 from tenderiq_core.logging import get_logger
-from tenderiq_core.models import Document, Job
+from tenderiq_core.models import Deliverable, Document, Job, Requirement
+from tenderiq_core.models import ParsedElement as ParsedElementRow
 from tenderiq_core.retrieval import (
     HybridRetriever,
     Reranker,
@@ -34,9 +54,10 @@ from tenderiq_worker.indexing import get_embedder
 
 logger = get_logger("tenderiq.worker.extraction")
 
-# Süreç başına tek reranker (None = kapalı). Tuple sarmalayıcı "hiç yüklenmedi"
-# (None) ile "yüklendi, kapalı" ((None,)) durumlarını ayırt eder.
+# Süreç başına tek reranker/LLM (None = kapalı). Tuple sarmalayıcı "hiç
+# yüklenmedi" (None) ile "yüklendi, kapalı" ((None,)) durumlarını ayırt eder.
 _reranker_cache: tuple[Reranker | None] | None = None
+_llm_cache: tuple[StructuredLLM | None] | None = None
 
 
 def get_reranker() -> Reranker | None:
@@ -45,6 +66,14 @@ def get_reranker() -> Reranker | None:
     if _reranker_cache is None:
         _reranker_cache = (create_reranker(),)
     return _reranker_cache[0]
+
+
+def get_structured_llm() -> StructuredLLM | None:
+    """Süreç başına tek LLM istemcisi döndürür (``LLM_PROVIDER=none`` → None)."""
+    global _llm_cache
+    if _llm_cache is None:
+        _llm_cache = (create_structured_llm(),)
+    return _llm_cache[0]
 
 
 class _GraphContextRetriever:
@@ -60,7 +89,7 @@ class _GraphContextRetriever:
 
 
 def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
-    """Bir işin dokümanı için çıkarım orkestrasyonunu koşar (2.1: bağlam iskeleti)."""
+    """Bir işin dokümanı için çıkarım ajanlarını koşar ve bulguları yazar."""
     settings = get_settings()
     with tenant_session(tenant_id) as session:
         job = session.get(Job, job_id)
@@ -70,6 +99,22 @@ def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         document_id = document.id
         tender_id = document.tender_id
         corpus = load_corpus(session, [document_id])
+        # Grounding için öğe indeksi: seq → görünüm + seq → satır id'si
+        # (bulgu FK'sı). Dönüşüm session içinde yapılır (commit sonrası expire).
+        element_rows = session.execute(
+            select(
+                ParsedElementRow.seq,
+                ParsedElementRow.id,
+                ParsedElementRow.page,
+                ParsedElementRow.text,
+            )
+            .where(ParsedElementRow.document_id == document_id)
+            .order_by(ParsedElementRow.seq)
+        ).all()
+        elements_by_seq = {
+            row.seq: ElementView(seq=row.seq, page=row.page, text=row.text) for row in element_rows
+        }
+        element_id_by_seq = {row.seq: row.id for row in element_rows}
 
     if not len(corpus):
         # Indexing fazı en az bir chunk yazmadan buraya gelinemez; boş korpus
@@ -78,6 +123,7 @@ def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
 
     embedder = get_embedder()
     reranker = get_reranker()
+    llm = get_structured_llm()
 
     def _semantic(query_vector: Sequence[float], top_k: int) -> list[tuple[uuid.UUID, float]]:
         # Sorgu başına kısa oturum: pgvector HNSW sorgusu hızlıdır, uzun süren
@@ -98,19 +144,117 @@ def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         reranker=reranker,
         settings=settings,
     )
+    runners: Sequence[AgentRunner] = ()
+    if llm is None:
+        logger.warning("cikarim_ajanlari_devre_disi", job_id=str(job_id), provider="none")
+    else:
+        runners = create_extractor_runners(llm=llm, elements_by_seq=elements_by_seq)
     graph = build_extraction_graph(
         retriever=_GraphContextRetriever(retriever, limit=settings.retrieval_agent_context_limit),
-        runners=(),  # Sprint 2.2: Requirement/Deliverables Extractor buraya kaydolur
+        runners=runners,
     )
     state = run_extraction(graph, tender_id=str(tender_id), document_id=str(document_id))
 
     if state.errors:
         raise RuntimeError("Extracting fazı hataları: " + "; ".join(state.errors))
 
+    if llm is not None:
+        written = _write_findings(
+            tenant_id=tenant_id,
+            tender_id=tender_id,
+            document_id=document_id,
+            findings=state.findings,
+            element_id_by_seq=element_id_by_seq,
+        )
+    else:
+        written = {}
+
     logger.info(
-        "cikarim_iskeleti_tamam",
+        "cikarim_tamam",
         job_id=str(job_id),
         document_id=str(document_id),
         context_counts={agent: len(chunks) for agent, chunks in state.contexts.items()},
+        finding_counts={agent: len(items) for agent, items in state.findings.items()},
+        written_counts=written,
         reranker=reranker.model_name if reranker is not None else None,
+        llm=llm.model_name if llm is not None else None,
     )
+
+
+def _write_findings(
+    *,
+    tenant_id: uuid.UUID,
+    tender_id: uuid.UUID,
+    document_id: uuid.UUID,
+    findings: Mapping[str, Sequence[AgentFinding]],
+    element_id_by_seq: Mapping[int, uuid.UUID],
+) -> dict[str, int]:
+    """Bulguları tek transaction'da idempotent yazar (delete+insert)."""
+    requirements = list(findings.get(AgentName.REQUIREMENTS.value, ()))
+    deliverables = list(findings.get(AgentName.DELIVERABLES.value, ()))
+    with tenant_session(tenant_id) as session:
+        session.execute(delete(Requirement).where(Requirement.document_id == document_id))
+        session.execute(delete(Deliverable).where(Deliverable.document_id == document_id))
+        for seq, finding in enumerate(requirements):
+            item = ExtractedRequirement.model_validate(finding.payload)
+            source = finding.source
+            session.add(
+                Requirement(
+                    tenant_id=tenant_id,
+                    tender_id=tender_id,
+                    document_id=document_id,
+                    seq=seq,
+                    text=item.text,
+                    kind=item.kind,
+                    is_mandatory=item.is_mandatory,
+                    **_source_columns(source, element_id_by_seq, fallback_quote=item.source_quote),
+                )
+            )
+        for seq, finding in enumerate(deliverables):
+            item_d = ExtractedDeliverable.model_validate(finding.payload)
+            source = finding.source
+            session.add(
+                Deliverable(
+                    tenant_id=tenant_id,
+                    tender_id=tender_id,
+                    document_id=document_id,
+                    seq=seq,
+                    name=item_d.name,
+                    kind=item_d.kind,
+                    is_mandatory=item_d.is_mandatory,
+                    **_source_columns(
+                        source, element_id_by_seq, fallback_quote=item_d.source_quote
+                    ),
+                )
+            )
+    return {"requirements": len(requirements), "deliverables": len(deliverables)}
+
+
+def _source_columns(
+    source: GroundedSource | None,
+    element_id_by_seq: Mapping[int, uuid.UUID],
+    *,
+    fallback_quote: str,
+) -> dict[str, object]:
+    """Grounding sonucunu ortak bulgu kolonlarına çevirir (kaynaksız → NULL)."""
+    if source is None or not source.is_grounded:
+        return {
+            "source_element_id": None,
+            "grounding_resolution": GroundingResolution.UNGROUNDED,
+            "source_quote": source.quote if source is not None else fallback_quote,
+        }
+    element_id = (
+        element_id_by_seq.get(source.element_seq) if source.element_seq is not None else None
+    )
+    if element_id is None:
+        # Öğe indeksi ile grounding arasında tutarsızlık (beklenmez) — kaynaksız say.
+        return {
+            "source_element_id": None,
+            "grounding_resolution": GroundingResolution.UNGROUNDED,
+            "source_quote": source.quote,
+        }
+    return {
+        "source_element_id": element_id,
+        "grounding_resolution": source.resolution,
+        "source_quote": source.quote,
+    }
