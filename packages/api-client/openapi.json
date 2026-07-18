@@ -1,6 +1,56 @@
 {
   "components": {
     "schemas": {
+      "DeliverableKind": {
+        "description": "Sunulacak belge tipi (§8.1 ``Deliverable``).",
+        "enum": [
+          "document",
+          "certificate",
+          "guarantee",
+          "other"
+        ],
+        "title": "DeliverableKind",
+        "type": "string"
+      },
+      "DeliverableResponse": {
+        "description": "Çıkarılmış istenen belge (kaynaklı).",
+        "properties": {
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_mandatory": {
+            "title": "Is Mandatory",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DeliverableKind"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FindingSource"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "name",
+          "kind",
+          "is_mandatory",
+          "source"
+        ],
+        "title": "DeliverableResponse",
+        "type": "object"
+      },
       "DocumentCompleteResponse": {
         "description": "Tamamlanan yükleme: güncel doküman + kuyruğa alınan iş.",
         "properties": {
@@ -156,6 +206,110 @@
           "production"
         ],
         "title": "Environment",
+        "type": "string"
+      },
+      "FindingSource": {
+        "description": "Bulgunun kaynak konumu — citation zinciri: öğe → sayfa + bbox (§6.9).\n\nKaynağa bağlanamayan bulgu API'den hiç dönmediği için (ADR-0006) tüm\nalanlar kaynak öğeden doludur; bbox yalnız konumsuz formatlarda (DOCX/XLSX)\nboştur.",
+        "properties": {
+          "bbox_x0": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bbox X0"
+          },
+          "bbox_x1": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bbox X1"
+          },
+          "bbox_y0": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bbox Y0"
+          },
+          "bbox_y1": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bbox Y1"
+          },
+          "element_id": {
+            "format": "uuid",
+            "title": "Element Id",
+            "type": "string"
+          },
+          "element_seq": {
+            "title": "Element Seq",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/GroundingResolution"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          }
+        },
+        "required": [
+          "element_id",
+          "element_seq",
+          "page",
+          "section",
+          "bbox_x0",
+          "bbox_y0",
+          "bbox_x1",
+          "bbox_y1",
+          "quote",
+          "resolution"
+        ],
+        "title": "FindingSource",
+        "type": "object"
+      },
+      "GroundingResolution": {
+        "description": "Bulgunun kaynağa bağlanma düzeyi (§6.9, ADR-0006).",
+        "enum": [
+          "element",
+          "chunk",
+          "ungrounded"
+        ],
+        "title": "GroundingResolution",
         "type": "string"
       },
       "HTTPValidationError": {
@@ -389,6 +543,55 @@
           "password"
         ],
         "title": "RegisterRequest",
+        "type": "object"
+      },
+      "RequirementKind": {
+        "description": "Gereksinim tipi (§8.1 ``Requirement``).",
+        "enum": [
+          "technical",
+          "administrative",
+          "financial"
+        ],
+        "title": "RequirementKind",
+        "type": "string"
+      },
+      "RequirementResponse": {
+        "description": "Çıkarılmış gereksinim (kaynaklı).",
+        "properties": {
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_mandatory": {
+            "title": "Is Mandatory",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RequirementKind"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FindingSource"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "text",
+          "kind",
+          "is_mandatory",
+          "source"
+        ],
+        "title": "RequirementResponse",
         "type": "object"
       },
       "Role": {
@@ -1107,6 +1310,70 @@
         ]
       }
     },
+    "/api/v1/tenders/{tender_id}/deliverables": {
+      "get": {
+        "description": "İhalenin çıkarılmış istenen belgelerini kaynaklarıyla listeler.\n\nGrounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).",
+        "operationId": "list_deliverables_api_v1_tenders__tender_id__deliverables_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeliverableResponse"
+                  },
+                  "title": "Response List Deliverables Api V1 Tenders  Tender Id  Deliverables Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Deliverables",
+        "tags": [
+          "tenders"
+        ]
+      }
+    },
     "/api/v1/tenders/{tender_id}/documents": {
       "get": {
         "description": "Bir ihaleye bağlı dokümanları listeler.",
@@ -1251,6 +1518,70 @@
           }
         },
         "summary": "Create Document",
+        "tags": [
+          "tenders"
+        ]
+      }
+    },
+    "/api/v1/tenders/{tender_id}/requirements": {
+      "get": {
+        "description": "İhalenin çıkarılmış gereksinimlerini kaynaklarıyla listeler.\n\nZorunlu grounding (ADR-0006): kaynak ``ParsedElement``e bağlanamayan bulgu\nbu uçtan DÖNMEZ — inner join kaynaksız satırı yapısal olarak dışarıda bırakır.",
+        "operationId": "list_requirements_api_v1_tenders__tender_id__requirements_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RequirementResponse"
+                  },
+                  "title": "Response List Requirements Api V1 Tenders  Tender Id  Requirements Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Requirements",
         "tags": [
           "tenders"
         ]

@@ -18,6 +18,12 @@ dependencies = [
     # Hata izleme (C.6): DSN yoksa no-op; FastAPI/Celery entegrasyonları otomatik.
     "sentry-sdk>=2.19.0",
     "langgraph>=1.0",
+    # LLM istemcisi (Sprint 2.2, çıkarım ajanları): hafif (httpx tabanlı) —
+    # sabit bağımlılık; API imajı da kurar ama yalnız worker kullanır.
+    "anthropic>=0.79.0",
+    # Yerel LLM sağlayıcısı (opsiyonel çalışma zamanı): dev/ucuz iterasyon için
+    # Ollama istemcisi — hafif (httpx tabanlı), lazy import edilir.
+    "ollama>=0.4.0",
 ]
 
 # Ağır/opsiyonel extras (ADR-0004 paketleme kararı): API bunlarsız çalışır;

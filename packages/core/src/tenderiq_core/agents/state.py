@@ -13,6 +13,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
+from tenderiq_core.agents.grounding import GroundedSource
 from tenderiq_core.retrieval.types import RetrievedChunk
 
 
@@ -52,16 +53,17 @@ class ContextChunk(BaseModel):
 
 
 class AgentFinding(BaseModel):
-    """İskelet bulgu zarfı (Sprint 2.1).
+    """Bulgu zarfı: tipli ajan çıktısı + zorunlu grounding sonucu (Sprint 2.2).
 
-    Sprint 2.2'de yerini tipli şemalar (Requirement/Deliverable...) + zorunlu
-    ``ParsedElement`` grounding'i alır; zarf o güne dek ajan koşucularının
-    sözleşmesini sabitler.
+    ``payload`` ajanın şema-doğrulanmış öğesinin dump'ıdır (ör.
+    ``ExtractedRequirement``); ``source`` grounding kararıdır — UNGROUNDED
+    bulgular DB'ye düşük güvenle yazılır ama API'den dönmez (ADR-0006).
     """
 
     agent: str
     payload: dict[str, Any] = Field(default_factory=dict)
     chunk_id: str | None = None  # bulgunun dayandığı bağlam chunk'ı (varsa)
+    source: GroundedSource | None = None  # grounding sonucu (2.1 iskelet bulgularında None)
 
 
 def merge_finding_maps(

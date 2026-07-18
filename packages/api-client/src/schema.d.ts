@@ -195,6 +195,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenders/{tender_id}/deliverables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Deliverables
+         * @description İhalenin çıkarılmış istenen belgelerini kaynaklarıyla listeler.
+         *
+         *     Grounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).
+         */
+        get: operations["list_deliverables_api_v1_tenders__tender_id__deliverables_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenders/{tender_id}/documents": {
         parameters: {
             query?: never;
@@ -216,6 +238,29 @@ export interface paths {
          *     kayıt açmaz; mevcut kaydı taze bir imzalı URL ile döndürür.
          */
         post: operations["create_document_api_v1_tenders__tender_id__documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenders/{tender_id}/requirements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Requirements
+         * @description İhalenin çıkarılmış gereksinimlerini kaynaklarıyla listeler.
+         *
+         *     Zorunlu grounding (ADR-0006): kaynak ``ParsedElement``e bağlanamayan bulgu
+         *     bu uçtan DÖNMEZ — inner join kaynaksız satırı yapısal olarak dışarıda bırakır.
+         */
+        get: operations["list_requirements_api_v1_tenders__tender_id__requirements_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -266,6 +311,34 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * DeliverableKind
+         * @description Sunulacak belge tipi (§8.1 ``Deliverable``).
+         * @enum {string}
+         */
+        DeliverableKind: "document" | "certificate" | "guarantee" | "other";
+        /**
+         * DeliverableResponse
+         * @description Çıkarılmış istenen belge (kaynaklı).
+         */
+        DeliverableResponse: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Mandatory */
+            is_mandatory: boolean;
+            kind: components["schemas"]["DeliverableKind"];
+            /** Name */
+            name: string;
+            source: components["schemas"]["FindingSource"];
+        };
         /**
          * DocumentCompleteResponse
          * @description Tamamlanan yükleme: güncel doküman + kuyruğa alınan iş.
@@ -339,6 +412,44 @@ export interface components {
          * @enum {string}
          */
         Environment: "development" | "staging" | "production";
+        /**
+         * FindingSource
+         * @description Bulgunun kaynak konumu — citation zinciri: öğe → sayfa + bbox (§6.9).
+         *
+         *     Kaynağa bağlanamayan bulgu API'den hiç dönmediği için (ADR-0006) tüm
+         *     alanlar kaynak öğeden doludur; bbox yalnız konumsuz formatlarda (DOCX/XLSX)
+         *     boştur.
+         */
+        FindingSource: {
+            /** Bbox X0 */
+            bbox_x0: number | null;
+            /** Bbox X1 */
+            bbox_x1: number | null;
+            /** Bbox Y0 */
+            bbox_y0: number | null;
+            /** Bbox Y1 */
+            bbox_y1: number | null;
+            /**
+             * Element Id
+             * Format: uuid
+             */
+            element_id: string;
+            /** Element Seq */
+            element_seq: number;
+            /** Page */
+            page: number;
+            /** Quote */
+            quote: string;
+            resolution: components["schemas"]["GroundingResolution"];
+            /** Section */
+            section: string | null;
+        };
+        /**
+         * GroundingResolution
+         * @description Bulgunun kaynağa bağlanma düzeyi (§6.9, ADR-0006).
+         * @enum {string}
+         */
+        GroundingResolution: "element" | "chunk" | "ungrounded";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -444,6 +555,34 @@ export interface components {
             org_slug: string;
             /** Password */
             password: string;
+        };
+        /**
+         * RequirementKind
+         * @description Gereksinim tipi (§8.1 ``Requirement``).
+         * @enum {string}
+         */
+        RequirementKind: "technical" | "administrative" | "financial";
+        /**
+         * RequirementResponse
+         * @description Çıkarılmış gereksinim (kaynaklı).
+         */
+        RequirementResponse: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Mandatory */
+            is_mandatory: boolean;
+            kind: components["schemas"]["RequirementKind"];
+            source: components["schemas"]["FindingSource"];
+            /** Text */
+            text: string;
         };
         /**
          * Role
@@ -866,6 +1005,39 @@ export interface operations {
             };
         };
     };
+    list_deliverables_api_v1_tenders__tender_id__deliverables_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliverableResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_documents_api_v1_tenders__tender_id__documents_get: {
         parameters: {
             query?: never;
@@ -924,6 +1096,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_requirements_api_v1_tenders__tender_id__requirements_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequirementResponse"][];
                 };
             };
             /** @description Validation Error */

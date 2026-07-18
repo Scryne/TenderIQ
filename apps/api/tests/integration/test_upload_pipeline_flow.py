@@ -1,11 +1,13 @@
-"""Sprint 1.1–2.1 uçtan uca akış: doküman kaydı → tamamlama → işleme hattı → parse
-verisi → chunk + embedding (pgvector) → extracting (hibrit getirim + LangGraph).
+"""Sprint 1.1–2.2 uçtan uca akış: doküman kaydı → tamamlama → işleme hattı → parse
+verisi → chunk + embedding (pgvector) → extracting (hibrit getirim + LangGraph +
+şema-zorlamalı ajanlar + zorunlu grounding + bulgu yazımı + API uçları).
 
 Nesne depolama sahte (in-memory) servisle, kuyruklama stub ile, hibrit parser
-sahte parser'la, embedding modeli sahte embedder'la değiştirilir (Docling/BGE-M3
-gerektirmez); reranker kapalıdır (RRF sırası). Worker pipeline'ı Celery
-broker'sız, senkron çağrılarak aynı test DB'sinde koşar. pgvector yazımı ve
-semantik getirim sorgusu GERÇEKTİR (vector(1024) kolon sözleşmesi dahil).
+sahte parser'la, embedding modeli sahte embedder'la, LLM sahte istemciyle
+değiştirilir (Docling/BGE-M3/Claude gerektirmez); reranker kapalıdır (RRF
+sırası). Worker pipeline'ı Celery broker'sız, senkron çağrılarak aynı test
+DB'sinde koşar. pgvector yazımı ve semantik getirim sorgusu GERÇEKTİR
+(vector(1024) kolon sözleşmesi dahil).
 """
 
 from __future__ import annotations
@@ -23,7 +25,17 @@ import tenderiq_worker.db as worker_db
 import tenderiq_worker.extraction as worker_extraction
 import tenderiq_worker.indexing as worker_indexing
 import tenderiq_worker.parsing as worker_parsing
-from tenderiq_core.models import Chunk, Document, Embedding, Job, JobStatus
+from tenderiq_core.agents.schemas import DeliverableExtraction, RequirementExtraction
+from tenderiq_core.findings import GroundingResolution
+from tenderiq_core.models import (
+    Chunk,
+    Deliverable,
+    Document,
+    Embedding,
+    Job,
+    JobStatus,
+    Requirement,
+)
 from tenderiq_core.models import ParsedElement as ParsedElementRow
 from tenderiq_core.parsing import (
     BoundingBox,
@@ -104,6 +116,55 @@ class FakeDocumentParser:
         return FAKE_PARSED
 
 
+class FakeExtractionLLM:
+    """StructuredLLM sözleşmesinin deterministik eşleniği (Sprint 2.2 ajanları).
+
+    Requirements: biri gerçek alıntılı (grounding ELEMENT'e bağlanır), biri
+    uydurma alıntılı (UNGROUNDED → API'den dönmemeli). Deliverables: tek
+    gerçek alıntılı belge.
+    """
+
+    model_name = "fake-claude"
+
+    def extract(self, *, system: str, prompt: str, schema: type) -> object:
+        if schema is RequirementExtraction:
+            return RequirementExtraction.model_validate(
+                {
+                    "items": [
+                        {
+                            "text": "Yüklenici tüm maddeleri karşılamalıdır.",
+                            "kind": "administrative",
+                            "is_mandatory": True,
+                            "source_index": 1,
+                            "source_quote": "Yüklenici tüm maddeleri karşılamak zorundadır.",
+                        },
+                        {
+                            "text": "Sunucular %99,9 erişilebilirlik sağlamalıdır.",
+                            "kind": "technical",
+                            "is_mandatory": True,
+                            "source_index": 1,
+                            "source_quote": "yüzde 99,9 erişilebilirlik",  # kaynakta YOK
+                        },
+                    ]
+                }
+            )
+        if schema is DeliverableExtraction:
+            return DeliverableExtraction.model_validate(
+                {
+                    "items": [
+                        {
+                            "name": "Kapsam taahhütnamesi",
+                            "kind": "document",
+                            "is_mandatory": True,
+                            "source_index": 1,
+                            "source_quote": "tüm maddeleri karşılamak zorundadır",
+                        }
+                    ]
+                }
+            )
+        raise AssertionError(f"beklenmeyen şema: {schema}")
+
+
 class FakeEmbedder:
     """EmbeddingModel sözleşmesinin deterministik eşleniği.
 
@@ -155,7 +216,9 @@ def pipeline_client(
     monkeypatch.setattr(worker_indexing, "_embedder", FakeEmbedder())
     # Extracting fazı: reranker kapalı ((None,) = "yüklendi, kapalı") — cross-encoder
     # indirmesi gerektirmez; embedder'ı indexing ile paylaşır (yukarıdaki fake).
+    # LLM sahte istemcidir (Sprint 2.2 ajanları gerçek Claude çağrısı yapmaz).
     monkeypatch.setattr(worker_extraction, "_reranker_cache", (None,))
+    monkeypatch.setattr(worker_extraction, "_llm_cache", (FakeExtractionLLM(),))
     # Worker sync engine, bu fixture'ın DATABASE_URL'ini görsün diye sıfırlanır.
     worker_db._engine = None
     worker_db._factory = None
@@ -336,6 +399,68 @@ def test_yukleme_tamamlama_ve_pipeline(
     assert (hits[0].entry.page_start, hits[0].entry.page_end) == (1, 2)
     assert (hits[0].entry.element_seq_start, hits[0].entry.element_seq_end) == (0, 1)
 
+    # Sprint 2.2 bulguları ilk pipeline koşumunda yazıldı; ancak yukarıdaki
+    # idempotent yeniden-parse öğeleri delete+insert ettiğinden kaynağa bağlı
+    # bulgular FK cascade ile silindi (bilinçli davranış: bayat kaynağa işaret
+    # eden bulgu kalamaz). FK'sız UNGROUNDED satır yerinde kalır.
+    with worker_db.tenant_session(tenant_uuid) as session:
+        leftover = list(
+            session.scalars(select(Requirement).where(Requirement.document_id == document_uuid))
+        )
+        assert [r.grounding_resolution for r in leftover] == [GroundingResolution.UNGROUNDED]
+
+    # Fazın yeniden koşumu bulguları YENİ öğelere bağlayarak yeniden üretir;
+    # ikinci koşum idempotenttir (delete+insert — çoğaltmaz).
+    worker_extraction.run_extraction_phase(uuid.UUID(job_id), tenant_uuid)
+    worker_extraction.run_extraction_phase(uuid.UUID(job_id), tenant_uuid)
+    with worker_db.tenant_session(tenant_uuid) as session:
+        req_rows = list(
+            session.scalars(
+                select(Requirement)
+                .where(Requirement.document_id == document_uuid)
+                .order_by(Requirement.seq)
+            )
+        )
+        assert len(req_rows) == 2
+        grounded_req = next(r for r in req_rows if r.source_element_id is not None)
+        ungrounded_req = next(r for r in req_rows if r.source_element_id is None)
+        assert grounded_req.grounding_resolution is GroundingResolution.ELEMENT
+        assert grounded_req.tender_id == uuid.UUID(tender_id)
+        source_element = session.get(ParsedElementRow, grounded_req.source_element_id)
+        assert source_element is not None
+        assert source_element.seq == 1  # "Yüklenici tüm maddeleri..." paragrafı
+        assert ungrounded_req.grounding_resolution is GroundingResolution.UNGROUNDED
+        del_rows = list(
+            session.scalars(select(Deliverable).where(Deliverable.document_id == document_uuid))
+        )
+        assert len(del_rows) == 1
+        assert del_rows[0].source_element_id is not None
+
+    # API uçları: yalnız kaynağa bağlı bulgular döner (ADR-0006 — grounding
+    # zorunluluğu kanıtı: UNGROUNDED gereksinim yanıtta YOK).
+    requirements = client.get(f"/api/v1/tenders/{tender_id}/requirements", headers=_auth(token))
+    assert requirements.status_code == 200, requirements.text
+    req_body = requirements.json()
+    assert len(req_body) == 1
+    assert req_body[0]["text"] == "Yüklenici tüm maddeleri karşılamalıdır."
+    assert req_body[0]["kind"] == "administrative"
+    assert req_body[0]["is_mandatory"] is True
+    req_source = req_body[0]["source"]
+    assert req_source["page"] == 2
+    assert req_source["element_seq"] == 1
+    assert req_source["section"] == "1. KAPSAM"
+    assert req_source["bbox_x0"] is not None  # Faz 3 PDF vurgusu için konum hazır
+    assert req_source["quote"] == "Yüklenici tüm maddeleri karşılamak zorundadır."
+    assert req_source["resolution"] == "element"
+
+    deliverables = client.get(f"/api/v1/tenders/{tender_id}/deliverables", headers=_auth(token))
+    assert deliverables.status_code == 200
+    del_body = deliverables.json()
+    assert len(del_body) == 1
+    assert del_body[0]["name"] == "Kapsam taahhütnamesi"
+    assert del_body[0]["kind"] == "document"
+    assert del_body[0]["source"]["element_seq"] == 1
+
     # SSE: ilk status event'i anlık görüntüyü taşır. Akış, max_ticks ile sunucu
     # tarafından kapatılır; test istemci iptaline (TestClient'ta güvenilmez) dayanmaz.
     with client.stream(
@@ -354,9 +479,20 @@ def test_yukleme_tamamlama_ve_pipeline(
     tenant_b, token_b = _register_and_login(client, slug="org-flow-b", email="b@flowb.com")
     cross = client.get(f"/api/v1/jobs/{job_id}", headers=_auth(token_b))
     assert cross.status_code == 404
+    # Bulgu uçları da kiracı-izoledir: B, A'nın ihalesini göremez (RLS → 404).
+    assert (
+        client.get(f"/api/v1/tenders/{tender_id}/requirements", headers=_auth(token_b)).status_code
+        == 404
+    )
+    assert (
+        client.get(f"/api/v1/tenders/{tender_id}/deliverables", headers=_auth(token_b)).status_code
+        == 404
+    )
     with worker_db.tenant_session(uuid.UUID(tenant_b)) as session:
         assert list(session.scalars(select(Chunk.id))) == []
         assert list(session.scalars(select(Embedding.id))) == []
+        assert list(session.scalars(select(Requirement.id))) == []
+        assert list(session.scalars(select(Deliverable.id))) == []
 
 
 def test_magic_bytes_sahteciligi_reddedilir(

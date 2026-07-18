@@ -53,9 +53,33 @@ class Settings(BaseSettings):
     object_storage_secret_access_key: str | None = None
     object_storage_region: str = "auto"
 
-    # ── LLM ──────────────────────────────────────────────────────────────────
+    # ── LLM (Sprint 2.2: çıkarım ajanları, §6.7–6.9) ─────────────────────────
+    # "anthropic" (ANTHROPIC_API_KEY zorunlu; production birincil) | "ollama"
+    # (yerel model, http://localhost:11434 — anahtarsız dev/ucuz iterasyon,
+    # golden-set kalite kapısı yine Claude ile ölçülür) | "none" (ajanlar devre
+    # dışı — extracting fazı 2.1 iskelet davranışına düşer; testler/CI).
+    llm_provider: str = "anthropic"
     anthropic_api_key: str | None = None
     llm_primary_model: str = "claude-opus-4-8"
+    # Non-streaming güvenli tavan (SDK HTTP zaman aşımı sınırının altında).
+    llm_max_output_tokens: int = 16000
+    # Şema zorlaması: şemaya uymayan çıktı hata geri bildirimiyle yeniden istenir;
+    # bu tavan aşılırsa çıkarım hatayla biter (Celery faz retry'ı devralır).
+    llm_schema_max_attempts: int = 3
+    # Ollama (yerel sağlayıcı): OpenAI/Anthropic'ten farklı olarak API anahtarı
+    # yoktur; şema zorlaması `format=<json-schema>` ile (structured outputs).
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:7b-instruct-q5_K_M"
+    # Ollama bağlam penceresi (num_ctx): getirilen bağlam bloklarının TAMAMI
+    # sığmalıdır. Ollama varsayılanı (4096) uzun şartname bağlamını sessizce
+    # KIRPAR → model kaynağı göremez → grounding çöker. 8192, ~6-7k token'lık
+    # ajan istemlerini güvenle tutar ve q5 modelle 8GB VRAM'e sığar.
+    ollama_num_ctx: int = 8192
+    # Ollama'nın tek çağrıda üreteceği azami token. Claude tavanı (16000) yerel
+    # modelde laptop GPU'da dakikalarca sürer ve küçük modelin "başıboş" üretime
+    # (JSON dizisini kapatmayıp token tavanına kadar doldurma) girmesine yol açar;
+    # 4096 tipik çıkarım çıktısına yeter ve çağrı süresini sınırlar (§6.8).
+    ollama_num_predict: int = 4096
 
     # ── Gözlemlenebilirlik ────────────────────────────────────────────────────
     langfuse_public_key: str | None = None
