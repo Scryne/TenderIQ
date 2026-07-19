@@ -72,3 +72,44 @@ def test_production_boots_with_hardened_settings(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("DEBUG", "false")
     settings = Settings(_env_file=None)
     assert settings.is_production
+
+
+def test_agent_context_limit_anthropic_kullanilmaz_degisiklik() -> None:
+    """Anthropic (geniş pencere): yapılandırılan bağlam tavanı aynen kullanılır."""
+    settings = Settings(
+        _env_file=None,
+        llm_provider="anthropic",
+        retrieval_agent_context_limit=12,
+    )
+    assert settings.effective_agent_context_limit() == 12
+
+
+def test_agent_context_limit_ollama_num_ctx_e_kisilir() -> None:
+    """Ollama: bağlam tavanı num_ctx'e sığacak chunk sayısına kısılır (sessiz kırpma önlenir, §6.9).
+
+    Regresyon (Faz 2 kapısı): num_ctx=8192 + num_predict=4096 + chunk=1800 karakter
+    ile 12 chunk (~7k token) istemi 8192'yi taşırıp Ollama'nın istemi kırpmasına
+    ve grounding'in çökmesine yol açıyordu; tavan (8192-4096)*3//1800 = 6'ya iner.
+    """
+    settings = Settings(
+        _env_file=None,
+        llm_provider="ollama",
+        retrieval_agent_context_limit=12,
+        ollama_num_ctx=8192,
+        ollama_num_predict=4096,
+        indexing_chunk_max_chars=1800,
+    )
+    assert settings.effective_agent_context_limit() == 6
+
+
+def test_agent_context_limit_ollama_genis_pencere_kismaz() -> None:
+    """Ollama'da pencere yeterince genişse yapılandırılan değer korunur (gereksiz kısma yok)."""
+    settings = Settings(
+        _env_file=None,
+        llm_provider="ollama",
+        retrieval_agent_context_limit=12,
+        ollama_num_ctx=32768,
+        ollama_num_predict=4096,
+        indexing_chunk_max_chars=1800,
+    )
+    assert settings.effective_agent_context_limit() == 12
