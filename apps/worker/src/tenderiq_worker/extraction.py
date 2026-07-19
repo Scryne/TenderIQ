@@ -215,8 +215,20 @@ def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         logger.warning("cikarim_ajanlari_devre_disi", job_id=str(job_id), provider="none")
     else:
         runners = create_extractor_runners(llm=llm, elements_by_seq=elements_by_seq)
+    # Bağlam tavanı sağlayıcıya göre kısılır: Ollama'da num_ctx'i aşan bağlam
+    # sessizce kırpılıp grounding'i bozardı (§6.9); geniş-pencereli Claude'da
+    # yapılandırılan değer aynen kullanılır.
+    context_limit = settings.effective_agent_context_limit()
+    if context_limit != settings.retrieval_agent_context_limit:
+        logger.info(
+            "ajan_baglam_tavani_kisildi",
+            configured=settings.retrieval_agent_context_limit,
+            effective=context_limit,
+            provider=settings.llm_provider,
+            num_ctx=settings.ollama_num_ctx,
+        )
     graph = build_extraction_graph(
-        retriever=_GraphContextRetriever(retriever, limit=settings.retrieval_agent_context_limit),
+        retriever=_GraphContextRetriever(retriever, limit=context_limit),
         runners=runners,
     )
     state = run_extraction(graph, tender_id=str(tender_id), document_id=str(document_id))

@@ -11,6 +11,11 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 MIN_AUTH_SECRET_LENGTH = 32  # HS256 için RFC 7518 §3.2 önerisi
 
+# Ollama bağlam-tavanı hesabı için karakter→token oranı (§6.9). TR metin qwen
+# tokenizasyonunda ~2.5-3.5 kar/token; 3 (biraz temkinli) kullanılır — daha
+# düşük değer daha AZ chunk (daha güvenli, sessiz kırpmaya karşı) demektir.
+_OLLAMA_PROMPT_CHARS_PER_TOKEN = 3
+
 
 class Environment(StrEnum):
     """Çalışma ortamları."""
@@ -70,10 +75,11 @@ class Settings(BaseSettings):
     # yoktur; şema zorlaması `format=<json-schema>` ile (structured outputs).
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b-instruct-q5_K_M"
-    # Ollama bağlam penceresi (num_ctx): getirilen bağlam bloklarının TAMAMI
-    # sığmalıdır. Ollama varsayılanı (4096) uzun şartname bağlamını sessizce
-    # KIRPAR → model kaynağı göremez → grounding çöker. 8192, ~6-7k token'lık
-    # ajan istemlerini güvenle tutar ve q5 modelle 8GB VRAM'e sığar.
+    # Ollama bağlam penceresi (num_ctx): getirilen bağlam + üretim tavanı
+    # (num_predict) bu pencereye sığmalıdır; aşarsa Ollama istemi sessizce KIRPAR
+    # → model kaynağı göremez → grounding çöker. 8192, q5 modelle 8GB VRAM'e
+    # sığar; ajan bağlam tavanı bu pencereye göre otomatik ayarlanır
+    # (effective_agent_context_limit → num_ctx=8192, num_predict=4096 ⇒ ~6 chunk).
     ollama_num_ctx: int = 8192
     # Ollama'nın tek çağrıda üreteceği azami token. Claude tavanı (16000) yerel
     # modelde laptop GPU'da dakikalarca sürer ve küçük modelin "başıboş" üretime
@@ -133,7 +139,10 @@ class Settings(BaseSettings):
     retrieval_rrf_k: int = 60  # Reciprocal Rank Fusion sabiti (literatür varsayılanı)
     retrieval_rerank_candidates: int = 32  # cross-encoder'a giden en fazla aday
     retrieval_top_n: int = 8  # tek sorgunun döndürdüğü sonuç sayısı
-    retrieval_agent_context_limit: int = 12  # ajan başına bağlam tavanı (sorgu birleşimi sonrası)
+    # Ajan başına bağlam tavanı (sorgu birleşimi sonrası). Ollama'da bu değer
+    # num_ctx'e sığacak şekilde otomatik kısılır (effective_agent_context_limit,
+    # §6.9) — geniş-pencereli Claude için 12 aynen kullanılır.
+    retrieval_agent_context_limit: int = 12
     # "local" (CrossEncoder; sentence-transformers = kök `embedding` grubu) | "none"
     # (reranker atlanır, RRF sırası korunur — hafif ortamlar/testler için).
     retrieval_reranker_provider: str = "local"
@@ -170,6 +179,23 @@ class Settings(BaseSettings):
     def migration_database_url(self) -> str:
         """Migration/DDL için ayrıcalıklı bağlantı (yoksa uygulama URL'ine düşer)."""
         return self.database_admin_url or self.database_url
+
+    def effective_agent_context_limit(self) -> int:
+        """Ajan başına bağlam tavanı — Ollama'da num_ctx'e sığacak şekilde kısılır (§6.9).
+
+        Yerel modelin bağlam penceresi (num_ctx) küçüktür. Getirilen bağlam +
+        üretim tavanı (num_predict) num_ctx'i aşarsa Ollama istemi SESSİZCE kırpar
+        → model kaynağı göremez → grounding çöker. Bu yüzden Ollama sağlayıcıda
+        bağlam tavanı, üretim tavanı ayrıldıktan sonra pencereye sığan chunk
+        sayısına indirilir (Faz 2 kapısında gerçek şartnameyle doğrulandı: 12→6).
+        Anthropic gibi geniş-pencereli sağlayıcılarda yapılandırılan değer aynen kullanılır.
+        """
+        if self.llm_provider != "ollama":
+            return self.retrieval_agent_context_limit
+        prompt_token_budget = max(1, self.ollama_num_ctx - self.ollama_num_predict)
+        prompt_char_budget = prompt_token_budget * _OLLAMA_PROMPT_CHARS_PER_TOKEN
+        fits = max(1, prompt_char_budget // self.indexing_chunk_max_chars)
+        return min(self.retrieval_agent_context_limit, fits)
 
 
 @lru_cache

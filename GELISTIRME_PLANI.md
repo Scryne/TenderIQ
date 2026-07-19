@@ -11,7 +11,7 @@
 | **Sahip** | Berkay (GitHub: Scryne) — tek kurucu-geliştirici |
 | **Kaynak plan** | `TenderIQ_Proje_Plani.docx` v1.0 (bundan sonra **"Ürün Planı"** ve `§X.Y` ile atıf) |
 | **Skill haritası** | `TenderIQ_ClaudeCode_Skills.md` |
-| **Durum** | **Faz 2 sürüyor — Sprint 2.4 (sağlayıcı-agnostik kısımlar) TAMAM ✅** (2026-07-19: Langfuse tracing seam [anahtar-kapılı no-op, qwen dahil izler, KVKK metadata-only] + zero-retention duruş logu + AI regresyon kapısı CI'da BLOKE EDİCİ). **Model stratejisi:** dev/test boyunca qwen2.5 birincil; model yönlendirme + prompt caching yayın (Claude) fazına ertelendi. — sıradaki: Faz 2 Çıkış Kapısı (gerçek şartname + qwen uçtan uca) |
+| **Durum** | **Faz 2 Çıkış Kapısı doğrulandı 🟡 → Faz 3'e hazır** (2026-07-19: 3 gerçek şartname qwen ile uçtan uca koştu; makine [parse→index→retrieve→ajan→grounding→bulgu→API] + grounding zorunluluğu + şema-ret + zero-retention + bloke edici eval kapısı [exit 2] doğrulandı; `scripts/faz2_gate_check.py`. **Bulunan+düzeltilen bug:** Ollama'da sessiz bağlam kırpması → sağlayıcı-farkında `effective_agent_context_limit` [num_ctx=8192 ⇒ 6 chunk]; grounding 1/14→3/6, süre ~8→~1.5 dk/dok. **qwen baseline** kayıtlı [recall<0.8, kaçırılan-zorunlu=1.0 — beklenen]; kalite/maliyet kapısı Claude yayın fazına bilinçli ertelendi). **Model stratejisi:** dev/test boyunca qwen2.5 birincil; model yönlendirme + prompt caching + kalite kalibrasyonu yayın (Claude) fazında. — sıradaki: **Faz 3 — İnceleme UI + Export + Ödeme** |
 | **Hedef** | ~14 haftada MVP + kapalı beta; en riskli varsayımı (AI çıkarım doğruluğu) erken doğrulamak; ardından J bölümüyle **yayınlanabilir (GA) SaaS** |
 
 ---
@@ -487,14 +487,20 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 
 **Çıktı:** Bir şartname yüklenince gereksinim + belge + risk + takvim + temel gap, **her biri kaynağa bağlı** olarak üretiliyor; maliyet ve kalite Langfuse'da izleniyor (anahtar tanımlıysa); eval kapısı CI'da bloke edici. Model yönlendirme/prompt caching yayın (Claude) fazında.
 
-#### Faz 2 — Çıkış Kapısı ✅ (en katı)
+#### Faz 2 — Çıkış Kapısı 🟡 (makine + baseline doğrulandı; kalite/maliyet kapısı Claude yayın fazında) (2026-07-19)
 
-- [ ] Golden-set üzerinde ajanlar çalışıyor ve metrikler ölçülüyor: **precision/recall + kaçırılan zorunlu belge oranı + kaynak-eşleme doğruluğu**.
-- [ ] **Grounding zorunluluğu kanıtlı:** kaynağa bağlanamayan hiçbir bulgu API'den dönmüyor (test ile doğrulanıyor).
-- [ ] Şema-dışı LLM çıktısı reddedilip yeniden isteniyor (test ile doğrulanıyor).
-- [ ] Belge başına maliyet Langfuse'da görünüyor ve hedef marj bandında (§13.2).
-- [ ] Zero-retention ayarı tüm LLM çağrılarında doğrulandı.
-- [ ] AI regresyon kapısı CI'da bloke edici olarak çalışıyor.
+- [x] Golden-set üzerinde ajanlar çalışıyor ve metrikler ölçülüyor: **precision/recall + kaçırılan zorunlu belge oranı + kaynak-eşleme doğruluğu** — 3 gerçek şartname (private) qwen ile uçtan uca koştu, `scripts/faz2_gate_check.py` + `evals/run_eval.py` ölçtü (baseline aşağıda). Not: qwen baseline recall'u yayın eşiğinin (0.8) ALTINDA — bu **beklenen** (qwen dev modeli; Claude yayın kalite kapısı). Kaynak-eşleme (sayfa) bulgu üretilen case'lerde **%100** (3-kalem 8/8, sozlesme 1/1).
+- [x] **Grounding zorunluluğu kanıtlı:** kaynağa bağlanamayan bulgu API'den dönmüyor — canlıda gözlemlendi (ör. idari: 3 grounded / 3 ungrounded requirement, yalnız grounded API'ye gider) + entegrasyon testi (`test_upload_pipeline_flow`, inner join UNGROUNDED'ı dışlar).
+- [x] Şema-dışı LLM çıktısı reddedilip yeniden isteniyor — canlıda gözlemlendi (`llm_sema_ihlali` → retry) + birim testleri (anthropic + ollama + refusal kalıcı hata).
+- [ ] Belge başına maliyet Langfuse'da görünüyor ve hedef marj bandında (§13.2) → **Claude yayın fazına ERTELENDİ** (model stratejisi 2026-07-19): tracing seam + token/gecikme kaydı iki sağlayıcıda da hazır ve birim-testli; qwen yerel → marjinal $ maliyet=0 (zero-retention doğası). Canlı Langfuse $ panosu + marj bandı Claude'a özgü (model yönlendirme/prompt caching ile birlikte).
+- [x] Zero-retention ayarı tüm LLM çağrılarında doğrulandı — kurulumda loglanıyor (`llm_retention_posture posture=local_zero_retention provider=ollama`, `capture_io=False`); canlı koşumda görüldü.
+- [x] AI regresyon kapısı CI'da bloke edici olarak çalışıyor — CI adımı `--gate`; gerçek golden çıktısında **exit code 2** üreterek bloke ettiği gösterildi (recall<0.8 + kaçırılan-zorunlu>0.05).
+
+> **Faz 2 Çıkış Kapısı kapanış notları (2026-07-19):** Gerçek şartnamelerle uçtan uca çıkarım qwen ile doğrulandı; makine (parse→index→retrieve→ajan→grounding→bulgu→API) çalışıyor.
+> **(1) Bulunan + düzeltilen bug — sessiz bağlam kırpması:** `ollama_num_ctx=8192` + `retrieval_agent_context_limit=12` (~7k token istem) + `num_predict=4096` num_ctx'i taşırıyordu → Ollama istemi SESSİZCE kırpıyor → model kaynağı göremiyor → grounding çöküyordu (12-chunk'ta requirements 1/14 grounded). Kök neden hafızadaki `qwen-context-budget-risk` idi. **Çözüm:** `Settings.effective_agent_context_limit()` — Ollama'da bağlam tavanını `(num_ctx-num_predict)*3//chunk_chars` ile pencereye sığan chunk sayısına (8192/4096/1800 ⇒ 6) otomatik kısar; geniş-pencereli Claude'da 12 aynen kalır (sağlayıcı-farkında; 3 birim test). Etki: requirements grounding 1/14 → 3/6 ve extraction süresi ~8 dk → ~1.5 dk/doküman.
+> **(2) qwen baseline (3 gerçek şartname, private):** requirements P=0.53 R=0.20 F1=0.29; deliverables P=0 R=0 F1=0; risks P=0.13 R=0.07 F1=0.09; **kaçırılan zorunlu belge oranı 1.00 (14/14)**. Düşük — beklenen: (a) qwen 7B sınırı, (b) zorunlu grounding çoğu paraphrase'li bulguyu eler (doğru davranış — kaynaksız gösterme), (c) golden etiketler dokümanın elle-seçilmiş alt kümesi (qwen başka geçerli maddeleri de çıkarır → metin eşleşmez). Bulgu üretilen yerde kalite yüksek: sozlesme risk 8/9 grounded, kaynak-eşleme %100. **Yayın eşiği (recall≥0.8, kaçırılan-zorunlu≤0.05) Claude ile karşılanacak ve eşikler o çıktıyla yeniden kalibre edilecek.**
+> **(3) Kapsam:** Compliance yalnız `CapabilityProfile` tanımlıysa üretilir (gate koşumunda profil yok → atlandı; ayrı entegrasyon testinde kanıtlı). Reranker gate koşumunda kapalı (`none`) — qwen ile VRAM çakışmasını önlemek için; RRF sırası nihai. Test durumu: 189 birim + entegrasyon yeşil (3 yeni config testi dahil).
+> **Sonuç:** Makine + grounding + ölçüm hattı + zero-retention + bloke edici eval kapısı doğrulandı; qwen baseline'ı kayda geçti; kalite/maliyet kapısı bilinçli olarak Claude yayın fazına bırakıldı. **Sıradaki: Faz 3 — İnceleme UI + Export + Ödeme** (kalite Claude ile yayın öncesi kalibre edilir).
 
 **İlgili ADR'ler:** ADR-0005 (LangGraph), ADR-0006 (zorunlu grounding), ADR-0007 (zero-retention LLM).
 **Kurulacak skill'ler:** `langgraph-extraction-agents`, `structured-output-grounding`, `hybrid-retrieval-rerank`, `langfuse-observability`, `llm-cost-routing`, `zero-retention-llm-config`.
