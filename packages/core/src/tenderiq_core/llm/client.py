@@ -37,6 +37,7 @@ class LLMProvider(StrEnum):
 
     ANTHROPIC = "anthropic"
     OLLAMA = "ollama"  # yerel model (localhost:11434); anahtarsız dev/ucuz iterasyon
+    NVIDIA = "nvidia"  # NVIDIA NIM (OpenAI-uyumlu bulut); ücretsiz güçlü modeller (qwen3.5...)
     NONE = "none"  # ajanlar devre dışı (testler/CI; extracting fazı iskelet modunda)
 
 
@@ -290,15 +291,146 @@ class OllamaStructuredLLM:
         return self._client
 
 
+class NvidiaStructuredLLM:
+    """NVIDIA NIM (OpenAI-uyumlu bulut) ile yapılandırılmış çıkarım.
+
+    ``integrate.api.nvidia.com`` — ücretsiz güçlü bulut modeller (qwen3.5,
+    llama-3.3...). Yerel qwen2.5:7b'ye göre çok daha yüksek Tükçe + grounding
+    kalitesi. Ollama dalıyla aynı ``StructuredLLM`` sözleşmesini uygular; farklar
+    sağlayıcıya özgü: (1) API anahtarı (``nvapi-...``) gerekir; (2) şema zorlaması
+    OpenAI-standardı ``response_format=json_schema`` ile yapılır (NIM strict guided
+    decoding — iç içe pydantic şemaları `$defs`/`$ref` dahil kabul edilir).
+
+    Reddet-ve-yeniden-iste döngüsü korunur: ``response_format`` çıktının YAPISAL
+    geçerliliğini kısıtlar ama ``max_tokens`` kesmesi/boş yanıt yine şemayı
+    bozabilir → ihlal konuşmaya eklenir ve yeniden istenir. Sıcaklık 0: çıkarım
+    deterministik olmalı (birebir alıntı/grounding için kritik).
+
+    KVKK notu (§10.3): bu BULUT sağlayıcıdır — doküman içeriği NVIDIA'ya gider
+    (yerel Ollama'nın aksine). Retention duruşu kurulumda loglanır; production'da
+    gerçek şartname içeriği için NVIDIA veri-saklama şartları/DPA gerekir.
+
+    ``client`` parametresi testler içindir; verilmezse gerçek ``openai.OpenAI``
+    istemcisi lazy kurulur (NVIDIA endpoint'ine yönlendirilmiş).
+    """
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str,
+        model: str,
+        max_output_tokens: int,
+        max_attempts: int,
+        client: Any | None = None,
+        tracer: LLMTracer | None = None,
+    ) -> None:
+        self._api_key = api_key
+        self._base_url = base_url
+        self._model = model
+        self._max_output_tokens = max_output_tokens
+        self._max_attempts = max(1, max_attempts)
+        self._client = client
+        self._tracer = tracer or LLMTracer()
+
+    @property
+    def model_name(self) -> str:
+        return self._model
+
+    def extract(self, *, system: str, prompt: str, schema: type[SchemaT]) -> SchemaT:
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ]
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": schema.__name__,
+                "schema": schema.model_json_schema(),
+                "strict": True,
+            },
+        }
+        last_error: ValidationError | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            # Geçici hatalar (rate limit/5xx) istisna olarak yükselir → graph
+            # RetryPolicy'si devralır (ADR-0005); burada yakalanmaz.
+            with self._tracer.generation(
+                name=schema.__name__, model=self._model, system=system, prompt=prompt
+            ) as span:
+                response = self._get_client().chat.completions.create(
+                    model=self._model,
+                    messages=messages,
+                    temperature=0,
+                    max_tokens=self._max_output_tokens,
+                    response_format=response_format,
+                )
+                choice = response.choices[0]
+                content = choice.message.content
+                usage = getattr(response, "usage", None)
+                span.record(
+                    output=content,
+                    input_tokens=getattr(usage, "prompt_tokens", None),
+                    output_tokens=getattr(usage, "completion_tokens", None),
+                )
+            # İçerik filtresi / açık ret kalıcı hatadır — aynı istem tekrarlanmaz.
+            if choice.finish_reason == "content_filter" or getattr(choice.message, "refusal", None):
+                raise LLMRefusalError(
+                    f"Model isteği reddetti (schema={schema.__name__}); istem tekrarlanmayacak."
+                )
+            if content:
+                try:
+                    return schema.model_validate_json(content)
+                except ValidationError as exc:
+                    last_error = exc
+                    logger.warning(
+                        "llm_sema_ihlali",
+                        model=self._model,
+                        schema=schema.__name__,
+                        attempt=attempt,
+                        error_count=exc.error_count(),
+                    )
+                    reason: str | ValidationError = exc
+                else:  # pragma: no cover - return zaten döndü
+                    reason = ""
+            else:
+                # Boş yanıt (tipik neden: max_tokens kesmesi) — şema ihlali say.
+                reason = "çıktı boş — model içerik döndürmedi"
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+                {"role": "user", "content": _RETRY_TEMPLATE.format(error=reason)},
+            ]
+        raise SchemaEnforcementError(
+            f"Çıktı {self._max_attempts} denemede şemaya uydurulamadı "
+            f"(schema={schema.__name__}): {last_error}"
+        )
+
+    def flush(self) -> None:
+        """Bekleyen Langfuse izlerini gönderir (anahtarsız/no-op tracer'da bedelsiz)."""
+        self._tracer.flush()
+
+    def _get_client(self) -> Any:
+        if self._client is None:
+            from openai import OpenAI
+
+            self._client = OpenAI(api_key=self._api_key, base_url=self._base_url)
+        return self._client
+
+
 def _log_retention_posture(settings: Settings, provider: LLMProvider) -> None:
     """Zero-retention duruşunu (§10.3) gözlemlenebilir kılar (istek başına değil, kurulumda).
 
     - ``ollama``: veri makineden ÇIKMAZ → zero-retention doğası gereği sağlanır.
     - ``anthropic``: Claude API'si varsayılan olarak veriyi eğitimde kullanmaz;
       kalıcı sıfır-saklama (ZDR) kurumsal anlaşmaya dayanır (yayın öncesi teyit).
+    - ``nvidia``: BULUT NIM API'si — doküman içeriği NVIDIA'ya gider; veri-saklama
+      şartları sağlayıcıya bağlıdır (production gerçek şartname için DPA gerekir).
     - Langfuse etkinse ``capture_io`` False iken doküman içeriği trace'e GİRMEZ.
     """
-    posture = "local_zero_retention" if provider is LLMProvider.OLLAMA else "anthropic_api"
+    posture = {
+        LLMProvider.OLLAMA: "local_zero_retention",
+        LLMProvider.NVIDIA: "nvidia_cloud_api",
+    }.get(provider, "anthropic_api")
     logger.info(
         "llm_retention_posture",
         provider=provider.value,
@@ -326,6 +458,20 @@ def create_structured_llm(settings: Settings | None = None) -> StructuredLLM | N
             max_output_tokens=settings.ollama_num_predict,
             max_attempts=settings.llm_schema_max_attempts,
             num_ctx=settings.ollama_num_ctx,
+            tracer=tracer,
+        )
+    if provider is LLMProvider.NVIDIA:
+        if not settings.nvidia_api_key:
+            raise LLMNotConfiguredError(
+                "LLM_PROVIDER=nvidia için NVIDIA_API_KEY zorunludur "
+                "(nvapi-... anahtarı; ajanları bilinçli kapatmak için LLM_PROVIDER=none)."
+            )
+        return NvidiaStructuredLLM(
+            api_key=settings.nvidia_api_key,
+            base_url=settings.nvidia_base_url,
+            model=settings.nvidia_model,
+            max_output_tokens=settings.nvidia_max_output_tokens,
+            max_attempts=settings.llm_schema_max_attempts,
             tracer=tracer,
         )
     if not settings.anthropic_api_key:

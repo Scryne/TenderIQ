@@ -86,6 +86,15 @@ class Settings(BaseSettings):
     # (JSON dizisini kapatmayıp token tavanına kadar doldurma) girmesine yol açar;
     # 4096 tipik çıkarım çıktısına yeter ve çağrı süresini sınırlar (§6.8).
     ollama_num_predict: int = 4096
+    # NVIDIA NIM (OpenAI-uyumlu bulut, integrate.api.nvidia.com): ücretsiz güçlü
+    # modeller (qwen3.5, llama-3.3...) — yerel qwen2.5:7b'ye göre çok daha yüksek
+    # Türkçe + grounding kalitesi. Şema zorlaması response_format=json_schema ile
+    # (geniş bağlam penceresi → effective_agent_context_limit KISMAZ; 12 aynen).
+    # KVKK: BULUT sağlayıcı — doküman içeriği NVIDIA'ya gider (bkz. _log_retention_posture).
+    nvidia_api_key: str | None = None
+    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
+    nvidia_model: str = "qwen/qwen3.5-122b-a10b"
+    nvidia_max_output_tokens: int = 4096
 
     # ── Gözlemlenebilirlik ────────────────────────────────────────────────────
     # Langfuse (Sprint 2.4, §6.11): anahtarlar boşsa LLM tracing tamamen no-op

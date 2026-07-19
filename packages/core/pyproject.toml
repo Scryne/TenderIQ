@@ -24,6 +24,9 @@ dependencies = [
     # Yerel LLM sağlayıcısı (opsiyonel çalışma zamanı): dev/ucuz iterasyon için
     # Ollama istemcisi — hafif (httpx tabanlı), lazy import edilir.
     "ollama>=0.4.0",
+    # OpenAI-uyumlu sağlayıcılar (NVIDIA NIM / integrate.api.nvidia.com): ücretsiz
+    # bulut modeller (qwen3.5, llama-3.3...); hafif (httpx tabanlı), lazy import.
+    "openai>=1.54.0",
 ]
 
 # Ağır/opsiyonel extras (ADR-0004 paketleme kararı): API bunlarsız çalışır;
