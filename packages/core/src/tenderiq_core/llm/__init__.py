@@ -1,4 +1,8 @@
-"""LLM katmanı (Sprint 2.2): şema-zorlamalı yapılandırılmış çıkarım istemcisi."""
+"""LLM katmanı (Sprint 2.2): şema-zorlamalı yapılandırılmış çıkarım istemcisi.
+
+Sprint 2.4: sağlayıcı-agnostik Langfuse tracing (``tracing``) — anahtar-kapılı
+no-op; her LLM çağrısı model/gecikme/token ile izlenir.
+"""
 
 from tenderiq_core.llm.client import (
     AnthropicStructuredLLM,
@@ -11,6 +15,7 @@ from tenderiq_core.llm.client import (
     StructuredLLM,
     create_structured_llm,
 )
+from tenderiq_core.llm.tracing import LLMTracer, create_llm_tracer
 
 __all__ = [
     "AnthropicStructuredLLM",
@@ -18,8 +23,10 @@ __all__ = [
     "LLMNotConfiguredError",
     "LLMProvider",
     "LLMRefusalError",
+    "LLMTracer",
     "OllamaStructuredLLM",
     "SchemaEnforcementError",
     "StructuredLLM",
+    "create_llm_tracer",
     "create_structured_llm",
 ]

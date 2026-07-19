@@ -87,6 +87,7 @@ module = [
     "botocore.*",
     "docling.*",
     "docling_core.*",
+    "langfuse.*",
     "pgvector.*",
     "sentence_transformers.*",
 ]

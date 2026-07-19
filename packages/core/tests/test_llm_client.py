@@ -183,9 +183,7 @@ def _ollama_llm(client: FakeOllamaClient, *, max_attempts: int = 3) -> OllamaStr
 
 def test_ollama_ilk_denemede_gecerli_cikti() -> None:
     client = FakeOllamaClient([_OllamaResponse(_valid_json())])
-    result = _ollama_llm(client).extract(
-        system="sys", prompt="istem", schema=RequirementExtraction
-    )
+    result = _ollama_llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
     assert result.items[0].text == _VALID_ITEM["text"]
     assert len(client.calls) == 1
     # Şema `format` ile zorlanmalı, sıcaklık 0 (deterministik), sistem mesajı ilk.
@@ -200,9 +198,7 @@ def test_ollama_sema_ihlali_reddedilir_ve_yeniden_istenir() -> None:
     client = FakeOllamaClient(
         [_OllamaResponse(json.dumps({"items": [{"bogus": 1}]})), _OllamaResponse(_valid_json())]
     )
-    result = _ollama_llm(client).extract(
-        system="sys", prompt="istem", schema=RequirementExtraction
-    )
+    result = _ollama_llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
     assert result.items[0].is_mandatory is True
     assert len(client.calls) == 2
     # İkinci istek: sistem + özgün istem + ret gerekçesi.
@@ -213,9 +209,7 @@ def test_ollama_sema_ihlali_reddedilir_ve_yeniden_istenir() -> None:
 
 def test_ollama_bos_yanit_ihlal_sayilir_ve_yeniden_istenir() -> None:
     client = FakeOllamaClient([_OllamaResponse(None), _OllamaResponse(_valid_json())])
-    result = _ollama_llm(client).extract(
-        system="sys", prompt="istem", schema=RequirementExtraction
-    )
+    result = _ollama_llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
     assert result.items[0].text == _VALID_ITEM["text"]
     assert "çıktı boş" in client.calls[1]["messages"][2]["content"]
 

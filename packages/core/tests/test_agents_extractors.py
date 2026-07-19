@@ -15,6 +15,8 @@ from tenderiq_core.agents import (
 from tenderiq_core.agents.schemas import (
     DeliverableExtraction,
     RequirementExtraction,
+    RiskExtraction,
+    TimelineExtraction,
 )
 from tenderiq_core.retrieval import CorpusEntry, RetrievedChunk
 
@@ -63,10 +65,15 @@ def _runners(llm: FakeLLM) -> dict[AgentName, Any]:
     return {r.name: r for r in create_extractor_runners(llm=llm, elements_by_seq=_ELEMENTS)}
 
 
-def test_iki_ajan_kurulur() -> None:
+def test_dort_ajan_kurulur() -> None:
     llm = FakeLLM({})
     names = set(_runners(llm))
-    assert names == {AgentName.REQUIREMENTS, AgentName.DELIVERABLES}
+    assert names == {
+        AgentName.REQUIREMENTS,
+        AgentName.DELIVERABLES,
+        AgentName.RISKS,
+        AgentName.TIMELINE,
+    }
 
 
 def test_gecerli_alinti_grounded_bulgu_uretir() -> None:
@@ -147,6 +154,60 @@ def test_deliverables_kosucusu_kendi_semasini_kullanir() -> None:
     findings = runner.run([_chunk()])
     assert llm.calls[0]["schema"] is DeliverableExtraction
     assert findings[0].payload["name"].startswith("ISO 9001")
+    assert findings[0].source is not None
+    assert findings[0].source.is_grounded
+
+
+def test_risks_kosucusu_kendi_semasini_kullanir() -> None:
+    llm = FakeLLM(
+        {
+            RiskExtraction: RiskExtraction.model_validate(
+                {
+                    "items": [
+                        {
+                            "text": "ISO 9001 belgesi sunmayan istekli değerlendirme dışı kalır.",
+                            "severity": "high",
+                            "category": "termination",
+                            "source_index": 1,
+                            "source_quote": "ISO 9001 kalite belgesi sunmak zorundadır",
+                        }
+                    ]
+                }
+            )
+        }
+    )
+    runner = _runners(llm)[AgentName.RISKS]
+    findings = runner.run([_chunk()])
+    assert llm.calls[0]["schema"] is RiskExtraction
+    assert findings[0].payload["severity"] == "high"
+    assert findings[0].payload["category"] == "termination"
+    assert findings[0].source is not None
+    assert findings[0].source.is_grounded
+
+
+def test_timeline_kosucusu_kendi_semasini_kullanir() -> None:
+    llm = FakeLLM(
+        {
+            TimelineExtraction: TimelineExtraction.model_validate(
+                {
+                    "items": [
+                        {
+                            "label": "Belge sunum şartı",
+                            "kind": "other",
+                            "value_text": "ihale aşamasında",
+                            "source_index": 1,
+                            "source_quote": "ISO 9001 kalite belgesi sunmak zorundadır",
+                        }
+                    ]
+                }
+            )
+        }
+    )
+    runner = _runners(llm)[AgentName.TIMELINE]
+    findings = runner.run([_chunk()])
+    assert llm.calls[0]["schema"] is TimelineExtraction
+    assert findings[0].payload["kind"] == "other"
+    assert findings[0].payload["value_text"] == "ihale aşamasında"
     assert findings[0].source is not None
     assert findings[0].source.is_grounded
 

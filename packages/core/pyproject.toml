@@ -42,6 +42,12 @@ ocr = [
 embedding = [
     "sentence-transformers>=3.0.0",
 ]
+# LLM gözlemleme (Sprint 2.4, §6.11): Langfuse — LANGFUSE_* anahtarları yoksa
+# tracing tamamen no-op ve langfuse hiç import edilmez (dev/test/CI kurmaz).
+# Yayın/gözlemleme fazında `uv sync --extra langfuse` ile kurulur.
+langfuse = [
+    "langfuse>=3.0.0",
+]
 
 [build-system]
 requires = ["hatchling"]

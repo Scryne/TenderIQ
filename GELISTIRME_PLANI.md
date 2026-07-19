@@ -11,7 +11,7 @@
 | **Sahip** | Berkay (GitHub: Scryne) — tek kurucu-geliştirici |
 | **Kaynak plan** | `TenderIQ_Proje_Plani.docx` v1.0 (bundan sonra **"Ürün Planı"** ve `§X.Y` ile atıf) |
 | **Skill haritası** | `TenderIQ_ClaudeCode_Skills.md` |
-| **Durum** | **Faz 2 sürüyor — Sprint 2.2 TAMAM ✅** (2026-07-18: şema-zorlamalı çıkarım ajanları [Claude structured outputs] + zorunlu grounding + Requirement/Deliverable tabloları + kaynaklı API uçları) — sıradaki: Sprint 2.3 (risk, takvim, gap analizi) |
+| **Durum** | **Faz 2 sürüyor — Sprint 2.4 (sağlayıcı-agnostik kısımlar) TAMAM ✅** (2026-07-19: Langfuse tracing seam [anahtar-kapılı no-op, qwen dahil izler, KVKK metadata-only] + zero-retention duruş logu + AI regresyon kapısı CI'da BLOKE EDİCİ). **Model stratejisi:** dev/test boyunca qwen2.5 birincil; model yönlendirme + prompt caching yayın (Claude) fazına ertelendi. — sıradaki: Faz 2 Çıkış Kapısı (gerçek şartname + qwen uçtan uca) |
 | **Hedef** | ~14 haftada MVP + kapalı beta; en riskli varsayımı (AI çıkarım doğruluğu) erken doğrulamak; ardından J bölümüyle **yayınlanabilir (GA) SaaS** |
 
 ---
@@ -459,27 +459,33 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 
 > **Sprint 2.2 kapanış notları (2026-07-18):** (1) LLM istemcisi `anthropic` SDK'sıyla (`claude-opus-4-8`, `messages.parse` + structured outputs + adaptive thinking; non-streaming güvenli tavan `LLM_MAX_OUTPUT_TOKENS=16000`); istemci süreç-tekil, `LLM_PROVIDER=none` extracting fazını 2.1 iskelet moduna düşürür (testler/CI/anahtarsız dev). (2) UNGROUNDED bulgular bilinçli olarak DB'ye yazılır (gözlemlenebilirlik + Sprint 2.4 eval'inde hallucination oranı ölçümü) ama hiçbir API yanıtına giremez. (3) Enum'lar `tenderiq_core/findings.py`'ye alındı (models ← agents bağımlılık yönü, B.2 — döngüsel import kırıldı). (4) Gerçek Claude çağrısıyla uçtan uca yol Faz 2 çıkış kapısında gerçek şartnameyle doğrulanacak; golden-set kalibrasyonu ve prompt/eşik ayarı Sprint 2.4'te. (5) Test durumu: 169 birim + 11 entegrasyon yeşil — şema-ret/yeniden-isteme, refusal, grounding TR katlaması, ajan koşucuları sahte LLM'le birim; pipeline entegrasyon testi bulgu yazımı + cascade + idempotent yeniden-çıkarım + grounding'li API uçları + kiracı izolasyonunu gerçek pgvector üzerinde doğrular.
 
-#### Sprint 2.3 (Hafta 9) — Risk, takvim, gap analizi
+#### Sprint 2.3 (Hafta 9) — Risk, takvim, gap analizi ✅ (2026-07-19)
 
 `AI/ML`
-- [ ] **Risk Detector** → cezai şart, olağandışı/riskli maddeler + önem derecesi + kaynak (`RiskFlag`); `GET .../risks`.
-- [ ] **Timeline Extractor** → ihale tarihi, teklif son tarihi, teslim/garanti süreleri.
-- [ ] **Compliance Checker** (temel gap analizi §6.7): `CapabilityProfile`'a karşı karşılanıyor/kısmi/karşılanmıyor + gerekçe (`ComplianceResult`).
-- [ ] `CapabilityProfile` modeli + `GET/POST /api/v1/capability-profile` (firma yetkinlik profili).
-- [ ] (Ops.) **Cost Estimator** → kaba maliyet göstergesi + varsayımlar.
+- [x] **Risk Detector** → cezai şart, olağandışı/riskli maddeler + önem derecesi (`RiskSeverity`) + tür (`RiskCategory`) + kaynak (`RiskFlag`); `GET .../risks`. Requirements/Deliverables ile aynı `ExtractionRunner` + zorunlu grounding kalıbı (grafiğe paralel eklendi).
+- [x] **Timeline Extractor** → ihale tarihi, son teklif tarihi, teslim/garanti süreleri (`TimelineKind`); `GET .../timeline`. `value_text` ham metindir (TR tarih/süre çeşitliliği; birebir alıntı grounding'i ayrıştırmadan önce). Plan Veri bölümünde tablo saymamış ama Faz 2 çıktısı "takvim, kaynağa bağlı" dediği için `TimelineEvent` tablosu eklendi (grounding-first zorunluluğu).
+- [x] **Compliance Checker** (temel gap analizi §6.7): `agents/compliance.py` — çıkarılmış GROUNDED gereksinimleri `CapabilityProfile`'a karşı değerlendirir (met/partial/unmet + gerekçe → `ComplianceResult`); `GET .../compliance`. Bağlamdan çıkarım DEĞİL → grafiğe girmez; grafik sonrası sıralı worker adımı (gereksinime + dış profil girdisine bağımlı). Grounding değerlendirilen gereksinimden DEVRALINIR (yeni kaynak üretmez).
+- [x] `CapabilityProfile` modeli (kiracı-tekil, RLS) + `GET/POST /api/v1/capability-profile` (POST upsert; firma yetkinlik profili — dokümandan çıkarılmaz, kullanıcı girer).
+- [ ] (Ops.) **Cost Estimator** → kaba maliyet göstergesi + varsayımlar. **Bilinçli ertelendi** (opsiyonel; kapsam odağı korundu — Sprint 2.4/Faz 3'te değerlendirilir).
 
 `Veri`
-- [ ] `RiskFlag`, `ComplianceResult` tabloları (`Requirement`/`Deliverable` Sprint 2.2'de kuruldu); her biri `N—1` kaynak `ParsedElement` ilişkisi (§8.2).
+- [x] `RiskFlag`, `TimelineEvent`, `ComplianceResult` tabloları (migration `0008`, RLS'li); üçü de `requirement`/`deliverable` grounding + idempotency sözleşmesini paylaşır (`N—1` kaynak `ParsedElement`, `uq_*_document_seq`, re-parse cascade). `CapabilityProfile` ayrı yapıda (bulgu değil, `uq_capability_profile_tenant`). Enum'lar `tenderiq_core/findings.py`'de tek kaynak (`RiskSeverity`/`RiskCategory`/`TimelineKind`/`ComplianceStatus`).
 
-#### Sprint 2.4 (Hafta 10) — Maliyet, gözlemlenebilirlik, eval kapısı
+> **Sprint 2.3 kapanış notları (2026-07-19):** (1) Risk/Timeline, worker'daki `_write_findings` genel `_ExtractionFindingSpec` tablosuna alındı — dört çıkarım bulgusu tek idempotent delete+insert döngüsü paylaşır. (2) Compliance yalnız bir `CapabilityProfile` tanımlıysa üretilir; profil yoksa faz bayat sonuçları yine temizler (idempotency). LLM çağrısı transaction DIŞINDA (parsing/indexing deseniyle simetrik); ajan devre dışıyken (`LLM_PROVIDER=none`) compliance da atlanır. (3) Yeni ayar gerekmedi — compliance aynı `StructuredLLM`'i kullanır (Claude birincil / Ollama dev). (4) Golden-set kalibrasyonu + prompt/eşik ayarı ve gerçek Claude çağrısıyla uçtan uca doğrulama Faz 2 çıkış kapısı/Sprint 2.4'te. (5) OpenAPI→TS sözleşmesi yenilendi (5 yeni uç). **Sıradaki: Sprint 2.4** (Langfuse tam entegrasyon + model yönlendirme/prompt caching + zero-retention doğrulaması + AI regresyon kapısını aktif et).
+
+#### Sprint 2.4 (Hafta 10) — Maliyet, gözlemlenebilirlik, eval kapısı ⏳ (2026-07-19: sağlayıcı-agnostik kısımlar TAMAM; Claude'a özgü kısım ertelendi)
+
+> **Model stratejisi kararı (2026-07-19, Berkay):** Proje bitene kadar TÜM dev/test fazlarında **qwen2.5 (Ollama) birincil**; Claude'a yalnız EN SON fazda (yayın öncesi) geçilir. Bu yüzden Sprint 2.4'ün **Claude'a özgü** maddesi (model yönlendirme + prompt caching) bilinçli olarak **yayın fazına ertelendi**; sağlayıcı-agnostik maddeler (Langfuse, zero-retention, eval kapısı) şimdi tamamlandı.
 
 `AI/ML` `Güvenlik`
-- [ ] **Langfuse** tam entegrasyon (§6.11): her LLM çağrısı trace + token maliyeti + gecikme; prompt versiyonlama (`packages/prompts`) (skill: `langfuse-observability`).
-- [ ] **Model yönlendirme** (§6.8): basit triyaj ucuz modele, derin analiz Claude'a; **prompt caching** tekrarlayan sistem promptu + doküman bağlamı için (skill: `llm-cost-routing`).
-- [ ] **Zero-retention doğrulaması** (§10.3): LLM çağrılarında veri-saklamama/no-training ayarı + veri minimizasyonu (gereksiz PII maskeleme) (skill: `zero-retention-llm-config`).
-- [ ] **AI regresyon kapısını AKTİF et:** golden-set testi CI'da bloke edici hâle gelir; prompt/model değişikliği kaliteyi düşürürse pipeline kırılır (E bölümü).
+- [x] **Langfuse** tam entegrasyon (§6.11): sağlayıcı-agnostik tracing seam (`tenderiq_core/llm/tracing.py`) — `LANGFUSE_*` anahtarları yoksa TAMAMEN no-op (langfuse hiç import edilmez; dev/test/CI hesap gerektirmez). Anahtarlar varken her LLM üretimi (qwen dahil) trace edilir: model/gecikme/token; istemciler (Anthropic+Ollama) her çağrıyı `generation()` ile sarar, retry'lar da izlenir. **KVKK/zero-retention:** varsayılan yalnız-metadata; `LANGFUSE_CAPTURE_IO=true` (self-hosted) tam I/O açar. `langfuse` opsiyonel extra (`uv sync --extra langfuse`). Prompt versiyonlama: `PROMPT_VERSION` sabiti + yapılandırılmış log; tam Langfuse-yönetimli prompt registry (`packages/prompts`) yayın fazına ertelendi.
+- [ ] **Model yönlendirme** (§6.8): basit triyaj ucuz modele, derin analiz Claude'a; **prompt caching** tekrarlayan sistem promptu + doküman bağlamı için (skill: `llm-cost-routing`). → **Yayın/Claude fazına ERTELENDİ** (Claude'a özgü optimizasyon; qwen tek modelle çalışır). Langfuse token maliyeti ölçümü zaten hazır.
+- [x] **Zero-retention doğrulaması** (§10.3): sağlayıcı retention duruşu kurulumda loglanır (`_log_retention_posture`): Ollama = yerel (veri makineden çıkmaz → zero-retention doğası gereği); Anthropic = API varsayılan no-training + ZDR kurumsal anlaşması (yayın öncesi teyit). Veri minimizasyonu: Langfuse `capture_io=false` (doküman içeriği dış buluta gitmez), Sentry gövde/başlık scrub'ı (Sprint 1.4).
+- [x] **AI regresyon kapısını AKTİF et:** CI eval adımı `--gate --min-recall 0.8 --max-missed-mandatory 0.05` ile **bloke edici** (E bölümü). Sample fixture "geçer baseline"a yükseltildi; kapı-ihlali tespiti birim testlerde korunur. Gerçek golden-set (private) çıktısı offline üretilip aynı eşiklerle ölçülür; eşikler yayın öncesi Claude çıktısıyla yeniden kalibre edilir.
 
-**Çıktı:** Bir şartname yüklenince gereksinim + belge + risk + takvim + temel gap, **her biri kaynağa bağlı** olarak üretiliyor; maliyet ve kalite Langfuse'da izleniyor; eval kapısı aktif.
+> **Sprint 2.4 kapanış notları (2026-07-19):** (1) Langfuse SDK yolu (`start_as_current_generation`) tek adaptörde izole; dev'de anahtarsız = hiç çalışmaz (no-op), ilk etkinleştirmede canlı doğrulanmalı. Seam ve istemci enstrümantasyonu sahte tracer'la birim testli (token kaydı + capture_io kapısı). (2) Eval gate: sample'ı "geçer" yaptım, `test_cli_gate_ihlalde_iki_doner` satır-içi kusurlu veriyle yeniden yazıldı (kaçırılan-zorunlu tespiti `test_evaluate_case...`ta korunur). (3) Yeni ayar: `LANGFUSE_CAPTURE_IO` (varsayılan false, KVKK). (4) Test: 186 birim + 11 entegrasyon yeşil. **Sıradaki: Faz 2 Çıkış Kapısı** — gerçek şartname + qwen ile uçtan uca doğrulama, golden-set metrikleri; ardından Faz 3 (İnceleme UI).
+
+**Çıktı:** Bir şartname yüklenince gereksinim + belge + risk + takvim + temel gap, **her biri kaynağa bağlı** olarak üretiliyor; maliyet ve kalite Langfuse'da izleniyor (anahtar tanımlıysa); eval kapısı CI'da bloke edici. Model yönlendirme/prompt caching yayın (Claude) fazında.
 
 #### Faz 2 — Çıkış Kapısı ✅ (en katı)
 

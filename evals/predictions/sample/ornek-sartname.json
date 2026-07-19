@@ -7,12 +7,14 @@
       "Tüm teslimatlar işe başlama tarihinden itibaren 90 takvim günü içinde tamamlanmalıdır.",
       "Teklif edilen cihazlar en az 2 yıl garantili olacaktır.",
       "Cihaz kurulumu ve kullanıcı eğitimi yüklenici tarafından ücretsiz yapılacaktır.",
+      "İstekli son beş yıl içinde benzer nitelikte en az bir iş deneyimini belgeleyecektir.",
       "Numuneler teklif ile birlikte idareye teslim edilecektir."
     ],
     "deliverables": [
       "Geçici teminat mektubu (teklif bedelinin en az %3'ü)",
       "İmza sirküleri veya imza beyannamesi",
       "Ticaret ve/veya sanayi odası kayıt belgesi",
+      "İş deneyim belgesi (teklif bedelinin en az %25'i oranında)",
       "ISO 9001 kalite yönetim sistemi belgesi"
     ],
     "risks": [
