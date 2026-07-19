@@ -1,4 +1,4 @@
-"""Şema-zorlamalı LLM istemcisi testleri — sahte Anthropic/Ollama istemcisiyle (§6.7)."""
+"""Şema-zorlamalı LLM istemcisi testleri — sahte Anthropic/Ollama/NVIDIA istemcisiyle (§6.7)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from tenderiq_core.llm import (
     AnthropicStructuredLLM,
     LLMNotConfiguredError,
     LLMRefusalError,
+    NvidiaStructuredLLM,
     OllamaStructuredLLM,
     SchemaEnforcementError,
     create_structured_llm,
@@ -236,3 +237,127 @@ def test_fabrika_ollama_kurulur_anahtarsiz() -> None:
     llm = create_structured_llm(settings)
     assert llm is not None
     assert llm.model_name == settings.ollama_model
+
+
+# ── NVIDIA NIM (OpenAI-uyumlu) sağlayıcısı ───────────────────────────────────
+
+
+class _OpenAIMessage:
+    def __init__(self, content: str | None, refusal: str | None = None) -> None:
+        self.content = content
+        self.refusal = refusal
+
+
+class _OpenAIChoice:
+    def __init__(
+        self, content: str | None, *, finish_reason: str = "stop", refusal: str | None = None
+    ) -> None:
+        self.message = _OpenAIMessage(content, refusal)
+        self.finish_reason = finish_reason
+
+
+class _OpenAIUsage:
+    def __init__(self) -> None:
+        self.prompt_tokens = 12
+        self.completion_tokens = 34
+
+
+class _OpenAIResponse:
+    def __init__(
+        self, content: str | None, *, finish_reason: str = "stop", refusal: str | None = None
+    ) -> None:
+        self.choices = [_OpenAIChoice(content, finish_reason=finish_reason, refusal=refusal)]
+        self.usage = _OpenAIUsage()
+
+
+class FakeNvidiaClient:
+    """``chat.completions.create`` çağrılarını kaydeder; senaryoyu sırayla oynatır."""
+
+    def __init__(self, script: list[Any]) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self._script = list(script)
+        outer = self
+
+        class _Completions:
+            def create(self, **kwargs: Any) -> Any:
+                outer.calls.append(kwargs)
+                step = outer._script.pop(0)
+                if isinstance(step, BaseException):
+                    raise step
+                return step
+
+        class _Chat:
+            completions = _Completions()
+
+        self.chat = _Chat()
+
+
+def _nvidia_llm(client: FakeNvidiaClient, *, max_attempts: int = 3) -> NvidiaStructuredLLM:
+    return NvidiaStructuredLLM(
+        api_key="nvapi-test",
+        base_url="https://integrate.api.nvidia.com/v1",
+        model="qwen/qwen3.5-122b-a10b",
+        max_output_tokens=1000,
+        max_attempts=max_attempts,
+        client=client,
+    )
+
+
+def test_nvidia_ilk_denemede_gecerli_cikti() -> None:
+    client = FakeNvidiaClient([_OpenAIResponse(_valid_json())])
+    result = _nvidia_llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
+    assert result.items[0].text == _VALID_ITEM["text"]
+    assert len(client.calls) == 1
+    # Şema response_format=json_schema ile zorlanmalı; sıcaklık 0; sistem mesajı ilk.
+    rf = client.calls[0]["response_format"]
+    assert rf["type"] == "json_schema"
+    assert rf["json_schema"]["schema"] == RequirementExtraction.model_json_schema()
+    assert rf["json_schema"]["strict"] is True
+    assert client.calls[0]["temperature"] == 0
+    assert client.calls[0]["messages"][0]["role"] == "system"
+
+
+def test_nvidia_sema_ihlali_reddedilir_ve_yeniden_istenir() -> None:
+    client = FakeNvidiaClient(
+        [_OpenAIResponse(json.dumps({"items": [{"bogus": 1}]})), _OpenAIResponse(_valid_json())]
+    )
+    result = _nvidia_llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
+    assert result.items[0].is_mandatory is True
+    assert len(client.calls) == 2
+    retry_messages = client.calls[1]["messages"]
+    assert len(retry_messages) == 3
+    assert "REDDEDİLDİ" in retry_messages[2]["content"]
+
+
+def test_nvidia_bos_yanit_ihlal_sayilir_ve_yeniden_istenir() -> None:
+    client = FakeNvidiaClient([_OpenAIResponse(None), _OpenAIResponse(_valid_json())])
+    result = _nvidia_llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
+    assert result.items[0].text == _VALID_ITEM["text"]
+    assert "çıktı boş" in client.calls[1]["messages"][2]["content"]
+
+
+def test_nvidia_content_filter_kalici_hatadir_tekrarlanmaz() -> None:
+    client = FakeNvidiaClient([_OpenAIResponse(None, finish_reason="content_filter")])
+    with pytest.raises(LLMRefusalError):
+        _nvidia_llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
+    assert len(client.calls) == 1  # ret kalıcı: yeniden istenmez
+
+
+def test_nvidia_gecici_hata_yukselir() -> None:
+    # Rate limit/5xx şema-retry döngüsüne girmez; graph RetryPolicy'si devralsın.
+    client = FakeNvidiaClient([RuntimeError("nvidia 429")])
+    with pytest.raises(RuntimeError, match="nvidia 429"):
+        _nvidia_llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
+
+
+def test_fabrika_nvidia_kurulur_anahtarla() -> None:
+    settings = Settings(_env_file=None, llm_provider="nvidia", nvidia_api_key="nvapi-x")
+    llm = create_structured_llm(settings)
+    assert llm is not None
+    assert llm.model_name == settings.nvidia_model
+
+
+def test_fabrika_nvidia_anahtarsiz_hata() -> None:
+    settings = Settings(_env_file=None, llm_provider="nvidia", nvidia_api_key=None)
+    with pytest.raises(LLMNotConfiguredError, match="NVIDIA_API_KEY"):
+        create_structured_llm(settings)
