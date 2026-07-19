@@ -23,9 +23,18 @@ from tenderiq_api.dependencies import (
 )
 from tenderiq_api.errors import ConflictError, NotFoundError, ValidationFailedError
 from tenderiq_core.db.tenant import set_tenant_context
-from tenderiq_core.findings import DeliverableKind, GroundingResolution, RequirementKind
+from tenderiq_core.findings import (
+    ComplianceStatus,
+    DeliverableKind,
+    GroundingResolution,
+    RequirementKind,
+    RiskCategory,
+    RiskSeverity,
+    TimelineKind,
+)
 from tenderiq_core.models import (
     AuditAction,
+    ComplianceResult,
     Deliverable,
     Document,
     DocumentKind,
@@ -33,9 +42,11 @@ from tenderiq_core.models import (
     Job,
     ParsedElement,
     Requirement,
+    RiskFlag,
     Role,
     Tender,
     TenderStatus,
+    TimelineEvent,
 )
 from tenderiq_core.services.audit import record_audit
 from tenderiq_core.storage import safe_key_component
@@ -138,6 +149,39 @@ class DeliverableResponse(BaseModel):
     name: str
     kind: DeliverableKind
     is_mandatory: bool
+    source: FindingSource
+
+
+class RiskResponse(BaseModel):
+    """Çıkarılmış risk maddesi (kaynaklı)."""
+
+    id: uuid.UUID
+    document_id: uuid.UUID
+    text: str
+    severity: RiskSeverity
+    category: RiskCategory
+    source: FindingSource
+
+
+class TimelineEventResponse(BaseModel):
+    """Çıkarılmış tarih/süre öğesi (kaynaklı)."""
+
+    id: uuid.UUID
+    document_id: uuid.UUID
+    label: str
+    kind: TimelineKind
+    value_text: str
+    source: FindingSource
+
+
+class ComplianceResultResponse(BaseModel):
+    """Gereksinim ↔ yetkinlik profili değerlendirmesi (kaynaklı)."""
+
+    id: uuid.UUID
+    document_id: uuid.UUID
+    requirement_text: str
+    status: ComplianceStatus
+    rationale: str
     source: FindingSource
 
 
@@ -345,6 +389,99 @@ async def list_deliverables(
             name=row.name,
             kind=row.kind,
             is_mandatory=row.is_mandatory,
+            source=_finding_source(
+                element, quote=row.source_quote, resolution=row.grounding_resolution
+            ),
+        )
+        for row, element in result.all()
+    ]
+
+
+@router.get("/{tender_id}/risks", response_model=list[RiskResponse])
+async def list_risks(tender_id: uuid.UUID, session: TenantSessionDep) -> list[RiskResponse]:
+    """İhalenin çıkarılmış risk maddelerini kaynaklarıyla listeler.
+
+    Grounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).
+    """
+    if await session.get(Tender, tender_id) is None:
+        raise NotFoundError("İhale bulunamadı.")
+    result = await session.execute(
+        select(RiskFlag, ParsedElement)
+        .join(ParsedElement, RiskFlag.source_element_id == ParsedElement.id)
+        .where(RiskFlag.tender_id == tender_id)
+        .order_by(RiskFlag.document_id, RiskFlag.seq)
+    )
+    return [
+        RiskResponse(
+            id=row.id,
+            document_id=row.document_id,
+            text=row.text,
+            severity=row.severity,
+            category=row.category,
+            source=_finding_source(
+                element, quote=row.source_quote, resolution=row.grounding_resolution
+            ),
+        )
+        for row, element in result.all()
+    ]
+
+
+@router.get("/{tender_id}/timeline", response_model=list[TimelineEventResponse])
+async def list_timeline(
+    tender_id: uuid.UUID, session: TenantSessionDep
+) -> list[TimelineEventResponse]:
+    """İhalenin çıkarılmış tarih/süre öğelerini kaynaklarıyla listeler.
+
+    Grounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).
+    """
+    if await session.get(Tender, tender_id) is None:
+        raise NotFoundError("İhale bulunamadı.")
+    result = await session.execute(
+        select(TimelineEvent, ParsedElement)
+        .join(ParsedElement, TimelineEvent.source_element_id == ParsedElement.id)
+        .where(TimelineEvent.tender_id == tender_id)
+        .order_by(TimelineEvent.document_id, TimelineEvent.seq)
+    )
+    return [
+        TimelineEventResponse(
+            id=row.id,
+            document_id=row.document_id,
+            label=row.label,
+            kind=row.kind,
+            value_text=row.value_text,
+            source=_finding_source(
+                element, quote=row.source_quote, resolution=row.grounding_resolution
+            ),
+        )
+        for row, element in result.all()
+    ]
+
+
+@router.get("/{tender_id}/compliance", response_model=list[ComplianceResultResponse])
+async def list_compliance(
+    tender_id: uuid.UUID, session: TenantSessionDep
+) -> list[ComplianceResultResponse]:
+    """İhalenin gereksinim ↔ yetkinlik profili değerlendirmelerini listeler.
+
+    Yalnız bir ``CapabilityProfile`` tanımlıysa üretilir. Grounding sözleşmesi
+    ``list_requirements`` ile aynıdır: değerlendirme, değerlendirilen gereksinimin
+    kaynak maddesine bağlıdır (kaynaksız dönmez).
+    """
+    if await session.get(Tender, tender_id) is None:
+        raise NotFoundError("İhale bulunamadı.")
+    result = await session.execute(
+        select(ComplianceResult, ParsedElement)
+        .join(ParsedElement, ComplianceResult.source_element_id == ParsedElement.id)
+        .where(ComplianceResult.tender_id == tender_id)
+        .order_by(ComplianceResult.document_id, ComplianceResult.seq)
+    )
+    return [
+        ComplianceResultResponse(
+            id=row.id,
+            document_id=row.document_id,
+            requirement_text=row.requirement_text,
+            status=row.status,
+            rationale=row.rationale,
             source=_finding_source(
                 element, quote=row.source_quote, resolution=row.grounding_resolution
             ),

@@ -20,17 +20,34 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, Field
 
-from tenderiq_core.findings import DeliverableKind, RequirementKind
+from tenderiq_core.findings import (
+    ComplianceStatus,
+    DeliverableKind,
+    RequirementKind,
+    RiskCategory,
+    RiskSeverity,
+    TimelineKind,
+)
 
 __all__ = [
+    "ComplianceAssessment",
+    "ComplianceCheck",
+    "ComplianceStatus",
     "DeliverableExtraction",
     "DeliverableKind",
     "ExtractedDeliverable",
     "ExtractedItem",
     "ExtractedRequirement",
+    "ExtractedRisk",
+    "ExtractedTimelineEvent",
     "ExtractionResult",
     "RequirementExtraction",
     "RequirementKind",
+    "RiskCategory",
+    "RiskExtraction",
+    "RiskSeverity",
+    "TimelineExtraction",
+    "TimelineKind",
 ]
 
 
@@ -93,4 +110,74 @@ class DeliverableExtraction(ExtractionResult):
 
     items: list[ExtractedDeliverable] = Field(
         description="Bağlamda kanıtı olan TÜM istenen belgeler; bağlamda yoksa boş liste."
+    )
+
+
+class ExtractedRisk(ExtractedItem):
+    """Şartnameden çıkarılmış tek risk maddesi (Sprint 2.3)."""
+
+    text: str = Field(description="Riskin kendi başına anlaşılır, tam Türkçe ifadesi.")
+    severity: RiskSeverity = Field(
+        description="Önem derecesi: low (olağan), medium (dikkat), high (tekliften önce mutlaka)."
+    )
+    category: RiskCategory = Field(
+        description="Risk türü: penalty/termination/warranty/payment/other."
+    )
+
+
+class RiskExtraction(ExtractionResult):
+    """Risk Detector ajanının tam çıktısı."""
+
+    items: list[ExtractedRisk] = Field(
+        description="Bağlamda kanıtı olan TÜM riskli maddeler; bağlamda yoksa boş liste."
+    )
+
+
+class ExtractedTimelineEvent(ExtractedItem):
+    """Şartnameden çıkarılmış tek tarih/süre öğesi (Sprint 2.3)."""
+
+    label: str = Field(
+        description="Öğenin kısa adı (ör. 'Son teklif verme tarihi', 'Garanti süresi')."
+    )
+    kind: TimelineKind = Field(
+        description="Öğe türü: tender_date/bid_deadline/delivery/warranty/other."
+    )
+    value_text: str = Field(
+        description="Tarih/sürenin bağlamdaki ham ifadesi (ör. '30 gün', '15/08/2026', '24 ay')."
+    )
+
+
+class TimelineExtraction(ExtractionResult):
+    """Timeline Extractor ajanının tam çıktısı."""
+
+    items: list[ExtractedTimelineEvent] = Field(
+        description="Bağlamda kanıtı olan TÜM tarih/süre öğeleri; bağlamda yoksa boş liste."
+    )
+
+
+class ComplianceAssessment(BaseModel):
+    """Tek bir gereksinimin yetkinlik profiline göre değerlendirmesi (Sprint 2.3).
+
+    Bağlamdan çıkarım DEĞİLdir; bu yüzden ``ExtractedItem``'ın grounding
+    sözleşmesini taşımaz — grounding, değerlendirilen gereksinimin kendi
+    kaynağından devralınır (bkz. ``agents.compliance``). ``requirement_index``
+    istemde numaralandırılmış gereksinim listesindeki 1-indeksli konumdur.
+    """
+
+    requirement_index: int = Field(
+        description="Değerlendirilen gereksinimin numarası (istemdeki 1-indeksli sıra)."
+    )
+    status: ComplianceStatus = Field(
+        description="Karşılanma durumu: met (tam), partial (kısmi/belirsiz), unmet (karşılanmıyor)."
+    )
+    rationale: str = Field(
+        description="Kararın kısa Türkçe gerekçesi (profildeki hangi yetkinlik şartı karşılıyor)."
+    )
+
+
+class ComplianceCheck(BaseModel):
+    """Compliance Checker'ın tam çıktısı: gereksinim başına değerlendirme."""
+
+    items: list[ComplianceAssessment] = Field(
+        description="Verilen gereksinimlerin her biri için bir değerlendirme."
     )

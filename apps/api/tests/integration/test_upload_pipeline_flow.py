@@ -25,16 +25,25 @@ import tenderiq_worker.db as worker_db
 import tenderiq_worker.extraction as worker_extraction
 import tenderiq_worker.indexing as worker_indexing
 import tenderiq_worker.parsing as worker_parsing
-from tenderiq_core.agents.schemas import DeliverableExtraction, RequirementExtraction
+from tenderiq_core.agents.schemas import (
+    ComplianceCheck,
+    DeliverableExtraction,
+    RequirementExtraction,
+    RiskExtraction,
+    TimelineExtraction,
+)
 from tenderiq_core.findings import GroundingResolution
 from tenderiq_core.models import (
     Chunk,
+    ComplianceResult,
     Deliverable,
     Document,
     Embedding,
     Job,
     JobStatus,
     Requirement,
+    RiskFlag,
+    TimelineEvent,
 )
 from tenderiq_core.models import ParsedElement as ParsedElementRow
 from tenderiq_core.parsing import (
@@ -117,11 +126,12 @@ class FakeDocumentParser:
 
 
 class FakeExtractionLLM:
-    """StructuredLLM sözleşmesinin deterministik eşleniği (Sprint 2.2 ajanları).
+    """StructuredLLM sözleşmesinin deterministik eşleniği (Sprint 2.2 + 2.3 ajanları).
 
     Requirements: biri gerçek alıntılı (grounding ELEMENT'e bağlanır), biri
-    uydurma alıntılı (UNGROUNDED → API'den dönmemeli). Deliverables: tek
-    gerçek alıntılı belge.
+    uydurma alıntılı (UNGROUNDED → API'den dönmemeli). Deliverables/Risks/Timeline:
+    tek gerçek alıntılı öğe. Compliance (Sprint 2.3): tek grounded gereksinimi
+    'met' değerlendirir (yalnız yetkinlik profili tanımlıysa çağrılır).
     """
 
     model_name = "fake-claude"
@@ -158,6 +168,46 @@ class FakeExtractionLLM:
                             "is_mandatory": True,
                             "source_index": 1,
                             "source_quote": "tüm maddeleri karşılamak zorundadır",
+                        }
+                    ]
+                }
+            )
+        if schema is RiskExtraction:
+            return RiskExtraction.model_validate(
+                {
+                    "items": [
+                        {
+                            "text": "Tüm maddelerin karşılanması zorunluluğu ağır külfet doğurur.",
+                            "severity": "medium",
+                            "category": "other",
+                            "source_index": 1,
+                            "source_quote": "tüm maddeleri karşılamak zorundadır",
+                        }
+                    ]
+                }
+            )
+        if schema is TimelineExtraction:
+            return TimelineExtraction.model_validate(
+                {
+                    "items": [
+                        {
+                            "label": "Yükümlülük kapsamı",
+                            "kind": "other",
+                            "value_text": "sözleşme süresince",
+                            "source_index": 1,
+                            "source_quote": "Yüklenici tüm maddeleri karşılamak zorundadır.",
+                        }
+                    ]
+                }
+            )
+        if schema is ComplianceCheck:
+            return ComplianceCheck.model_validate(
+                {
+                    "items": [
+                        {
+                            "requirement_index": 1,
+                            "status": "met",
+                            "rationale": "Profil yükümlülükleri karşıladığını beyan ediyor.",
                         }
                     ]
                 }
@@ -435,6 +485,18 @@ def test_yukleme_tamamlama_ve_pipeline(
         )
         assert len(del_rows) == 1
         assert del_rows[0].source_element_id is not None
+        # Sprint 2.3: risk + takvim bulguları da grounded yazıldı (aynı idempotent desen).
+        risk_rows = list(
+            session.scalars(select(RiskFlag).where(RiskFlag.document_id == document_uuid))
+        )
+        assert len(risk_rows) == 1
+        assert risk_rows[0].source_element_id is not None
+        assert risk_rows[0].severity.value == "medium"
+        timeline_rows = list(
+            session.scalars(select(TimelineEvent).where(TimelineEvent.document_id == document_uuid))
+        )
+        assert len(timeline_rows) == 1
+        assert timeline_rows[0].source_element_id is not None
 
     # API uçları: yalnız kaynağa bağlı bulgular döner (ADR-0006 — grounding
     # zorunluluğu kanıtı: UNGROUNDED gereksinim yanıtta YOK).
@@ -461,6 +523,57 @@ def test_yukleme_tamamlama_ve_pipeline(
     assert del_body[0]["kind"] == "document"
     assert del_body[0]["source"]["element_seq"] == 1
 
+    risks = client.get(f"/api/v1/tenders/{tender_id}/risks", headers=_auth(token))
+    assert risks.status_code == 200
+    risk_body = risks.json()
+    assert len(risk_body) == 1
+    assert risk_body[0]["severity"] == "medium"
+    assert risk_body[0]["category"] == "other"
+    assert risk_body[0]["source"]["element_seq"] == 1
+
+    timeline = client.get(f"/api/v1/tenders/{tender_id}/timeline", headers=_auth(token))
+    assert timeline.status_code == 200
+    tl_body = timeline.json()
+    assert len(tl_body) == 1
+    assert tl_body[0]["kind"] == "other"
+    assert tl_body[0]["value_text"] == "sözleşme süresince"
+    assert tl_body[0]["source"]["element_seq"] == 1
+
+    # Compliance (Sprint 2.3): yetkinlik profili tanımlanmadan gap analizi üretilmez.
+    empty_compliance = client.get(f"/api/v1/tenders/{tender_id}/compliance", headers=_auth(token))
+    assert empty_compliance.status_code == 200
+    assert empty_compliance.json() == []
+
+    # Profil tanımlanır (upsert), çıkarım yeniden koşar → gap analizi üretilir.
+    profile_content = "Firmamız tüm sözleşme yükümlülüklerini karşılayacak kapasitededir."
+    upsert = client.post(
+        "/api/v1/capability-profile", json={"content": profile_content}, headers=_auth(token)
+    )
+    assert upsert.status_code == 200, upsert.text
+    assert upsert.json()["content"] == profile_content
+    got_profile = client.get("/api/v1/capability-profile", headers=_auth(token))
+    assert got_profile.status_code == 200
+    assert got_profile.json()["content"] == profile_content
+
+    # ON CONFLICT DO UPDATE dalı: ikinci upsert YENİ satır açmaz, içeriği günceller
+    # (kiracı-tekil profil; eşzamanlı-create yarışına karşı atomik). Aynı id döner.
+    updated_content = profile_content + " ISO 9001 ve TSE belgelerimiz mevcuttur."
+    reupsert = client.post(
+        "/api/v1/capability-profile", json={"content": updated_content}, headers=_auth(token)
+    )
+    assert reupsert.status_code == 200, reupsert.text
+    assert reupsert.json()["content"] == updated_content
+    assert reupsert.json()["id"] == upsert.json()["id"]
+
+    worker_extraction.run_extraction_phase(uuid.UUID(job_id), tenant_uuid)
+    compliance = client.get(f"/api/v1/tenders/{tender_id}/compliance", headers=_auth(token))
+    assert compliance.status_code == 200, compliance.text
+    comp_body = compliance.json()
+    assert len(comp_body) == 1  # yalnız grounded gereksinim değerlendirildi
+    assert comp_body[0]["status"] == "met"
+    assert comp_body[0]["requirement_text"] == "Yüklenici tüm maddeleri karşılamalıdır."
+    assert comp_body[0]["source"]["element_seq"] == 1  # grounding gereksinimden devralındı
+
     # SSE: ilk status event'i anlık görüntüyü taşır. Akış, max_ticks ile sunucu
     # tarafından kapatılır; test istemci iptaline (TestClient'ta güvenilmez) dayanmaz.
     with client.stream(
@@ -480,19 +593,21 @@ def test_yukleme_tamamlama_ve_pipeline(
     cross = client.get(f"/api/v1/jobs/{job_id}", headers=_auth(token_b))
     assert cross.status_code == 404
     # Bulgu uçları da kiracı-izoledir: B, A'nın ihalesini göremez (RLS → 404).
-    assert (
-        client.get(f"/api/v1/tenders/{tender_id}/requirements", headers=_auth(token_b)).status_code
-        == 404
-    )
-    assert (
-        client.get(f"/api/v1/tenders/{tender_id}/deliverables", headers=_auth(token_b)).status_code
-        == 404
-    )
+    for suffix in ("requirements", "deliverables", "risks", "timeline", "compliance"):
+        assert (
+            client.get(f"/api/v1/tenders/{tender_id}/{suffix}", headers=_auth(token_b)).status_code
+            == 404
+        )
+    # B'nin kendi yetkinlik profili yoktur (A'nınki sızmaz).
+    assert client.get("/api/v1/capability-profile", headers=_auth(token_b)).status_code == 404
     with worker_db.tenant_session(uuid.UUID(tenant_b)) as session:
         assert list(session.scalars(select(Chunk.id))) == []
         assert list(session.scalars(select(Embedding.id))) == []
         assert list(session.scalars(select(Requirement.id))) == []
         assert list(session.scalars(select(Deliverable.id))) == []
+        assert list(session.scalars(select(RiskFlag.id))) == []
+        assert list(session.scalars(select(TimelineEvent.id))) == []
+        assert list(session.scalars(select(ComplianceResult.id))) == []
 
 
 def test_magic_bytes_sahteciligi_reddedilir(

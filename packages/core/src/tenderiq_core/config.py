@@ -82,9 +82,16 @@ class Settings(BaseSettings):
     ollama_num_predict: int = 4096
 
     # ── Gözlemlenebilirlik ────────────────────────────────────────────────────
+    # Langfuse (Sprint 2.4, §6.11): anahtarlar boşsa LLM tracing tamamen no-op
+    # (langfuse hiç import edilmez). Doldurulunca her LLM çağrısı trace edilir
+    # (model, gecikme, token). `uv sync --extra langfuse` ile kurulur.
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     langfuse_host: str | None = None
+    # KVKK / zero-retention (§10.3): getirilen bağlam DOKÜMAN İÇERİĞİDİR. Varsayılan
+    # False → Langfuse'a yalnız metadata (model/token/gecikme) gider, istem/çıktı
+    # GİTMEZ. Yalnız SELF-HOSTED Langfuse'da True yapılmalıdır (içerik dışarı sızmasın).
+    langfuse_capture_io: bool = False
     sentry_dsn: str | None = None
 
     # ── Kimlik ────────────────────────────────────────────────────────────────

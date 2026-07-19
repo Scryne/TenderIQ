@@ -24,6 +24,7 @@ from typing import Any, Protocol, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from tenderiq_core.config import Settings, get_settings
+from tenderiq_core.llm.tracing import LLMTracer, create_llm_tracer
 from tenderiq_core.logging import get_logger
 
 logger = get_logger("tenderiq.llm")
@@ -90,12 +91,14 @@ class AnthropicStructuredLLM:
         max_output_tokens: int,
         max_attempts: int,
         client: Any | None = None,
+        tracer: LLMTracer | None = None,
     ) -> None:
         self._api_key = api_key
         self._model = model
         self._max_output_tokens = max_output_tokens
         self._max_attempts = max(1, max_attempts)
         self._client = client
+        self._tracer = tracer or LLMTracer()
 
     @property
     def model_name(self) -> str:
@@ -106,14 +109,25 @@ class AnthropicStructuredLLM:
         last_error: ValidationError | None = None
         for attempt in range(1, self._max_attempts + 1):
             try:
-                response = self._get_client().messages.parse(
-                    model=self._model,
-                    max_tokens=self._max_output_tokens,
-                    system=system,
-                    thinking={"type": "adaptive"},
-                    messages=messages,
-                    output_format=schema,
-                )
+                # Her deneme bir Langfuse generation'ı (kapalıysa no-op); token
+                # kullanımı çağrı içinde kaydedilir, retry'lar da izlenir.
+                with self._tracer.generation(
+                    name=schema.__name__, model=self._model, system=system, prompt=prompt
+                ) as span:
+                    response = self._get_client().messages.parse(
+                        model=self._model,
+                        max_tokens=self._max_output_tokens,
+                        system=system,
+                        thinking={"type": "adaptive"},
+                        messages=messages,
+                        output_format=schema,
+                    )
+                    usage = getattr(response, "usage", None)
+                    span.record(
+                        output=getattr(response, "parsed_output", None),
+                        input_tokens=getattr(usage, "input_tokens", None),
+                        output_tokens=getattr(usage, "output_tokens", None),
+                    )
             except ValidationError as exc:
                 # Şema ihlali (tipik neden: max_tokens kesmesi) → reddet, ihlali
                 # konuşmaya ekle ve yeniden iste.
@@ -153,6 +167,10 @@ class AnthropicStructuredLLM:
             f"(schema={schema.__name__}): {last_error}"
         )
 
+    def flush(self) -> None:
+        """Bekleyen Langfuse izlerini gönderir (anahtarsız/no-op tracer'da bedelsiz)."""
+        self._tracer.flush()
+
     def _get_client(self) -> Any:
         if self._client is None:
             import anthropic
@@ -190,6 +208,7 @@ class OllamaStructuredLLM:
         max_attempts: int,
         num_ctx: int = 8192,
         client: Any | None = None,
+        tracer: LLMTracer | None = None,
     ) -> None:
         self._base_url = base_url
         self._model = model
@@ -197,6 +216,7 @@ class OllamaStructuredLLM:
         self._max_attempts = max(1, max_attempts)
         self._num_ctx = num_ctx
         self._client = client
+        self._tracer = tracer or LLMTracer()
 
     @property
     def model_name(self) -> str:
@@ -211,17 +231,25 @@ class OllamaStructuredLLM:
         for attempt in range(1, self._max_attempts + 1):
             # Geçici hatalar (bağlantı reddi/5xx) istisna olarak yükselir →
             # graph RetryPolicy'si devralır (ADR-0005); burada yakalanmaz.
-            response = self._get_client().chat(
-                model=self._model,
-                messages=messages,
-                format=schema.model_json_schema(),
-                options={
-                    "temperature": 0,
-                    "num_ctx": self._num_ctx,
-                    "num_predict": self._max_output_tokens,
-                },
-            )
-            content = response.message.content
+            with self._tracer.generation(
+                name=schema.__name__, model=self._model, system=system, prompt=prompt
+            ) as span:
+                response = self._get_client().chat(
+                    model=self._model,
+                    messages=messages,
+                    format=schema.model_json_schema(),
+                    options={
+                        "temperature": 0,
+                        "num_ctx": self._num_ctx,
+                        "num_predict": self._max_output_tokens,
+                    },
+                )
+                content = response.message.content
+                span.record(
+                    output=content,
+                    input_tokens=getattr(response, "prompt_eval_count", None),
+                    output_tokens=getattr(response, "eval_count", None),
+                )
             if content:
                 try:
                     return schema.model_validate_json(content)
@@ -250,6 +278,10 @@ class OllamaStructuredLLM:
             f"(schema={schema.__name__}): {last_error}"
         )
 
+    def flush(self) -> None:
+        """Bekleyen Langfuse izlerini gönderir (anahtarsız/no-op tracer'da bedelsiz)."""
+        self._tracer.flush()
+
     def _get_client(self) -> Any:
         if self._client is None:
             import ollama
@@ -258,12 +290,32 @@ class OllamaStructuredLLM:
         return self._client
 
 
+def _log_retention_posture(settings: Settings, provider: LLMProvider) -> None:
+    """Zero-retention duruşunu (§10.3) gözlemlenebilir kılar (istek başına değil, kurulumda).
+
+    - ``ollama``: veri makineden ÇIKMAZ → zero-retention doğası gereği sağlanır.
+    - ``anthropic``: Claude API'si varsayılan olarak veriyi eğitimde kullanmaz;
+      kalıcı sıfır-saklama (ZDR) kurumsal anlaşmaya dayanır (yayın öncesi teyit).
+    - Langfuse etkinse ``capture_io`` False iken doküman içeriği trace'e GİRMEZ.
+    """
+    posture = "local_zero_retention" if provider is LLMProvider.OLLAMA else "anthropic_api"
+    logger.info(
+        "llm_retention_posture",
+        provider=provider.value,
+        posture=posture,
+        langfuse_enabled=bool(settings.langfuse_public_key and settings.langfuse_secret_key),
+        langfuse_capture_io=settings.langfuse_capture_io,
+    )
+
+
 def create_structured_llm(settings: Settings | None = None) -> StructuredLLM | None:
     """Ayarlardaki sağlayıcıya göre LLM istemcisi kurar; ``none`` → ``None``."""
     settings = settings or get_settings()
     provider = LLMProvider(settings.llm_provider)
     if provider is LLMProvider.NONE:
         return None
+    tracer = create_llm_tracer(settings)  # Langfuse anahtarları yoksa no-op
+    _log_retention_posture(settings, provider)
     if provider is LLMProvider.OLLAMA:
         # Yerel sağlayıcı: anahtar gerektirmez; erişilemezse çağrı anında hata
         # verir (graph RetryPolicy'si devralır) — kurulumda fail-fast yok.
@@ -274,6 +326,7 @@ def create_structured_llm(settings: Settings | None = None) -> StructuredLLM | N
             max_output_tokens=settings.ollama_num_predict,
             max_attempts=settings.llm_schema_max_attempts,
             num_ctx=settings.ollama_num_ctx,
+            tracer=tracer,
         )
     if not settings.anthropic_api_key:
         raise LLMNotConfiguredError(
@@ -285,4 +338,5 @@ def create_structured_llm(settings: Settings | None = None) -> StructuredLLM | N
         model=settings.llm_primary_model,
         max_output_tokens=settings.llm_max_output_tokens,
         max_attempts=settings.llm_schema_max_attempts,
+        tracer=tracer,
     )

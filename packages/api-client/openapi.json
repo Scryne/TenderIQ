@@ -1,6 +1,91 @@
 {
   "components": {
     "schemas": {
+      "CapabilityProfileResponse": {
+        "description": "Kiracının yetkinlik profili.",
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "content"
+        ],
+        "title": "CapabilityProfileResponse",
+        "type": "object"
+      },
+      "CapabilityProfileUpsert": {
+        "description": "Yetkinlik profili girişi (serbest metin).",
+        "properties": {
+          "content": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "CapabilityProfileUpsert",
+        "type": "object"
+      },
+      "ComplianceResultResponse": {
+        "description": "Gereksinim ↔ yetkinlik profili değerlendirmesi (kaynaklı).",
+        "properties": {
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "requirement_text": {
+            "title": "Requirement Text",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FindingSource"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplianceStatus"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "requirement_text",
+          "status",
+          "rationale",
+          "source"
+        ],
+        "title": "ComplianceResultResponse",
+        "type": "object"
+      },
+      "ComplianceStatus": {
+        "description": "Gereksinimin firma yetkinlik profiline göre karşılanma durumu (§6.7).",
+        "enum": [
+          "met",
+          "partial",
+          "unmet"
+        ],
+        "title": "ComplianceStatus",
+        "type": "string"
+      },
       "DeliverableKind": {
         "description": "Sunulacak belge tipi (§8.1 ``Deliverable``).",
         "enum": [
@@ -594,6 +679,66 @@
         "title": "RequirementResponse",
         "type": "object"
       },
+      "RiskCategory": {
+        "description": "Risk maddesinin türü (TR ihale alanı; getirim şablonlarıyla hizalı).",
+        "enum": [
+          "penalty",
+          "termination",
+          "warranty",
+          "payment",
+          "other"
+        ],
+        "title": "RiskCategory",
+        "type": "string"
+      },
+      "RiskResponse": {
+        "description": "Çıkarılmış risk maddesi (kaynaklı).",
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/RiskCategory"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/RiskSeverity"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FindingSource"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "text",
+          "severity",
+          "category",
+          "source"
+        ],
+        "title": "RiskResponse",
+        "type": "object"
+      },
+      "RiskSeverity": {
+        "description": "Risk maddesinin önem derecesi (Sprint 2.3, §8.2 ``RiskFlag``).",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "title": "RiskSeverity",
+        "type": "string"
+      },
       "Role": {
         "description": "RBAC rolleri.",
         "enum": [
@@ -666,6 +811,57 @@
           "archived"
         ],
         "title": "TenderStatus",
+        "type": "string"
+      },
+      "TimelineEventResponse": {
+        "description": "Çıkarılmış tarih/süre öğesi (kaynaklı).",
+        "properties": {
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TimelineKind"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FindingSource"
+          },
+          "value_text": {
+            "title": "Value Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "label",
+          "kind",
+          "value_text",
+          "source"
+        ],
+        "title": "TimelineEventResponse",
+        "type": "object"
+      },
+      "TimelineKind": {
+        "description": "Takvim öğesinin türü (Sprint 2.3, §8.2 ``TimelineEvent``).",
+        "enum": [
+          "tender_date",
+          "bid_deadline",
+          "delivery",
+          "warranty",
+          "other"
+        ],
+        "title": "TimelineKind",
         "type": "string"
       },
       "TokenResponse": {
@@ -933,6 +1129,114 @@
         "summary": "Register",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/capability-profile": {
+      "get": {
+        "description": "Aktif kiracının yetkinlik profilini döndürür (yoksa 404).",
+        "operationId": "get_capability_profile_api_v1_capability_profile_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Capability Profile",
+        "tags": [
+          "capability-profile"
+        ]
+      },
+      "post": {
+        "description": "Aktif kiracının yetkinlik profilini oluşturur veya günceller (upsert).\n\nKiracı başına tek profil olduğundan mevcut satır güncellenir; yoksa açılır.",
+        "operationId": "upsert_capability_profile_api_v1_capability_profile_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapabilityProfileUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Capability Profile",
+        "tags": [
+          "capability-profile"
         ]
       }
     },
@@ -1310,6 +1614,70 @@
         ]
       }
     },
+    "/api/v1/tenders/{tender_id}/compliance": {
+      "get": {
+        "description": "İhalenin gereksinim ↔ yetkinlik profili değerlendirmelerini listeler.\n\nYalnız bir ``CapabilityProfile`` tanımlıysa üretilir. Grounding sözleşmesi\n``list_requirements`` ile aynıdır: değerlendirme, değerlendirilen gereksinimin\nkaynak maddesine bağlıdır (kaynaksız dönmez).",
+        "operationId": "list_compliance_api_v1_tenders__tender_id__compliance_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ComplianceResultResponse"
+                  },
+                  "title": "Response List Compliance Api V1 Tenders  Tender Id  Compliance Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Compliance",
+        "tags": [
+          "tenders"
+        ]
+      }
+    },
     "/api/v1/tenders/{tender_id}/deliverables": {
       "get": {
         "description": "İhalenin çıkarılmış istenen belgelerini kaynaklarıyla listeler.\n\nGrounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).",
@@ -1582,6 +1950,134 @@
           }
         },
         "summary": "List Requirements",
+        "tags": [
+          "tenders"
+        ]
+      }
+    },
+    "/api/v1/tenders/{tender_id}/risks": {
+      "get": {
+        "description": "İhalenin çıkarılmış risk maddelerini kaynaklarıyla listeler.\n\nGrounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).",
+        "operationId": "list_risks_api_v1_tenders__tender_id__risks_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RiskResponse"
+                  },
+                  "title": "Response List Risks Api V1 Tenders  Tender Id  Risks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Risks",
+        "tags": [
+          "tenders"
+        ]
+      }
+    },
+    "/api/v1/tenders/{tender_id}/timeline": {
+      "get": {
+        "description": "İhalenin çıkarılmış tarih/süre öğelerini kaynaklarıyla listeler.\n\nGrounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).",
+        "operationId": "list_timeline_api_v1_tenders__tender_id__timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TimelineEventResponse"
+                  },
+                  "title": "Response List Timeline Api V1 Tenders  Tender Id  Timeline Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Timeline",
         "tags": [
           "tenders"
         ]

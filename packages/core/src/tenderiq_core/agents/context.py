@@ -13,7 +13,12 @@ from enum import StrEnum
 
 
 class AgentName(StrEnum):
-    """Çıkarım ajanları (§6.7). Compliance, CapabilityProfile ile Sprint 2.3'te."""
+    """Bağlam-çıkarım ajanları (§6.7) — grafiğin paralel fan-out'undaki koşucular.
+
+    Compliance Checker (Sprint 2.3) bilinçli olarak BURADA yoktur: bağlamdan
+    çıkarım değil, çıkarılmış gereksinimleri profile karşı değerlendirmedir; bu
+    yüzden getirim sorgu şablonu/paralel düğümü olmaz (bkz. ``agents.compliance``).
+    """
 
     REQUIREMENTS = "requirements"  # gereksinim listesi (teknik/idari/mali)
     DELIVERABLES = "deliverables"  # sunulacak belge/sertifika/teminat

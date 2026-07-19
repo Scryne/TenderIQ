@@ -64,6 +64,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/capability-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Capability Profile
+         * @description Aktif kiracının yetkinlik profilini döndürür (yoksa 404).
+         */
+        get: operations["get_capability_profile_api_v1_capability_profile_get"];
+        put?: never;
+        /**
+         * Upsert Capability Profile
+         * @description Aktif kiracının yetkinlik profilini oluşturur veya günceller (upsert).
+         *
+         *     Kiracı başına tek profil olduğundan mevcut satır güncellenir; yoksa açılır.
+         */
+        post: operations["upsert_capability_profile_api_v1_capability_profile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_id}/complete": {
         parameters: {
             query?: never;
@@ -195,6 +221,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenders/{tender_id}/compliance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Compliance
+         * @description İhalenin gereksinim ↔ yetkinlik profili değerlendirmelerini listeler.
+         *
+         *     Yalnız bir ``CapabilityProfile`` tanımlıysa üretilir. Grounding sözleşmesi
+         *     ``list_requirements`` ile aynıdır: değerlendirme, değerlendirilen gereksinimin
+         *     kaynak maddesine bağlıdır (kaynaksız dönmez).
+         */
+        get: operations["list_compliance_api_v1_tenders__tender_id__compliance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenders/{tender_id}/deliverables": {
         parameters: {
             query?: never;
@@ -267,6 +317,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenders/{tender_id}/risks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Risks
+         * @description İhalenin çıkarılmış risk maddelerini kaynaklarıyla listeler.
+         *
+         *     Grounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).
+         */
+        get: operations["list_risks_api_v1_tenders__tender_id__risks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenders/{tender_id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Timeline
+         * @description İhalenin çıkarılmış tarih/süre öğelerini kaynaklarıyla listeler.
+         *
+         *     Grounding sözleşmesi ``list_requirements`` ile aynıdır (kaynaksız dönmez).
+         */
+        get: operations["list_timeline_api_v1_tenders__tender_id__timeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -311,6 +405,55 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * CapabilityProfileResponse
+         * @description Kiracının yetkinlik profili.
+         */
+        CapabilityProfileResponse: {
+            /** Content */
+            content: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * CapabilityProfileUpsert
+         * @description Yetkinlik profili girişi (serbest metin).
+         */
+        CapabilityProfileUpsert: {
+            /** Content */
+            content: string;
+        };
+        /**
+         * ComplianceResultResponse
+         * @description Gereksinim ↔ yetkinlik profili değerlendirmesi (kaynaklı).
+         */
+        ComplianceResultResponse: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Rationale */
+            rationale: string;
+            /** Requirement Text */
+            requirement_text: string;
+            source: components["schemas"]["FindingSource"];
+            status: components["schemas"]["ComplianceStatus"];
+        };
+        /**
+         * ComplianceStatus
+         * @description Gereksinimin firma yetkinlik profiline göre karşılanma durumu (§6.7).
+         * @enum {string}
+         */
+        ComplianceStatus: "met" | "partial" | "unmet";
         /**
          * DeliverableKind
          * @description Sunulacak belge tipi (§8.1 ``Deliverable``).
@@ -585,6 +728,39 @@ export interface components {
             text: string;
         };
         /**
+         * RiskCategory
+         * @description Risk maddesinin türü (TR ihale alanı; getirim şablonlarıyla hizalı).
+         * @enum {string}
+         */
+        RiskCategory: "penalty" | "termination" | "warranty" | "payment" | "other";
+        /**
+         * RiskResponse
+         * @description Çıkarılmış risk maddesi (kaynaklı).
+         */
+        RiskResponse: {
+            category: components["schemas"]["RiskCategory"];
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            severity: components["schemas"]["RiskSeverity"];
+            source: components["schemas"]["FindingSource"];
+            /** Text */
+            text: string;
+        };
+        /**
+         * RiskSeverity
+         * @description Risk maddesinin önem derecesi (Sprint 2.3, §8.2 ``RiskFlag``).
+         * @enum {string}
+         */
+        RiskSeverity: "low" | "medium" | "high";
+        /**
          * Role
          * @description RBAC rolleri.
          * @enum {string}
@@ -620,6 +796,34 @@ export interface components {
          * @enum {string}
          */
         TenderStatus: "draft" | "analyzing" | "review_ready" | "archived";
+        /**
+         * TimelineEventResponse
+         * @description Çıkarılmış tarih/süre öğesi (kaynaklı).
+         */
+        TimelineEventResponse: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["TimelineKind"];
+            /** Label */
+            label: string;
+            source: components["schemas"]["FindingSource"];
+            /** Value Text */
+            value_text: string;
+        };
+        /**
+         * TimelineKind
+         * @description Takvim öğesinin türü (Sprint 2.3, §8.2 ``TimelineEvent``).
+         * @enum {string}
+         */
+        TimelineKind: "tender_date" | "bid_deadline" | "delivery" | "warranty" | "other";
         /**
          * TokenResponse
          * @description JWT erişim token'ı.
@@ -774,6 +978,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_capability_profile_api_v1_capability_profile_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilityProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_capability_profile_api_v1_capability_profile_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapabilityProfileUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilityProfileResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1005,6 +1275,39 @@ export interface operations {
             };
         };
     };
+    list_compliance_api_v1_tenders__tender_id__compliance_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceResultResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_deliverables_api_v1_tenders__tender_id__deliverables_get: {
         parameters: {
             query?: never;
@@ -1129,6 +1432,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RequirementResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_risks_api_v1_tenders__tender_id__risks_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_timeline_api_v1_tenders__tender_id__timeline_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineEventResponse"][];
                 };
             };
             /** @description Validation Error */

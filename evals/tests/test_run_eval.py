@@ -86,7 +86,12 @@ def test_bos_kategori_sifir_metrik_uretmez() -> None:
 
 
 def test_sample_fixture_beklenen_metrikleri_uretir() -> None:
-    """Commit'lenen sample fixture'ın kendisi de sözleşmenin parçasıdır."""
+    """Commit'lenen sample fixture 'geçer baseline'dır (CI kapısı bunu koşar).
+
+    Sprint 2.4'te kapı bloke edici olduğundan sample, eşikleri sağlayan iyi bir
+    çıkarımı temsil eder (tüm zorunlu belgeler bulunmuş). Kapı-ihlali tespiti
+    ``test_cli_gate_ihlalde_iki_doner`` ve ``test_evaluate_case...``ta korunur.
+    """
     result = run(
         EVALS_DIR / "golden" / "sample",
         EVALS_DIR / "predictions" / "sample",
@@ -94,33 +99,19 @@ def test_sample_fixture_beklenen_metrikleri_uretir() -> None:
     )
     assert result.evaluated_cases == ["ornek-sartname"]
     requirements = result.counts["requirements"]
-    assert (requirements.true_positive, requirements.false_positive) == (4, 1)
-    assert requirements.false_negative == 1
+    assert (requirements.true_positive, requirements.false_positive) == (5, 1)
+    assert requirements.false_negative == 0
     deliverables = result.counts["deliverables"]
-    assert (deliverables.true_positive, deliverables.false_negative) == (4, 1)
-    # Kaçırılan tek belge zorunlu bir belge: iş deneyim belgesi → oran 1/4.
+    assert (deliverables.true_positive, deliverables.false_negative) == (5, 0)
+    # Tüm zorunlu belgeler bulundu → kaçırılan zorunlu belge oranı 0.
     assert result.mandatory_deliverables_total == 4
-    assert result.missed_mandatory_rate == pytest.approx(0.25)
+    assert result.missed_mandatory_rate == 0.0
     risks = result.counts["risks"]
     assert (risks.true_positive, risks.false_positive, risks.false_negative) == (2, 0, 0)
 
 
-def test_cli_iskelet_modu_sifir_doner(capsys: pytest.CaptureFixture[str]) -> None:
-    exit_code = main(
-        [
-            "--golden",
-            str(EVALS_DIR / "golden" / "sample"),
-            "--predictions",
-            str(EVALS_DIR / "predictions" / "sample"),
-        ]
-    )
-    assert exit_code == 0
-    output = capsys.readouterr().out
-    assert "KAÇIRILAN ZORUNLU BELGE ORANI: 0.250" in output
-
-
-def test_cli_gate_ihlalde_iki_doner(capsys: pytest.CaptureFixture[str]) -> None:
-    # Sample fixture bilinçli kusurlu (kaçırılan zorunlu belge var) → gate kırılmalı.
+def test_cli_sample_gate_gecer(capsys: pytest.CaptureFixture[str]) -> None:
+    """Sample fixture, varsayılan gate eşiklerini sağlar (CI kapısı sözleşmesi)."""
     exit_code = main(
         [
             "--golden",
@@ -128,8 +119,43 @@ def test_cli_gate_ihlalde_iki_doner(capsys: pytest.CaptureFixture[str]) -> None:
             "--predictions",
             str(EVALS_DIR / "predictions" / "sample"),
             "--gate",
+            "--min-recall",
+            "0.8",
+            "--max-missed-mandatory",
+            "0.05",
         ]
     )
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "KAÇIRILAN ZORUNLU BELGE ORANI: 0.000" in output
+    assert "Gate: tüm eşikler sağlandı." in output
+
+
+def _write_case(directory: Path, case: GoldenCase) -> None:
+    directory.mkdir(exist_ok=True)
+    (directory / f"{case.case_id}.json").write_text(case.model_dump_json(), encoding="utf-8")
+
+
+def test_cli_gate_ihlalde_iki_doner(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    # Kaçırılan zorunlu belge içeren (kusurlu) çıkarım → gate kırılmalı (çıkış 2).
+    golden = tmp_path / "golden"
+    _write_case(
+        golden,
+        _case(
+            deliverables=[
+                {"id": "d1", "name": "Geçici teminat mektubu", "mandatory": True},
+                {"id": "d2", "name": "İş deneyim belgesi", "mandatory": True},
+            ]
+        ),
+    )
+    predictions = tmp_path / "predictions"
+    predictions.mkdir()
+    (predictions / "test.json").write_text(
+        '{"schema_version": 1, "case_id": "test", '
+        '"predictions": {"deliverables": ["Geçici teminat mektubu"]}}',
+        encoding="utf-8",
+    )
+    exit_code = main(["--golden", str(golden), "--predictions", str(predictions), "--gate"])
     assert exit_code == 2
     assert "GATE İHLALİ" in capsys.readouterr().err
 

@@ -17,11 +17,18 @@ from collections.abc import Mapping, Sequence
 
 from tenderiq_core.agents.context import AgentName
 from tenderiq_core.agents.grounding import ElementView, ground_item
-from tenderiq_core.agents.prompts import AGENT_INSTRUCTIONS, SYSTEM_PROMPT, build_context_block
+from tenderiq_core.agents.prompts import (
+    AGENT_INSTRUCTIONS,
+    PROMPT_VERSION,
+    SYSTEM_PROMPT,
+    build_context_block,
+)
 from tenderiq_core.agents.schemas import (
     DeliverableExtraction,
     ExtractionResult,
     RequirementExtraction,
+    RiskExtraction,
+    TimelineExtraction,
 )
 from tenderiq_core.agents.state import AgentFinding, ContextChunk
 from tenderiq_core.llm import StructuredLLM
@@ -106,21 +113,21 @@ class ExtractionRunner:
 def create_extractor_runners(
     *, llm: StructuredLLM, elements_by_seq: Mapping[int, ElementView]
 ) -> tuple[ExtractionRunner, ...]:
-    """Sprint 2.2 ajan kümesini kurar (requirements + deliverables).
+    """Bağlam-çıkarım ajanlarının kümesini kurar (Sprint 2.2 + 2.3).
 
-    Risk/Timeline/Compliance koşucuları Sprint 2.3'te bu kümeye eklenir.
+    Requirements/Deliverables (2.2) + Risks/Timeline (2.3) aynı çıkarım+grounding
+    kalıbını paylaşır. Compliance Checker bu kümede DEĞİLdir: bağlamdan çıkarım
+    değil, çıkarılmış gereksinimleri yetkinlik profiline karşı değerlendirmedir
+    (``agents.compliance``; grafik sonrası worker adımı).
     """
-    return (
-        ExtractionRunner(
-            name=AgentName.REQUIREMENTS,
-            schema=RequirementExtraction,
-            llm=llm,
-            elements_by_seq=elements_by_seq,
-        ),
-        ExtractionRunner(
-            name=AgentName.DELIVERABLES,
-            schema=DeliverableExtraction,
-            llm=llm,
-            elements_by_seq=elements_by_seq,
-        ),
+    logger.info("cikarim_ajanlari_kuruldu", prompt_version=PROMPT_VERSION, model=llm.model_name)
+    schemas: dict[AgentName, type[ExtractionResult]] = {
+        AgentName.REQUIREMENTS: RequirementExtraction,
+        AgentName.DELIVERABLES: DeliverableExtraction,
+        AgentName.RISKS: RiskExtraction,
+        AgentName.TIMELINE: TimelineExtraction,
+    }
+    return tuple(
+        ExtractionRunner(name=name, schema=schema, llm=llm, elements_by_seq=elements_by_seq)
+        for name, schema in schemas.items()
     )
