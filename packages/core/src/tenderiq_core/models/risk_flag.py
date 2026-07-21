@@ -16,9 +16,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from tenderiq_core.db.base import Base, TimestampMixin
 from tenderiq_core.db.mixins import TenantMixin, UUIDPKMixin
 from tenderiq_core.findings import GroundingResolution, RiskCategory, RiskSeverity
+from tenderiq_core.models.review import ReviewMixin
 
 
-class RiskFlag(UUIDPKMixin, TenantMixin, TimestampMixin, Base):
+class RiskFlag(UUIDPKMixin, TenantMixin, TimestampMixin, ReviewMixin, Base):
     """Bir dokümandan çıkarılmış tek risk maddesi (kaynak öğe bağlı)."""
 
     __tablename__ = "risk_flag"

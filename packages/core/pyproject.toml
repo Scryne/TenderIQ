@@ -51,6 +51,13 @@ embedding = [
 langfuse = [
     "langfuse>=3.0.0",
 ]
+# Word/Excel export (Sprint 3.2, §4.1): rapor üretimi API sürecinde koşar —
+# API paketi bu extra ile kurar; builder'lar lazy import eder (extrasız
+# çekirdek bootable kalır).
+export = [
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+]
 
 [build-system]
 requires = ["hatchling"]

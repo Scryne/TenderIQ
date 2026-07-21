@@ -21,9 +21,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from tenderiq_core.db.base import Base, TimestampMixin
 from tenderiq_core.db.mixins import TenantMixin, UUIDPKMixin
 from tenderiq_core.findings import GroundingResolution, TimelineKind
+from tenderiq_core.models.review import ReviewMixin
 
 
-class TimelineEvent(UUIDPKMixin, TenantMixin, TimestampMixin, Base):
+class TimelineEvent(UUIDPKMixin, TenantMixin, TimestampMixin, ReviewMixin, Base):
     """Bir dokümandan çıkarılmış tek tarih/süre öğesi (kaynak öğe bağlı)."""
 
     __tablename__ = "timeline_event"

@@ -88,6 +88,20 @@ def api_client(app_database_url: str) -> Iterator[TestClient]:
     os.environ["OBJECT_STORAGE_SECRET_ACCESS_KEY"] = "test-secret"
     get_settings.cache_clear()
 
+    # Oran sınırlama GERÇEK Redis'e sayar ve sayaçlar TTL'lidir: önceki test
+    # koşularından kalan rl:* anahtarları kayıt/giriş uçlarını 429'a düşürür.
+    # Her api_client kurulumunda temizlenir (yalnız rl:* — başka veri silinmez).
+    import redis as redis_sync
+
+    try:
+        redis_client = redis_sync.Redis.from_url(get_settings().redis_url)
+        stale_keys = list(redis_client.scan_iter("rl:*"))
+        if stale_keys:
+            redis_client.delete(*stale_keys)
+        redis_client.close()
+    except redis_sync.RedisError:
+        pass  # Redis yoksa app zaten ilk oran-sınırlı uçta hata verir
+
     from tenderiq_api.main import create_app
 
     with TestClient(create_app()) as client:

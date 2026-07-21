@@ -15,9 +15,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from tenderiq_core.db.base import Base, TimestampMixin
 from tenderiq_core.db.mixins import TenantMixin, UUIDPKMixin
 from tenderiq_core.findings import DeliverableKind, GroundingResolution
+from tenderiq_core.models.review import ReviewMixin
 
 
-class Deliverable(UUIDPKMixin, TenantMixin, TimestampMixin, Base):
+class Deliverable(UUIDPKMixin, TenantMixin, TimestampMixin, ReviewMixin, Base):
     """Bir dokümandan çıkarılmış tek istenen belge (kaynak öğe bağlı)."""
 
     __tablename__ = "deliverable"

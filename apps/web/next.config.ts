@@ -11,6 +11,12 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
   // Workspace paketini (ham TS) Next derler — ayrı build adımı gerekmez.
   transpilePackages: ["@tenderiq/api-client"],
+  webpack: (config) => {
+    // pdfjs-dist'in Node-only opsiyonel `canvas` bağımlılığı tarayıcı/SSR
+    // paketine girmesin (react-pdf'in Next.js önerisi).
+    config.resolve.alias = { ...config.resolve.alias, canvas: false };
+    return config;
+  },
 };
 
 export default nextConfig;

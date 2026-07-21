@@ -765,3 +765,48 @@ def test_yarim_yuklemeler_supurulur(
     assert docs[0]["status"] == "failed"
     # Depodaki yetim nesne de temizlendi.
     assert created["storage_key"] in storage.deleted
+
+
+def test_dokuman_onizleme_imzali_url(
+    pipeline_client: tuple[TestClient, FakeStorage, list[tuple]],
+) -> None:
+    """Sprint 3.1: ``GET /documents/{id}/file`` imzalı önizleme URL'i döndürür.
+
+    Yükleme tamamlanmadan 409; tamamlandıktan sonra imzalı GET URL'i;
+    başka kiracıdan erişim RLS ile 404.
+    """
+    client, storage, _enqueued = pipeline_client
+    _tenant_id, token = _register_and_login(client, slug="org-preview", email="preview@org.com")
+
+    tender_id = client.post(
+        "/api/v1/tenders", json={"title": "Önizleme İhalesi"}, headers=_auth(token)
+    ).json()["id"]
+    created = client.post(
+        f"/api/v1/tenders/{tender_id}/documents",
+        json={"filename": "şartname.pdf", "content_type": "application/pdf"},
+        headers=_auth(token),
+    ).json()
+    document_id = created["document"]["id"]
+
+    # Yükleme tamamlanmadan önizleme yok → 409.
+    early = client.get(f"/api/v1/documents/{document_id}/file", headers=_auth(token))
+    assert early.status_code == 409
+
+    storage.objects[created["storage_key"]] = PDF_BYTES
+    complete = client.post(f"/api/v1/documents/{document_id}/complete", headers=_auth(token))
+    assert complete.status_code == 200
+
+    file_response = client.get(f"/api/v1/documents/{document_id}/file", headers=_auth(token))
+    assert file_response.status_code == 200
+    body = file_response.json()
+    assert created["storage_key"] in body["url"]
+    assert body["url"].endswith("?get")
+    assert body["content_type"] == "application/pdf"
+    assert body["filename"] == "şartname.pdf"
+
+    # RLS: başka kiracı aynı dokümanı göremez → 404.
+    _other, other_token = _register_and_login(
+        client, slug="org-preview-b", email="preview-b@org.com"
+    )
+    cross = client.get(f"/api/v1/documents/{document_id}/file", headers=_auth(other_token))
+    assert cross.status_code == 404

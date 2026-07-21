@@ -4,7 +4,8 @@ version = "0.0.0"
 description = "TenderIQ FastAPI uygulaması (REST /api/v1, auth, SSE)."
 requires-python = ">=3.12"
 dependencies = [
-    "tenderiq-core",
+    # `export` extra: Word/Excel rapor üretimi (Sprint 3.2) API sürecinde koşar.
+    "tenderiq-core[export]",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "email-validator>=2.2.0",
