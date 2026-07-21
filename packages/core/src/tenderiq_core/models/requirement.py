@@ -22,9 +22,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from tenderiq_core.db.base import Base, TimestampMixin
 from tenderiq_core.db.mixins import TenantMixin, UUIDPKMixin
 from tenderiq_core.findings import GroundingResolution, RequirementKind
+from tenderiq_core.models.review import ReviewMixin
 
 
-class Requirement(UUIDPKMixin, TenantMixin, TimestampMixin, Base):
+class Requirement(UUIDPKMixin, TenantMixin, TimestampMixin, ReviewMixin, Base):
     """Bir dokümandan çıkarılmış tek gereksinim (kaynak öğe bağlı)."""
 
     __tablename__ = "requirement"

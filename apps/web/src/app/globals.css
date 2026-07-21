@@ -2,50 +2,119 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* shadcn/ui tasarım token'ları (neutral taban, Tailwind 4 CSS-önce). */
+/*
+ * TenderIQ tasarım sistemi — DESIGN.md protokol çıktısı.
+ *
+ * DESIGN BRIEF
+ *   Domain/persona/iş: TR kamu ihale analizi · teklif müdürü · bulguyu kaynağında
+ *                      doğrulayıp onaylamak (citation-first inceleme)
+ *   Archetype: A — Clean Light (§3)
+ *   Accent:    #0B6E99 "derin petrol" — §14 procurement örneğinden ~10° maviye
+ *              kaydırılmış; kurumsal güven, ham palet değil
+ *   Tip:       Public Sans (UI) + JetBrains Mono (sayısallar, ihale no, referans)
+ *   İmza:      rail-active nav — 2px accent sol ray; risk/termin kartlarında
+ *              semantik renkte yankılanır (§9)
+ *
+ * shadcn değişken sözleşmesi korunur (background/card/primary/...); DESIGN §13
+ * token'ları bunların üzerine eşlenir ve ek adlarla (surface-2, ink-3, success…)
+ * Tailwind utility'si olarak açılır. Bileşenlerde ham palet sınıfı (bg-blue-500)
+ * kullanılmaz (§15.2).
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --radius: 0.625rem; /* r-inner=rounded-md 8px · r-card=rounded-xl 14px (§6.2) */
+
+  /* Yüzeyler (Archetype A) */
+  --canvas: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #f2f3f6;
+  --surface-3: #ffffff;
+  --border-hairline: #e7e9ee;
+  --border-strong: #d8dbe2;
+
+  /* Metin — tam üç ton (§1.6) */
+  --ink-1: #101319;
+  --ink-2: #4e5564;
+  --ink-3: #8a91a0;
+
+  /* Marka + semantik (§4.1) */
+  --brand: #0b6e99;
+  --brand-weak: rgb(11 110 153 / 0.1);
+  --success: #158a4c;
+  --success-weak: #e9f7ef;
+  --warning: #b4690e;
+  --warning-weak: #fcf3e4;
+  --danger: #d6362f;
+  --danger-weak: #fceceb;
+  --info: #2360d8;
+  --info-weak: #eaf1fd;
+
+  /* shadcn sözleşmesi → DESIGN eşlemesi */
+  --background: var(--canvas);
+  --foreground: var(--ink-1);
+  --card: var(--surface);
+  --card-foreground: var(--ink-1);
+  --popover: var(--surface-3);
+  --popover-foreground: var(--ink-1);
+  --primary: var(--brand);
+  --primary-foreground: #ffffff;
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink-1);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-2);
+  --accent: var(--surface-2);
+  --accent-foreground: var(--ink-1);
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--border-hairline);
+  --input: var(--border-strong);
+  --ring: var(--brand);
 }
 
+/* İkincil tema — Archetype C yüzey basamakları, aynı marka ailesi (accent
+ * karanlıkta bir ton açılır; §12 kontrast). Tema anahtarı henüz yok; sözleşme
+ * hazır dursun diye eksiksiz tutulur. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --canvas: #0a0b0e;
+  --surface: #121317;
+  --surface-2: #1a1c22;
+  --surface-3: #23262e;
+  --border-hairline: #24262d;
+  --border-strong: #32353e;
+
+  --ink-1: #f4f5f7;
+  --ink-2: #9ca2b0;
+  --ink-3: #646b7a;
+
+  --brand: #34a3cf;
+  --brand-weak: rgb(52 163 207 / 0.14);
+  --success: #34d57b;
+  --success-weak: rgb(52 213 123 / 0.12);
+  --warning: #f5a623;
+  --warning-weak: rgb(245 166 35 / 0.12);
+  --danger: #f26b5e;
+  --danger-weak: rgb(242 107 94 / 0.12);
+  --info: #5b9bf7;
+  --info-weak: rgb(91 155 247 / 0.12);
+
+  --background: var(--canvas);
+  --foreground: var(--ink-1);
+  --card: var(--surface);
+  --card-foreground: var(--ink-1);
+  --popover: var(--surface-3);
+  --popover-foreground: var(--ink-1);
+  --primary: var(--brand);
+  --primary-foreground: #08222e;
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink-1);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-2);
+  --accent: var(--surface-2);
+  --accent-foreground: var(--ink-1);
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--border-hairline);
+  --input: var(--border-strong);
+  --ring: var(--brand);
 }
 
 @theme inline {
@@ -53,6 +122,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -72,6 +142,35 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* DESIGN §13 ek token'ları — utility adları: bg-surface-2, text-ink-3, ... */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border-strong: var(--border-strong);
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-brand: var(--brand);
+  --color-brand-weak: var(--brand-weak);
+  --color-success: var(--success);
+  --color-success-weak: var(--success-weak);
+  --color-warning: var(--warning);
+  --color-warning-weak: var(--warning-weak);
+  --color-danger: var(--danger);
+  --color-danger-weak: var(--danger-weak);
+  --color-info: var(--info);
+  --color-info-weak: var(--info-weak);
+
+  /* Gölgeler — fısıltı düzeyi (§6.4): shadow-rest / shadow-hover / shadow-pop */
+  --shadow-rest: 0 1px 2px rgb(16 20 28 / 0.04);
+  --shadow-hover: 0 4px 12px rgb(16 20 28 / 0.07);
+  --shadow-pop: 0 12px 32px rgb(16 20 28 / 0.12);
+
+  /* Tipografi — next/font değişkenleri layout.tsx'te bağlanır */
+  --font-sans: var(--font-public-sans), -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 @layer base {
@@ -79,9 +178,37 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
+    /* Sayı içerebilecek her yerde tablo rakamları (§5.3) */
+    font-variant-numeric: tabular-nums;
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
+  }
+}
+
+@layer utilities {
+  /* Overline: kenar çubuğu bölüm başlıkları, kart üstü etiketler (§5.2) */
+  .text-overline {
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  /* İmza öğesi: 2px sol ray (§9 rail-active) — renk currentColor'dan değil,
+   * --rail-color değişkeninden gelir; nav'da brand, kartlarda semantik ton. */
+  .rail-active {
+    position: relative;
+  }
+  .rail-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    border-radius: 999px;
+    background: var(--rail-color, var(--brand));
   }
 }

@@ -6,6 +6,7 @@ import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
+from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Query, Request, status
@@ -28,6 +29,7 @@ from tenderiq_core.findings import (
     DeliverableKind,
     GroundingResolution,
     RequirementKind,
+    ReviewStatus,
     RiskCategory,
     RiskSeverity,
     TimelineKind,
@@ -130,6 +132,14 @@ class FindingSource(BaseModel):
     resolution: GroundingResolution
 
 
+class FindingReview(BaseModel):
+    """Bulgunun insan-döngüde inceleme durumu (Sprint 3.2, §4.3)."""
+
+    status: ReviewStatus
+    reviewed_by: uuid.UUID | None
+    reviewed_at: datetime | None
+
+
 class RequirementResponse(BaseModel):
     """Çıkarılmış gereksinim (kaynaklı)."""
 
@@ -139,6 +149,7 @@ class RequirementResponse(BaseModel):
     kind: RequirementKind
     is_mandatory: bool
     source: FindingSource
+    review: FindingReview
 
 
 class DeliverableResponse(BaseModel):
@@ -150,6 +161,7 @@ class DeliverableResponse(BaseModel):
     kind: DeliverableKind
     is_mandatory: bool
     source: FindingSource
+    review: FindingReview
 
 
 class RiskResponse(BaseModel):
@@ -161,6 +173,7 @@ class RiskResponse(BaseModel):
     severity: RiskSeverity
     category: RiskCategory
     source: FindingSource
+    review: FindingReview
 
 
 class TimelineEventResponse(BaseModel):
@@ -172,6 +185,7 @@ class TimelineEventResponse(BaseModel):
     kind: TimelineKind
     value_text: str
     source: FindingSource
+    review: FindingReview
 
 
 class ComplianceResultResponse(BaseModel):
@@ -183,6 +197,7 @@ class ComplianceResultResponse(BaseModel):
     status: ComplianceStatus
     rationale: str
     source: FindingSource
+    review: FindingReview
 
 
 def _finding_source(
@@ -199,6 +214,91 @@ def _finding_source(
         bbox_y1=element.bbox_y1,
         quote=quote,
         resolution=resolution,
+    )
+
+
+def _finding_review(row: Any) -> FindingReview:
+    """ReviewMixin kolonlarından inceleme özeti üretir (beş bulgu modelinde ortak)."""
+    return FindingReview(
+        status=row.review_status,
+        reviewed_by=row.reviewed_by,
+        reviewed_at=row.reviewed_at,
+    )
+
+
+# Satır → yanıt kurucuları: liste uçları ve bulgu inceleme uçları (routers.v1.findings)
+# aynı yanıt şeklini paylaşır — tek kaynaktan kurulur.
+
+
+def requirement_response(row: Requirement, element: ParsedElement) -> RequirementResponse:
+    return RequirementResponse(
+        id=row.id,
+        document_id=row.document_id,
+        text=row.text,
+        kind=row.kind,
+        is_mandatory=row.is_mandatory,
+        source=_finding_source(
+            element, quote=row.source_quote, resolution=row.grounding_resolution
+        ),
+        review=_finding_review(row),
+    )
+
+
+def deliverable_response(row: Deliverable, element: ParsedElement) -> DeliverableResponse:
+    return DeliverableResponse(
+        id=row.id,
+        document_id=row.document_id,
+        name=row.name,
+        kind=row.kind,
+        is_mandatory=row.is_mandatory,
+        source=_finding_source(
+            element, quote=row.source_quote, resolution=row.grounding_resolution
+        ),
+        review=_finding_review(row),
+    )
+
+
+def risk_response(row: RiskFlag, element: ParsedElement) -> RiskResponse:
+    return RiskResponse(
+        id=row.id,
+        document_id=row.document_id,
+        text=row.text,
+        severity=row.severity,
+        category=row.category,
+        source=_finding_source(
+            element, quote=row.source_quote, resolution=row.grounding_resolution
+        ),
+        review=_finding_review(row),
+    )
+
+
+def timeline_event_response(row: TimelineEvent, element: ParsedElement) -> TimelineEventResponse:
+    return TimelineEventResponse(
+        id=row.id,
+        document_id=row.document_id,
+        label=row.label,
+        kind=row.kind,
+        value_text=row.value_text,
+        source=_finding_source(
+            element, quote=row.source_quote, resolution=row.grounding_resolution
+        ),
+        review=_finding_review(row),
+    )
+
+
+def compliance_result_response(
+    row: ComplianceResult, element: ParsedElement
+) -> ComplianceResultResponse:
+    return ComplianceResultResponse(
+        id=row.id,
+        document_id=row.document_id,
+        requirement_text=row.requirement_text,
+        status=row.status,
+        rationale=row.rationale,
+        source=_finding_source(
+            element, quote=row.source_quote, resolution=row.grounding_resolution
+        ),
+        review=_finding_review(row),
     )
 
 
@@ -351,19 +451,7 @@ async def list_requirements(
         .where(Requirement.tender_id == tender_id)
         .order_by(Requirement.document_id, Requirement.seq)
     )
-    return [
-        RequirementResponse(
-            id=row.id,
-            document_id=row.document_id,
-            text=row.text,
-            kind=row.kind,
-            is_mandatory=row.is_mandatory,
-            source=_finding_source(
-                element, quote=row.source_quote, resolution=row.grounding_resolution
-            ),
-        )
-        for row, element in result.all()
-    ]
+    return [requirement_response(row, element) for row, element in result.all()]
 
 
 @router.get("/{tender_id}/deliverables", response_model=list[DeliverableResponse])
@@ -382,19 +470,7 @@ async def list_deliverables(
         .where(Deliverable.tender_id == tender_id)
         .order_by(Deliverable.document_id, Deliverable.seq)
     )
-    return [
-        DeliverableResponse(
-            id=row.id,
-            document_id=row.document_id,
-            name=row.name,
-            kind=row.kind,
-            is_mandatory=row.is_mandatory,
-            source=_finding_source(
-                element, quote=row.source_quote, resolution=row.grounding_resolution
-            ),
-        )
-        for row, element in result.all()
-    ]
+    return [deliverable_response(row, element) for row, element in result.all()]
 
 
 @router.get("/{tender_id}/risks", response_model=list[RiskResponse])
@@ -411,19 +487,7 @@ async def list_risks(tender_id: uuid.UUID, session: TenantSessionDep) -> list[Ri
         .where(RiskFlag.tender_id == tender_id)
         .order_by(RiskFlag.document_id, RiskFlag.seq)
     )
-    return [
-        RiskResponse(
-            id=row.id,
-            document_id=row.document_id,
-            text=row.text,
-            severity=row.severity,
-            category=row.category,
-            source=_finding_source(
-                element, quote=row.source_quote, resolution=row.grounding_resolution
-            ),
-        )
-        for row, element in result.all()
-    ]
+    return [risk_response(row, element) for row, element in result.all()]
 
 
 @router.get("/{tender_id}/timeline", response_model=list[TimelineEventResponse])
@@ -442,19 +506,7 @@ async def list_timeline(
         .where(TimelineEvent.tender_id == tender_id)
         .order_by(TimelineEvent.document_id, TimelineEvent.seq)
     )
-    return [
-        TimelineEventResponse(
-            id=row.id,
-            document_id=row.document_id,
-            label=row.label,
-            kind=row.kind,
-            value_text=row.value_text,
-            source=_finding_source(
-                element, quote=row.source_quote, resolution=row.grounding_resolution
-            ),
-        )
-        for row, element in result.all()
-    ]
+    return [timeline_event_response(row, element) for row, element in result.all()]
 
 
 @router.get("/{tender_id}/compliance", response_model=list[ComplianceResultResponse])
@@ -475,19 +527,7 @@ async def list_compliance(
         .where(ComplianceResult.tender_id == tender_id)
         .order_by(ComplianceResult.document_id, ComplianceResult.seq)
     )
-    return [
-        ComplianceResultResponse(
-            id=row.id,
-            document_id=row.document_id,
-            requirement_text=row.requirement_text,
-            status=row.status,
-            rationale=row.rationale,
-            source=_finding_source(
-                element, quote=row.source_quote, resolution=row.grounding_resolution
-            ),
-        )
-        for row, element in result.all()
-    ]
+    return [compliance_result_response(row, element) for row, element in result.all()]
 
 
 async def _tender_snapshot(

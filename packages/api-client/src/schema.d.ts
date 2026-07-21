@@ -81,13 +81,56 @@ export interface paths {
          * Upsert Capability Profile
          * @description Aktif kiracının yetkinlik profilini oluşturur veya günceller (upsert).
          *
-         *     Kiracı başına tek profil olduğundan mevcut satır güncellenir; yoksa açılır.
+         *     Kiracı başına tek profil olduğundan atomik ``INSERT ... ON CONFLICT DO UPDATE``
+         *     kullanılır. Böylece profili olmayan iki EŞZAMANLI istek de ``uq_capability_
+         *     profile_tenant`` ihlaliyle 500 üretmez — ikisi de başarılı olur (RLS WITH CHECK
+         *     sağlanır: ``tenant_id`` değişmez, aktif kiracıya eşittir).
          */
         post: operations["upsert_capability_profile_api_v1_capability_profile_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/compliance-results/{finding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Compliance Result
+         * @description Uygunluk değerlendirmesini onaylar/reddeder/geri alır veya düzeltir (AuditLog'lu).
+         */
+        patch: operations["patch_compliance_result_api_v1_compliance_results__finding_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/deliverables/{finding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Deliverable
+         * @description İstenen belgeyi onaylar/reddeder/geri alır veya içeriğini düzeltir (AuditLog'lu).
+         */
+        patch: operations["patch_deliverable_api_v1_deliverables__finding_id__patch"];
         trace?: never;
     };
     "/api/v1/documents/{document_id}/complete": {
@@ -108,6 +151,73 @@ export interface paths {
          *     henüz görünmeyen bir satırı okuma yarışını önler).
          */
         post: operations["complete_upload_api_v1_documents__document_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Document File
+         * @description İnceleme ekranı doküman önizlemesi için imzalı GET URL'i döndürür.
+         *
+         *     URL süre-sınırlıdır (varsayılan 1 saat); erişim RLS ile kiracıya kapalıdır
+         *     (başka kiracının dokümanı 404). Yüklemesi tamamlanmamış doküman için 409.
+         */
+        get: operations["get_document_file_api_v1_documents__document_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/findings/{kind}/{finding_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Finding Comments
+         * @description Bulgunun ekip yorumlarını eskiden-yeniye listeler.
+         */
+        get: operations["list_finding_comments_api_v1_findings__kind___finding_id__comments_get"];
+        put?: never;
+        /**
+         * Create Finding Comment
+         * @description Bulguya ekip notu düşer (temel işbirliği; AuditLog'lu).
+         */
+        post: operations["create_finding_comment_api_v1_findings__kind___finding_id__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/findings/{kind}/{finding_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Finding History
+         * @description Bulgunun düzenleme geçmişini (AuditLog) yeniden-eskiye listeler.
+         */
+        get: operations["list_finding_history_api_v1_findings__kind___finding_id__history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -155,6 +265,46 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requirements/{finding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Requirement
+         * @description Gereksinimi onaylar/reddeder/geri alır veya içeriğini düzeltir (AuditLog'lu).
+         */
+        patch: operations["patch_requirement_api_v1_requirements__finding_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/risks/{finding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Risk
+         * @description Risk maddesini onaylar/reddeder/geri alır veya içeriğini düzeltir (AuditLog'lu).
+         */
+        patch: operations["patch_risk_api_v1_risks__finding_id__patch"];
         trace?: never;
     };
     "/api/v1/system/version": {
@@ -294,6 +444,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenders/{tender_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Tender
+         * @description Onaylı analizden yapılandırılmış Word/Excel raporu üretir ve indirir.
+         *
+         *     Hiç rapora girecek bulgu yoksa 409 döner (önce inceleme/onay gerekir).
+         *     Export AuditLog'a yazılır (kim-ne zaman-hangi biçim, §10.5).
+         */
+        post: operations["export_tender_api_v1_tenders__tender_id__export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenders/{tender_id}/findings/bulk-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Review
+         * @description Seçili bulguları tek transaction'da toplu onaylar/reddeder (AuditLog'lu).
+         *
+         *     Başka ihaleye/kiracıya ait ya da var olmayan id'ler ``skipped``a düşer.
+         *     Toplu onayda EDITED satırlar ``unchanged`` sayılır (düzeltilmiş hâl onaylı
+         *     sayılır; toplu işlem "düzeltildi" izini ezmez).
+         */
+        post: operations["bulk_review_api_v1_tenders__tender_id__findings_bulk_review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenders/{tender_id}/requirements": {
         parameters: {
             query?: never;
@@ -361,6 +558,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/timeline-events/{finding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Timeline Event
+         * @description Takvim öğesini onaylar/reddeder/geri alır veya içeriğini düzeltir (AuditLog'lu).
+         */
+        patch: operations["patch_timeline_event_api_v1_timeline_events__finding_id__patch"];
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -406,6 +623,45 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * BulkReviewAction
+         * @description Toplu inceleme eylemi (yalnız onay/red — geri alma tekildir).
+         * @enum {string}
+         */
+        BulkReviewAction: "approve" | "reject";
+        /**
+         * BulkReviewItem
+         * @description Toplu istekte tek bulgu adresi.
+         */
+        BulkReviewItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["FindingKind"];
+        };
+        /**
+         * BulkReviewRequest
+         * @description Toplu onay/red isteği.
+         */
+        BulkReviewRequest: {
+            action: components["schemas"]["BulkReviewAction"];
+            /** Items */
+            items: components["schemas"]["BulkReviewItem"][];
+        };
+        /**
+         * BulkReviewResponse
+         * @description Toplu işlem sonucu: değişen / zaten hedefte / bulunamayan.
+         */
+        BulkReviewResponse: {
+            /** Skipped */
+            skipped: string[];
+            /** Unchanged */
+            unchanged: number;
+            /** Updated */
+            updated: number;
+        };
+        /**
          * CapabilityProfileResponse
          * @description Kiracının yetkinlik profili.
          */
@@ -427,6 +683,16 @@ export interface components {
             content: string;
         };
         /**
+         * ComplianceResultPatch
+         * @description Uygunluk değerlendirmesi düzeltme alanları (durum + gerekçe).
+         */
+        ComplianceResultPatch: {
+            action?: components["schemas"]["ReviewAction"] | null;
+            /** Rationale */
+            rationale?: string | null;
+            status?: components["schemas"]["ComplianceStatus"] | null;
+        };
+        /**
          * ComplianceResultResponse
          * @description Gereksinim ↔ yetkinlik profili değerlendirmesi (kaynaklı).
          */
@@ -445,6 +711,7 @@ export interface components {
             rationale: string;
             /** Requirement Text */
             requirement_text: string;
+            review: components["schemas"]["FindingReview"];
             source: components["schemas"]["FindingSource"];
             status: components["schemas"]["ComplianceStatus"];
         };
@@ -460,6 +727,18 @@ export interface components {
          * @enum {string}
          */
         DeliverableKind: "document" | "certificate" | "guarantee" | "other";
+        /**
+         * DeliverablePatch
+         * @description İstenen belge düzeltme alanları.
+         */
+        DeliverablePatch: {
+            action?: components["schemas"]["ReviewAction"] | null;
+            /** Is Mandatory */
+            is_mandatory?: boolean | null;
+            kind?: components["schemas"]["DeliverableKind"] | null;
+            /** Name */
+            name?: string | null;
+        };
         /**
          * DeliverableResponse
          * @description Çıkarılmış istenen belge (kaynaklı).
@@ -480,6 +759,7 @@ export interface components {
             kind: components["schemas"]["DeliverableKind"];
             /** Name */
             name: string;
+            review: components["schemas"]["FindingReview"];
             source: components["schemas"]["FindingSource"];
         };
         /**
@@ -501,6 +781,18 @@ export interface components {
             filename: string;
             /** @default other */
             kind: components["schemas"]["DocumentKind"];
+        };
+        /**
+         * DocumentFileResponse
+         * @description Önizleme için süre-sınırlı imzalı indirme URL'i (Sprint 3.1, §4.2).
+         */
+        DocumentFileResponse: {
+            /** Content Type */
+            content_type: string;
+            /** Filename */
+            filename: string;
+            /** Url */
+            url: string;
         };
         /**
          * DocumentKind
@@ -555,6 +847,90 @@ export interface components {
          * @enum {string}
          */
         Environment: "development" | "staging" | "production";
+        /**
+         * ExportFormat
+         * @description Export dosya biçimi.
+         * @enum {string}
+         */
+        ExportFormat: "docx" | "xlsx";
+        /**
+         * FindingCommentCreate
+         * @description Yeni bulgu yorumu.
+         */
+        FindingCommentCreate: {
+            /** Body */
+            body: string;
+        };
+        /**
+         * FindingCommentResponse
+         * @description Tek bulgu yorumu.
+         */
+        FindingCommentResponse: {
+            /** Author User Id */
+            author_user_id: string | null;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Finding Id
+             * Format: uuid
+             */
+            finding_id: string;
+            finding_kind: components["schemas"]["FindingKind"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * FindingHistoryEntry
+         * @description Bulgu üzerindeki tek denetim kaydı (düzenleme geçmişi satırı).
+         */
+        FindingHistoryEntry: {
+            /** Action */
+            action: string;
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Meta */
+            meta: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * FindingKind
+         * @description Bulgu koleksiyonlarının ortak adresleme anahtarı (yorum/geçmiş uçları).
+         *
+         *     Değerler AuditLog ``resource_type`` alanında ve API yollarında kullanılır;
+         *     inceleme UI'sindeki beş sekmeyle birebir eşleşir.
+         * @enum {string}
+         */
+        FindingKind: "requirement" | "deliverable" | "risk" | "timeline" | "compliance";
+        /**
+         * FindingReview
+         * @description Bulgunun insan-döngüde inceleme durumu (Sprint 3.2, §4.3).
+         */
+        FindingReview: {
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By */
+            reviewed_by: string | null;
+            status: components["schemas"]["ReviewStatus"];
+        };
         /**
          * FindingSource
          * @description Bulgunun kaynak konumu — citation zinciri: öğe → sayfa + bbox (§6.9).
@@ -706,6 +1082,18 @@ export interface components {
          */
         RequirementKind: "technical" | "administrative" | "financial";
         /**
+         * RequirementPatch
+         * @description Gereksinim düzeltme alanları.
+         */
+        RequirementPatch: {
+            action?: components["schemas"]["ReviewAction"] | null;
+            /** Is Mandatory */
+            is_mandatory?: boolean | null;
+            kind?: components["schemas"]["RequirementKind"] | null;
+            /** Text */
+            text?: string | null;
+        };
+        /**
          * RequirementResponse
          * @description Çıkarılmış gereksinim (kaynaklı).
          */
@@ -723,16 +1111,45 @@ export interface components {
             /** Is Mandatory */
             is_mandatory: boolean;
             kind: components["schemas"]["RequirementKind"];
+            review: components["schemas"]["FindingReview"];
             source: components["schemas"]["FindingSource"];
             /** Text */
             text: string;
         };
+        /**
+         * ReviewAction
+         * @description Tek bulgu üzerinde inceleme eylemi.
+         * @enum {string}
+         */
+        ReviewAction: "approve" | "reject" | "reset";
+        /**
+         * ReviewStatus
+         * @description Bulgunun insan-döngüde inceleme durumu (Sprint 3.2, §4.3).
+         *
+         *     Çıkarım sonrası her bulgu PENDING doğar; insan onaylar, düzeltir (içerik
+         *     değişikliği) veya reddeder. EDITED onaylı sayılır (düzeltilmiş hâliyle);
+         *     REJECTED bulgular export'a girmez. Yeniden çıkarım (delete+insert) inceleme
+         *     durumunu bilinçli sıfırlar — yeni çıkarım yeni inceleme gerektirir.
+         * @enum {string}
+         */
+        ReviewStatus: "pending" | "approved" | "edited" | "rejected";
         /**
          * RiskCategory
          * @description Risk maddesinin türü (TR ihale alanı; getirim şablonlarıyla hizalı).
          * @enum {string}
          */
         RiskCategory: "penalty" | "termination" | "warranty" | "payment" | "other";
+        /**
+         * RiskPatch
+         * @description Risk maddesi düzeltme alanları.
+         */
+        RiskPatch: {
+            action?: components["schemas"]["ReviewAction"] | null;
+            category?: components["schemas"]["RiskCategory"] | null;
+            severity?: components["schemas"]["RiskSeverity"] | null;
+            /** Text */
+            text?: string | null;
+        };
         /**
          * RiskResponse
          * @description Çıkarılmış risk maddesi (kaynaklı).
@@ -749,6 +1166,7 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            review: components["schemas"]["FindingReview"];
             severity: components["schemas"]["RiskSeverity"];
             source: components["schemas"]["FindingSource"];
             /** Text */
@@ -775,6 +1193,19 @@ export interface components {
             title: string;
         };
         /**
+         * TenderExportRequest
+         * @description Export isteği: biçim + onay bekleyenler dahil mi.
+         */
+        TenderExportRequest: {
+            /** @default docx */
+            format: components["schemas"]["ExportFormat"];
+            /**
+             * Include Pending
+             * @default false
+             */
+            include_pending: boolean;
+        };
+        /**
          * TenderResponse
          * @description İhale özeti.
          */
@@ -797,6 +1228,18 @@ export interface components {
          */
         TenderStatus: "draft" | "analyzing" | "review_ready" | "archived";
         /**
+         * TimelineEventPatch
+         * @description Takvim öğesi düzeltme alanları.
+         */
+        TimelineEventPatch: {
+            action?: components["schemas"]["ReviewAction"] | null;
+            kind?: components["schemas"]["TimelineKind"] | null;
+            /** Label */
+            label?: string | null;
+            /** Value Text */
+            value_text?: string | null;
+        };
+        /**
          * TimelineEventResponse
          * @description Çıkarılmış tarih/süre öğesi (kaynaklı).
          */
@@ -814,6 +1257,7 @@ export interface components {
             kind: components["schemas"]["TimelineKind"];
             /** Label */
             label: string;
+            review: components["schemas"]["FindingReview"];
             source: components["schemas"]["FindingSource"];
             /** Value Text */
             value_text: string;
@@ -1057,6 +1501,80 @@ export interface operations {
             };
         };
     };
+    patch_compliance_result_api_v1_compliance_results__finding_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplianceResultPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceResultResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_deliverable_api_v1_deliverables__finding_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliverablePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliverableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     complete_upload_api_v1_documents__document_id__complete_post: {
         parameters: {
             query?: never;
@@ -1077,6 +1595,145 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentCompleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_file_api_v1_documents__document_id__file_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentFileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_finding_comments_api_v1_findings__kind___finding_id__comments_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                kind: components["schemas"]["FindingKind"];
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingCommentResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_finding_comment_api_v1_findings__kind___finding_id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                kind: components["schemas"]["FindingKind"];
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindingCommentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingCommentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_finding_history_api_v1_findings__kind___finding_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                kind: components["schemas"]["FindingKind"];
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingHistoryEntry"][];
                 };
             };
             /** @description Validation Error */
@@ -1143,6 +1800,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_requirement_api_v1_requirements__finding_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequirementPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequirementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_risk_api_v1_risks__finding_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RiskPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1412,6 +2143,82 @@ export interface operations {
             };
         };
     };
+    export_tender_api_v1_tenders__tender_id__export_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenderExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Üretilen rapor dosyası (Content-Disposition: attachment). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_review_api_v1_tenders__tender_id__findings_bulk_review_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_requirements_api_v1_tenders__tender_id__requirements_get: {
         parameters: {
             query?: never;
@@ -1498,6 +2305,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TimelineEventResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_timeline_event_api_v1_timeline_events__finding_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimelineEventPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineEventResponse"];
                 };
             };
             /** @description Validation Error */

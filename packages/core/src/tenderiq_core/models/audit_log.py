@@ -23,12 +23,20 @@ class AuditAction(StrEnum):
     """Denetlenen işlem türleri."""
 
     TENDER_CREATED = "tender.created"
+    TENDER_EXPORTED = "tender.exported"
     DOCUMENT_CREATED = "document.created"
     DOCUMENT_UPLOAD_COMPLETED = "document.upload_completed"
     DOCUMENT_UPLOAD_REJECTED = "document.upload_rejected"
     DOCUMENT_DELETED = "document.deleted"
     JOB_RETRIED = "job.retried"
     ROLE_CHANGED = "role.changed"
+    # İnsan-döngüde inceleme (Sprint 3.2): resource_type = FindingKind değeri,
+    # resource_id = bulgu id'si — bulgu başına düzenleme geçmişinin kaynağıdır.
+    FINDING_APPROVED = "finding.approved"
+    FINDING_REJECTED = "finding.rejected"
+    FINDING_EDITED = "finding.edited"
+    FINDING_REVIEW_RESET = "finding.review_reset"
+    FINDING_COMMENTED = "finding.commented"
 
 
 class AuditLog(UUIDPKMixin, TenantMixin, Base):

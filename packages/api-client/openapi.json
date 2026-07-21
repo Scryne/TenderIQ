@@ -1,6 +1,85 @@
 {
   "components": {
     "schemas": {
+      "BulkReviewAction": {
+        "description": "Toplu inceleme eylemi (yalnız onay/red — geri alma tekildir).",
+        "enum": [
+          "approve",
+          "reject"
+        ],
+        "title": "BulkReviewAction",
+        "type": "string"
+      },
+      "BulkReviewItem": {
+        "description": "Toplu istekte tek bulgu adresi.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FindingKind"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "title": "BulkReviewItem",
+        "type": "object"
+      },
+      "BulkReviewRequest": {
+        "description": "Toplu onay/red isteği.",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/BulkReviewAction"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BulkReviewItem"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "action",
+          "items"
+        ],
+        "title": "BulkReviewRequest",
+        "type": "object"
+      },
+      "BulkReviewResponse": {
+        "description": "Toplu işlem sonucu: değişen / zaten hedefte / bulunamayan.",
+        "properties": {
+          "skipped": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated",
+          "unchanged",
+          "skipped"
+        ],
+        "title": "BulkReviewResponse",
+        "type": "object"
+      },
       "CapabilityProfileResponse": {
         "description": "Kiracının yetkinlik profili.",
         "properties": {
@@ -37,6 +116,46 @@
         "title": "CapabilityProfileUpsert",
         "type": "object"
       },
+      "ComplianceResultPatch": {
+        "additionalProperties": false,
+        "description": "Uygunluk değerlendirmesi düzeltme alanları (durum + gerekçe).",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplianceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "ComplianceResultPatch",
+        "type": "object"
+      },
       "ComplianceResultResponse": {
         "description": "Gereksinim ↔ yetkinlik profili değerlendirmesi (kaynaklı).",
         "properties": {
@@ -58,6 +177,9 @@
             "title": "Requirement Text",
             "type": "string"
           },
+          "review": {
+            "$ref": "#/components/schemas/FindingReview"
+          },
           "source": {
             "$ref": "#/components/schemas/FindingSource"
           },
@@ -71,7 +193,8 @@
           "requirement_text",
           "status",
           "rationale",
-          "source"
+          "source",
+          "review"
         ],
         "title": "ComplianceResultResponse",
         "type": "object"
@@ -97,6 +220,57 @@
         "title": "DeliverableKind",
         "type": "string"
       },
+      "DeliverablePatch": {
+        "additionalProperties": false,
+        "description": "İstenen belge düzeltme alanları.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_mandatory": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Mandatory"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliverableKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "DeliverablePatch",
+        "type": "object"
+      },
       "DeliverableResponse": {
         "description": "Çıkarılmış istenen belge (kaynaklı).",
         "properties": {
@@ -121,6 +295,9 @@
             "title": "Name",
             "type": "string"
           },
+          "review": {
+            "$ref": "#/components/schemas/FindingReview"
+          },
           "source": {
             "$ref": "#/components/schemas/FindingSource"
           }
@@ -131,7 +308,8 @@
           "name",
           "kind",
           "is_mandatory",
-          "source"
+          "source",
+          "review"
         ],
         "title": "DeliverableResponse",
         "type": "object"
@@ -185,6 +363,30 @@
           "content_type"
         ],
         "title": "DocumentCreate",
+        "type": "object"
+      },
+      "DocumentFileResponse": {
+        "description": "Önizleme için süre-sınırlı imzalı indirme URL'i (Sprint 3.1, §4.2).",
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "content_type",
+          "filename"
+        ],
+        "title": "DocumentFileResponse",
         "type": "object"
       },
       "DocumentKind": {
@@ -292,6 +494,183 @@
         ],
         "title": "Environment",
         "type": "string"
+      },
+      "ExportFormat": {
+        "description": "Export dosya biçimi.",
+        "enum": [
+          "docx",
+          "xlsx"
+        ],
+        "title": "ExportFormat",
+        "type": "string"
+      },
+      "FindingCommentCreate": {
+        "description": "Yeni bulgu yorumu.",
+        "properties": {
+          "body": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "FindingCommentCreate",
+        "type": "object"
+      },
+      "FindingCommentResponse": {
+        "description": "Tek bulgu yorumu.",
+        "properties": {
+          "author_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author User Id"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "finding_id": {
+            "format": "uuid",
+            "title": "Finding Id",
+            "type": "string"
+          },
+          "finding_kind": {
+            "$ref": "#/components/schemas/FindingKind"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "finding_kind",
+          "finding_id",
+          "author_user_id",
+          "body",
+          "created_at"
+        ],
+        "title": "FindingCommentResponse",
+        "type": "object"
+      },
+      "FindingHistoryEntry": {
+        "description": "Bulgu üzerindeki tek denetim kaydı (düzenleme geçmişi satırı).",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "actor_user_id",
+          "created_at",
+          "meta"
+        ],
+        "title": "FindingHistoryEntry",
+        "type": "object"
+      },
+      "FindingKind": {
+        "description": "Bulgu koleksiyonlarının ortak adresleme anahtarı (yorum/geçmiş uçları).\n\nDeğerler AuditLog ``resource_type`` alanında ve API yollarında kullanılır;\ninceleme UI'sindeki beş sekmeyle birebir eşleşir.",
+        "enum": [
+          "requirement",
+          "deliverable",
+          "risk",
+          "timeline",
+          "compliance"
+        ],
+        "title": "FindingKind",
+        "type": "string"
+      },
+      "FindingReview": {
+        "description": "Bulgunun insan-döngüde inceleme durumu (Sprint 3.2, §4.3).",
+        "properties": {
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          }
+        },
+        "required": [
+          "status",
+          "reviewed_by",
+          "reviewed_at"
+        ],
+        "title": "FindingReview",
+        "type": "object"
       },
       "FindingSource": {
         "description": "Bulgunun kaynak konumu — citation zinciri: öğe → sayfa + bbox (§6.9).\n\nKaynağa bağlanamayan bulgu API'den hiç dönmediği için (ADR-0006) tüm\nalanlar kaynak öğeden doludur; bbox yalnız konumsuz formatlarda (DOCX/XLSX)\nboştur.",
@@ -640,6 +1019,57 @@
         "title": "RequirementKind",
         "type": "string"
       },
+      "RequirementPatch": {
+        "additionalProperties": false,
+        "description": "Gereksinim düzeltme alanları.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_mandatory": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Mandatory"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequirementKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "RequirementPatch",
+        "type": "object"
+      },
       "RequirementResponse": {
         "description": "Çıkarılmış gereksinim (kaynaklı).",
         "properties": {
@@ -660,6 +1090,9 @@
           "kind": {
             "$ref": "#/components/schemas/RequirementKind"
           },
+          "review": {
+            "$ref": "#/components/schemas/FindingReview"
+          },
           "source": {
             "$ref": "#/components/schemas/FindingSource"
           },
@@ -674,10 +1107,32 @@
           "text",
           "kind",
           "is_mandatory",
-          "source"
+          "source",
+          "review"
         ],
         "title": "RequirementResponse",
         "type": "object"
+      },
+      "ReviewAction": {
+        "description": "Tek bulgu üzerinde inceleme eylemi.",
+        "enum": [
+          "approve",
+          "reject",
+          "reset"
+        ],
+        "title": "ReviewAction",
+        "type": "string"
+      },
+      "ReviewStatus": {
+        "description": "Bulgunun insan-döngüde inceleme durumu (Sprint 3.2, §4.3).\n\nÇıkarım sonrası her bulgu PENDING doğar; insan onaylar, düzeltir (içerik\ndeğişikliği) veya reddeder. EDITED onaylı sayılır (düzeltilmiş hâliyle);\nREJECTED bulgular export'a girmez. Yeniden çıkarım (delete+insert) inceleme\ndurumunu bilinçli sıfırlar — yeni çıkarım yeni inceleme gerektirir.",
+        "enum": [
+          "pending",
+          "approved",
+          "edited",
+          "rejected"
+        ],
+        "title": "ReviewStatus",
+        "type": "string"
       },
       "RiskCategory": {
         "description": "Risk maddesinin türü (TR ihale alanı; getirim şablonlarıyla hizalı).",
@@ -690,6 +1145,56 @@
         ],
         "title": "RiskCategory",
         "type": "string"
+      },
+      "RiskPatch": {
+        "additionalProperties": false,
+        "description": "Risk maddesi düzeltme alanları.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskSeverity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "RiskPatch",
+        "type": "object"
       },
       "RiskResponse": {
         "description": "Çıkarılmış risk maddesi (kaynaklı).",
@@ -706,6 +1211,9 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "review": {
+            "$ref": "#/components/schemas/FindingReview"
           },
           "severity": {
             "$ref": "#/components/schemas/RiskSeverity"
@@ -724,7 +1232,8 @@
           "text",
           "severity",
           "category",
-          "source"
+          "source",
+          "review"
         ],
         "title": "RiskResponse",
         "type": "object"
@@ -763,6 +1272,23 @@
           "title"
         ],
         "title": "TenderCreate",
+        "type": "object"
+      },
+      "TenderExportRequest": {
+        "additionalProperties": false,
+        "description": "Export isteği: biçim + onay bekleyenler dahil mi.",
+        "properties": {
+          "format": {
+            "$ref": "#/components/schemas/ExportFormat",
+            "default": "docx"
+          },
+          "include_pending": {
+            "default": false,
+            "title": "Include Pending",
+            "type": "boolean"
+          }
+        },
+        "title": "TenderExportRequest",
         "type": "object"
       },
       "TenderResponse": {
@@ -813,6 +1339,58 @@
         "title": "TenderStatus",
         "type": "string"
       },
+      "TimelineEventPatch": {
+        "additionalProperties": false,
+        "description": "Takvim öğesi düzeltme alanları.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelineKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "value_text": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Text"
+          }
+        },
+        "title": "TimelineEventPatch",
+        "type": "object"
+      },
       "TimelineEventResponse": {
         "description": "Çıkarılmış tarih/süre öğesi (kaynaklı).",
         "properties": {
@@ -833,6 +1411,9 @@
             "title": "Label",
             "type": "string"
           },
+          "review": {
+            "$ref": "#/components/schemas/FindingReview"
+          },
           "source": {
             "$ref": "#/components/schemas/FindingSource"
           },
@@ -847,7 +1428,8 @@
           "label",
           "kind",
           "value_text",
-          "source"
+          "source",
+          "review"
         ],
         "title": "TimelineEventResponse",
         "type": "object"
@@ -1182,7 +1764,7 @@
         ]
       },
       "post": {
-        "description": "Aktif kiracının yetkinlik profilini oluşturur veya günceller (upsert).\n\nKiracı başına tek profil olduğundan mevcut satır güncellenir; yoksa açılır.",
+        "description": "Aktif kiracının yetkinlik profilini oluşturur veya günceller (upsert).\n\nKiracı başına tek profil olduğundan atomik ``INSERT ... ON CONFLICT DO UPDATE``\nkullanılır. Böylece profili olmayan iki EŞZAMANLI istek de ``uq_capability_\nprofile_tenant`` ihlaliyle 500 üretmez — ikisi de başarılı olur (RLS WITH CHECK\nsağlanır: ``tenant_id`` değişmez, aktif kiracıya eşittir).",
         "operationId": "upsert_capability_profile_api_v1_capability_profile_post",
         "parameters": [
           {
@@ -1237,6 +1819,146 @@
         "summary": "Upsert Capability Profile",
         "tags": [
           "capability-profile"
+        ]
+      }
+    },
+    "/api/v1/compliance-results/{finding_id}": {
+      "patch": {
+        "description": "Uygunluk değerlendirmesini onaylar/reddeder/geri alır veya düzeltir (AuditLog'lu).",
+        "operationId": "patch_compliance_result_api_v1_compliance_results__finding_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplianceResultPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceResultResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Compliance Result",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
+    "/api/v1/deliverables/{finding_id}": {
+      "patch": {
+        "description": "İstenen belgeyi onaylar/reddeder/geri alır veya içeriğini düzeltir (AuditLog'lu).",
+        "operationId": "patch_deliverable_api_v1_deliverables__finding_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliverablePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverableResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Deliverable",
+        "tags": [
+          "findings"
         ]
       }
     },
@@ -1297,6 +2019,286 @@
         "summary": "Complete Upload",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}/file": {
+      "get": {
+        "description": "İnceleme ekranı doküman önizlemesi için imzalı GET URL'i döndürür.\n\nURL süre-sınırlıdır (varsayılan 1 saat); erişim RLS ile kiracıya kapalıdır\n(başka kiracının dokümanı 404). Yüklemesi tamamlanmamış doküman için 409.",
+        "operationId": "get_document_file_api_v1_documents__document_id__file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentFileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Document File",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/api/v1/findings/{kind}/{finding_id}/comments": {
+      "get": {
+        "description": "Bulgunun ekip yorumlarını eskiden-yeniye listeler.",
+        "operationId": "list_finding_comments_api_v1_findings__kind___finding_id__comments_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/FindingKind"
+            }
+          },
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FindingCommentResponse"
+                  },
+                  "title": "Response List Finding Comments Api V1 Findings  Kind   Finding Id  Comments Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Finding Comments",
+        "tags": [
+          "findings"
+        ]
+      },
+      "post": {
+        "description": "Bulguya ekip notu düşer (temel işbirliği; AuditLog'lu).",
+        "operationId": "create_finding_comment_api_v1_findings__kind___finding_id__comments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/FindingKind"
+            }
+          },
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindingCommentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingCommentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Finding Comment",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
+    "/api/v1/findings/{kind}/{finding_id}/history": {
+      "get": {
+        "description": "Bulgunun düzenleme geçmişini (AuditLog) yeniden-eskiye listeler.",
+        "operationId": "list_finding_history_api_v1_findings__kind___finding_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/FindingKind"
+            }
+          },
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FindingHistoryEntry"
+                  },
+                  "title": "Response List Finding History Api V1 Findings  Kind   Finding Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Finding History",
+        "tags": [
+          "findings"
         ]
       }
     },
@@ -1417,6 +2419,146 @@
         "summary": "Retry Job",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/v1/requirements/{finding_id}": {
+      "patch": {
+        "description": "Gereksinimi onaylar/reddeder/geri alır veya içeriğini düzeltir (AuditLog'lu).",
+        "operationId": "patch_requirement_api_v1_requirements__finding_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Requirement",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
+    "/api/v1/risks/{finding_id}": {
+      "patch": {
+        "description": "Risk maddesini onaylar/reddeder/geri alır veya içeriğini düzeltir (AuditLog'lu).",
+        "operationId": "patch_risk_api_v1_risks__finding_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RiskPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Risk",
+        "tags": [
+          "findings"
         ]
       }
     },
@@ -1891,6 +3033,156 @@
         ]
       }
     },
+    "/api/v1/tenders/{tender_id}/export": {
+      "post": {
+        "description": "Onaylı analizden yapılandırılmış Word/Excel raporu üretir ve indirir.\n\nHiç rapora girecek bulgu yoksa 409 döner (önce inceleme/onay gerekir).\nExport AuditLog'a yazılır (kim-ne zaman-hangi biçim, §10.5).",
+        "operationId": "export_tender_api_v1_tenders__tender_id__export_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenderExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Üretilen rapor dosyası (Content-Disposition: attachment)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Tender",
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/v1/tenders/{tender_id}/findings/bulk-review": {
+      "post": {
+        "description": "Seçili bulguları tek transaction'da toplu onaylar/reddeder (AuditLog'lu).\n\nBaşka ihaleye/kiracıya ait ya da var olmayan id'ler ``skipped``a düşer.\nToplu onayda EDITED satırlar ``unchanged`` sayılır (düzeltilmiş hâl onaylı\nsayılır; toplu işlem \"düzeltildi\" izini ezmez).",
+        "operationId": "bulk_review_api_v1_tenders__tender_id__findings_bulk_review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkReviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Review",
+        "tags": [
+          "findings"
+        ]
+      }
+    },
     "/api/v1/tenders/{tender_id}/requirements": {
       "get": {
         "description": "İhalenin çıkarılmış gereksinimlerini kaynaklarıyla listeler.\n\nZorunlu grounding (ADR-0006): kaynak ``ParsedElement``e bağlanamayan bulgu\nbu uçtan DÖNMEZ — inner join kaynaksız satırı yapısal olarak dışarıda bırakır.",
@@ -2080,6 +3372,76 @@
         "summary": "List Timeline",
         "tags": [
           "tenders"
+        ]
+      }
+    },
+    "/api/v1/timeline-events/{finding_id}": {
+      "patch": {
+        "description": "Takvim öğesini onaylar/reddeder/geri alır veya içeriğini düzeltir (AuditLog'lu).",
+        "operationId": "patch_timeline_event_api_v1_timeline_events__finding_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineEventPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEventResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Timeline Event",
+        "tags": [
+          "findings"
         ]
       }
     },

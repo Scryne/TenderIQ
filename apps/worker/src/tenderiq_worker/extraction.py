@@ -55,6 +55,7 @@ from tenderiq_core.models import (
     ComplianceResult,
     Deliverable,
     Document,
+    FindingComment,
     Job,
     Requirement,
     RiskFlag,
@@ -279,6 +280,19 @@ def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
     )
 
 
+def _delete_stale_comments(session: Any, model: type[Any], document_id: uuid.UUID) -> None:
+    """Silinecek bulgulara bağlı yorumları temizler (polimorfik bağ — FK cascade yok).
+
+    Yeniden çıkarım bulguları delete+insert ettiğinden yorumlar yetim kalırdı;
+    inceleme durumu sıfırlamasıyla aynı gerekçeyle yorumlar da düşer.
+    """
+    session.execute(
+        delete(FindingComment).where(
+            FindingComment.finding_id.in_(select(model.id).where(model.document_id == document_id))
+        )
+    )
+
+
 def _write_findings(
     *,
     tenant_id: uuid.UUID,
@@ -292,6 +306,7 @@ def _write_findings(
     with tenant_session(tenant_id) as session:
         for spec in _EXTRACTION_SPECS:
             agent_findings = list(findings.get(spec.agent.value, ()))
+            _delete_stale_comments(session, spec.model, document_id)
             session.execute(delete(spec.model).where(spec.model.document_id == document_id))
             for seq, finding in enumerate(agent_findings):
                 item = spec.schema.model_validate(finding.payload)
@@ -341,6 +356,7 @@ def _run_compliance(
         )
 
     with tenant_session(tenant_id) as session:
+        _delete_stale_comments(session, ComplianceResult, document_id)
         session.execute(delete(ComplianceResult).where(ComplianceResult.document_id == document_id))
         for seq, assessment in enumerate(assessments):
             finding = grounded[assessment.requirement_index - 1]

@@ -9,6 +9,9 @@ allowBuilds:
   # @sentry/cli postinstall binary indirir; source-map yükleme kullanılmadığından
   # bilinçli olarak REDDEDİLİR (build-time @sentry/bundler-plugin gerekmiyor).
   "@sentry/cli": false
+  # canvas: pdfjs-dist'in Node-only opsiyonel bağımlılığı; tarayıcı render'ında
+  # gerekmez, yerel derlemesi Windows'ta ağırdır — bilinçli olarak REDDEDİLİR.
+  canvas: false
   sharp: true
   unrs-resolver: true
 

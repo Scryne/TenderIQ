@@ -21,9 +21,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from tenderiq_core.db.base import Base, TimestampMixin
 from tenderiq_core.db.mixins import TenantMixin, UUIDPKMixin
 from tenderiq_core.findings import ComplianceStatus, GroundingResolution
+from tenderiq_core.models.review import ReviewMixin
 
 
-class ComplianceResult(UUIDPKMixin, TenantMixin, TimestampMixin, Base):
+class ComplianceResult(UUIDPKMixin, TenantMixin, TimestampMixin, ReviewMixin, Base):
     """Bir gereksinimin yetkinlik profiline göre karşılanma değerlendirmesi."""
 
     __tablename__ = "compliance_result"

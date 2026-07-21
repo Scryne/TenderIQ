@@ -9,7 +9,7 @@ import createClient, { type ClientOptions } from "openapi-fetch";
 
 import type { paths } from "./schema";
 
-export type { paths } from "./schema";
+export type { components, paths } from "./schema";
 
 /** Verilen ayarlarla tip-güvenli bir API istemcisi kurar. */
 export function createApiClient(options: ClientOptions): ReturnType<typeof createClient<paths>> {

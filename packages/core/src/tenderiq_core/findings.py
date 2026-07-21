@@ -71,3 +71,32 @@ class GroundingResolution(StrEnum):
     ELEMENT = "element"  # tek ParsedElement'te doğrulandı (en keskin bağ)
     CHUNK = "chunk"  # chunk'ta doğrulandı; öğe sınırı aşan alıntı → aralık başı
     UNGROUNDED = "ungrounded"  # kaynakta doğrulanamadı — düşük güven, gösterilmez
+
+
+class ReviewStatus(StrEnum):
+    """Bulgunun insan-döngüde inceleme durumu (Sprint 3.2, §4.3).
+
+    Çıkarım sonrası her bulgu PENDING doğar; insan onaylar, düzeltir (içerik
+    değişikliği) veya reddeder. EDITED onaylı sayılır (düzeltilmiş hâliyle);
+    REJECTED bulgular export'a girmez. Yeniden çıkarım (delete+insert) inceleme
+    durumunu bilinçli sıfırlar — yeni çıkarım yeni inceleme gerektirir.
+    """
+
+    PENDING = "pending"  # onay bekliyor (varsayılan)
+    APPROVED = "approved"  # insan onayladı
+    EDITED = "edited"  # insan içeriği düzeltti (onaylı sayılır)
+    REJECTED = "rejected"  # insan reddetti (hatalı/geçersiz bulgu)
+
+
+class FindingKind(StrEnum):
+    """Bulgu koleksiyonlarının ortak adresleme anahtarı (yorum/geçmiş uçları).
+
+    Değerler AuditLog ``resource_type`` alanında ve API yollarında kullanılır;
+    inceleme UI'sindeki beş sekmeyle birebir eşleşir.
+    """
+
+    REQUIREMENT = "requirement"
+    DELIVERABLE = "deliverable"
+    RISK = "risk"
+    TIMELINE = "timeline"
+    COMPLIANCE = "compliance"

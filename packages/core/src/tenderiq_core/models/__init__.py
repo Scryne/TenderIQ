@@ -7,6 +7,7 @@ from tenderiq_core.models.compliance_result import ComplianceResult
 from tenderiq_core.models.deliverable import Deliverable
 from tenderiq_core.models.document import Document, DocumentKind, DocumentStatus
 from tenderiq_core.models.embedding import EMBEDDING_DIM, Embedding
+from tenderiq_core.models.finding_comment import FindingComment
 from tenderiq_core.models.job import (
     JOB_TRANSITIONS,
     TERMINAL_JOB_STATUSES,
@@ -37,6 +38,7 @@ __all__ = [
     "DocumentKind",
     "DocumentStatus",
     "Embedding",
+    "FindingComment",
     "InvalidJobTransitionError",
     "Job",
     "JobStatus",

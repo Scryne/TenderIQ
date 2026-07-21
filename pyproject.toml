@@ -88,6 +88,7 @@ module = [
     "docling.*",
     "docling_core.*",
     "langfuse.*",
+    "openpyxl.*",
     "pgvector.*",
     "sentence_transformers.*",
 ]

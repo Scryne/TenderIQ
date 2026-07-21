@@ -3967,7 +3967,7 @@ dependencies = [
     { name = "celery", extra = ["redis"] },
     { name = "email-validator" },
     { name = "fastapi" },
-    { name = "tenderiq-core" },
+    { name = "tenderiq-core", extra = ["export"] },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -3976,7 +3976,7 @@ requires-dist = [
     { name = "celery", extras = ["redis"], specifier = ">=5.4.0" },
     { name = "email-validator", specifier = ">=2.2.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "tenderiq-core", editable = "packages/core" },
+    { name = "tenderiq-core", extras = ["export"], editable = "packages/core" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
 ]
 
@@ -4007,6 +4007,10 @@ dependencies = [
 embedding = [
     { name = "sentence-transformers" },
 ]
+export = [
+    { name = "openpyxl" },
+    { name = "python-docx" },
+]
 langfuse = [
     { name = "langfuse" },
 ]
@@ -4029,6 +4033,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.0" },
     { name = "ollama", specifier = ">=0.4.0" },
     { name = "openai", specifier = ">=1.54.0" },
+    { name = "openpyxl", marker = "extra == 'export'", specifier = ">=3.1.0" },
     { name = "pgvector", specifier = ">=0.3.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.2.1" },
@@ -4036,13 +4041,14 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.5.0" },
     { name = "pyjwt", specifier = ">=2.9.0" },
     { name = "pypdf", marker = "extra == 'parsing'", specifier = ">=5.0.0" },
+    { name = "python-docx", marker = "extra == 'export'", specifier = ">=1.1.0" },
     { name = "redis", specifier = ">=5.2.0" },
     { name = "sentence-transformers", marker = "extra == 'embedding'", specifier = ">=3.0.0" },
     { name = "sentry-sdk", specifier = ">=2.19.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.35" },
     { name = "structlog", specifier = ">=24.4.0" },
 ]
-provides-extras = ["parsing", "ocr", "embedding", "langfuse"]
+provides-extras = ["parsing", "ocr", "embedding", "langfuse", "export"]
 
 [[package]]
 name = "tenderiq-worker"

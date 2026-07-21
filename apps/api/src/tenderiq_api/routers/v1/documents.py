@@ -20,6 +20,7 @@ from tenderiq_api.dependencies import (
     SessionDep,
     SettingsDep,
     StorageDep,
+    TenantSessionDep,
     require_role,
 )
 from tenderiq_api.errors import ConflictError, NotFoundError, ValidationFailedError
@@ -47,6 +48,37 @@ class DocumentCompleteResponse(BaseModel):
 
     document: DocumentResponse
     job: JobResponse | None
+
+
+class DocumentFileResponse(BaseModel):
+    """Önizleme için süre-sınırlı imzalı indirme URL'i (Sprint 3.1, §4.2)."""
+
+    url: str
+    content_type: str
+    filename: str
+
+
+@router.get("/{document_id}/file", response_model=DocumentFileResponse)
+async def get_document_file(
+    document_id: uuid.UUID,
+    session: TenantSessionDep,
+    storage: StorageDep,
+) -> DocumentFileResponse:
+    """İnceleme ekranı doküman önizlemesi için imzalı GET URL'i döndürür.
+
+    URL süre-sınırlıdır (varsayılan 1 saat); erişim RLS ile kiracıya kapalıdır
+    (başka kiracının dokümanı 404). Yüklemesi tamamlanmamış doküman için 409.
+    """
+    document = await session.get(Document, document_id)
+    if document is None:
+        raise NotFoundError("Doküman bulunamadı.")
+    if document.status in (DocumentStatus.PENDING_UPLOAD, DocumentStatus.FAILED):
+        raise ConflictError("Doküman yüklemesi tamamlanmadığı için önizlenemez.")
+    return DocumentFileResponse(
+        url=storage.presigned_get_url(document.storage_key),
+        content_type=document.content_type,
+        filename=document.filename,
+    )
 
 
 @router.post(
