@@ -20,8 +20,10 @@ from tenderiq_core.models.organization import Organization
 from tenderiq_core.models.parsed_element import ParsedElement
 from tenderiq_core.models.requirement import Requirement
 from tenderiq_core.models.risk_flag import RiskFlag
+from tenderiq_core.models.subscription import Subscription, SubscriptionStatus
 from tenderiq_core.models.tender import Tender, TenderStatus
 from tenderiq_core.models.timeline_event import TimelineEvent
+from tenderiq_core.models.usage_record import UsageRecord
 from tenderiq_core.models.user import User
 
 __all__ = [
@@ -48,8 +50,11 @@ __all__ = [
     "Requirement",
     "RiskFlag",
     "Role",
+    "Subscription",
+    "SubscriptionStatus",
     "Tender",
     "TenderStatus",
     "TimelineEvent",
+    "UsageRecord",
     "User",
 ]

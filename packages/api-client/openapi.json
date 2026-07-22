@@ -766,6 +766,21 @@
         "title": "FindingSource",
         "type": "object"
       },
+      "ForgotPasswordRequest": {
+        "description": "Parola sıfırlama bağlantısı talebi.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "ForgotPasswordRequest",
+        "type": "object"
+      },
       "GroundingResolution": {
         "description": "Bulgunun kaynağa bağlanma düzeyi (§6.9, ADR-0006).",
         "enum": [
@@ -908,6 +923,133 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "LogoutRequest": {
+        "description": "Oturumu (refresh token ailesini) sonlandırma talebi.",
+        "properties": {
+          "refresh_token": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Refresh Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "title": "LogoutRequest",
+        "type": "object"
+      },
+      "MemberResponse": {
+        "description": "Aktif organizasyonun bir üyesi.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "email_verified": {
+            "title": "Email Verified",
+            "type": "boolean"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "full_name",
+          "role",
+          "email_verified"
+        ],
+        "title": "MemberResponse",
+        "type": "object"
+      },
+      "MembershipInfo": {
+        "description": "Kullanıcının bir organizasyondaki üyeliği (çoklu-org seçimi için).",
+        "properties": {
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "organization_name": {
+            "title": "Organization Name",
+            "type": "string"
+          },
+          "organization_slug": {
+            "title": "Organization Slug",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "organization_id",
+          "organization_name",
+          "organization_slug",
+          "role",
+          "is_active"
+        ],
+        "title": "MembershipInfo",
+        "type": "object"
+      },
+      "PlanTier": {
+        "description": "Abonelik kademesi.",
+        "enum": [
+          "free",
+          "pro",
+          "enterprise"
+        ],
+        "title": "PlanTier",
+        "type": "string"
+      },
+      "QuotaUsage": {
+        "description": "Tek bir kota boyutu: kullanılan / limit (``limit=None`` ⇒ sınırsız).",
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used",
+          "limit"
+        ],
+        "title": "QuotaUsage",
+        "type": "object"
+      },
       "ReadinessComponent": {
         "description": "Tek bir bağımlılığın (DB, Redis) hazırlık durumu.",
         "properties": {
@@ -958,6 +1100,22 @@
           "components"
         ],
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "RefreshRequest": {
+        "description": "Refresh token ile yeni erişim token'ı talebi.",
+        "properties": {
+          "refresh_token": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Refresh Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshRequest",
         "type": "object"
       },
       "RegisterRequest": {
@@ -1113,6 +1271,29 @@
         "title": "RequirementResponse",
         "type": "object"
       },
+      "ResetPasswordRequest": {
+        "description": "Token ile yeni parola belirleme.",
+        "properties": {
+          "new_password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "New Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "ResetPasswordRequest",
+        "type": "object"
+      },
       "ReviewAction": {
         "description": "Tek bulgu üzerinde inceleme eylemi.",
         "enum": [
@@ -1257,6 +1438,45 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "RoleUpdate": {
+        "description": "Üye rolü güncelleme.",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "RoleUpdate",
+        "type": "object"
+      },
+      "SubscriptionStatus": {
+        "description": "Abonelik durumu.",
+        "enum": [
+          "active",
+          "past_due",
+          "canceled",
+          "trialing"
+        ],
+        "title": "SubscriptionStatus",
+        "type": "string"
+      },
+      "SwitchOrgRequest": {
+        "description": "Aktif organizasyonu değiştirme talebi.",
+        "properties": {
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organization_id"
+        ],
+        "title": "SwitchOrgRequest",
+        "type": "object"
       },
       "TenderCreate": {
         "description": "Yeni ihale projesi.",
@@ -1447,11 +1667,26 @@
         "type": "string"
       },
       "TokenResponse": {
-        "description": "JWT erişim token'ı.",
+        "description": "Kısa ömürlü erişim token'ı + (varsa) rotasyonlu refresh token.",
         "properties": {
           "access_token": {
             "title": "Access Token",
             "type": "string"
+          },
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
           },
           "token_type": {
             "default": "bearer",
@@ -1460,9 +1695,52 @@
           }
         },
         "required": [
-          "access_token"
+          "access_token",
+          "expires_in"
         ],
         "title": "TokenResponse",
+        "type": "object"
+      },
+      "UsageResponse": {
+        "description": "Kiracının içinde bulunulan dönemdeki kullanımı ve plan limitleri.",
+        "properties": {
+          "documents": {
+            "$ref": "#/components/schemas/QuotaUsage"
+          },
+          "pages": {
+            "$ref": "#/components/schemas/QuotaUsage"
+          },
+          "period_end": {
+            "format": "date-time",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date-time",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanTier"
+          },
+          "plan_name": {
+            "title": "Plan Name",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SubscriptionStatus"
+          }
+        },
+        "required": [
+          "plan",
+          "plan_name",
+          "status",
+          "period_start",
+          "period_end",
+          "documents",
+          "pages"
+        ],
+        "title": "UsageResponse",
         "type": "object"
       },
       "UserResponse": {
@@ -1472,6 +1750,10 @@
             "format": "email",
             "title": "Email",
             "type": "string"
+          },
+          "email_verified": {
+            "title": "Email Verified",
+            "type": "boolean"
           },
           "full_name": {
             "anyOf": [
@@ -1503,7 +1785,8 @@
           "email",
           "full_name",
           "tenant_id",
-          "role"
+          "role",
+          "email_verified"
         ],
         "title": "UserResponse",
         "type": "object"
@@ -1548,6 +1831,22 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerifyEmailRequest": {
+        "description": "E-posta doğrulama token'ı.",
+        "properties": {
+          "token": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "VerifyEmailRequest",
+        "type": "object"
+      },
       "VersionResponse": {
         "description": "Servis sürüm/ortam bilgisi.",
         "properties": {
@@ -1580,6 +1879,41 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/auth/forgot-password": {
+      "post": {
+        "description": "Parola sıfırlama bağlantısı gönderir.\n\nKullanıcı bulunmasa bile 204 döner (kullanıcı numaralandırma sızmaz).",
+        "operationId": "forgot_password_api_v1_auth_forgot_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forgot Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "description": "Kimlik doğrular ve bir JWT erişim token'ı döndürür.",
@@ -1617,6 +1951,41 @@
           }
         },
         "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "Refresh token ailesini iptal eder (oturumu sonlandırır). Idempotent.\n\nErişim token'ı denylist'lenmez; kısa ömürlü olduğundan doğal süresinde biter.\nRedis kesintisinde en-iyi-çaba (best-effort) davranır; yine 204 döner.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Logout",
         "tags": [
           "auth"
         ]
@@ -1672,6 +2041,102 @@
         ]
       }
     },
+    "/api/v1/auth/memberships": {
+      "get": {
+        "description": "Geçerli kullanıcının üyeliklerini (organizasyon + rol) listeler.\n\nİstemci, çoklu-org seçici sunmak için kullanır; ``is_active`` geçerli token'ın\naktif organizasyonunu işaretler.",
+        "operationId": "memberships_api_v1_auth_memberships_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MembershipInfo"
+                  },
+                  "title": "Response Memberships Api V1 Auth Memberships Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Memberships",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "description": "Refresh token'ı doğrular, rotasyonla yeniler ve yeni erişim token'ı üretir.\n\nToken tek-kullanımlıktır: her başarılı yenileme yeni bir refresh token döndürür\nve eskisini geçersizler. Kullanılmış bir token yeniden sunulursa tüm oturum\nailesi iptal edilir (hırsızlık savunması). Kullanıcı bu arada pasifleştirildiyse\nveya üyeliği kaldırıldıysa yenileme reddedilir (deaktivasyon onurlandırılır).",
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refresh",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "description": "Yeni bir organizasyon ve admin kullanıcı oluşturur.",
@@ -1709,6 +2174,179 @@
           }
         },
         "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/resend-verification": {
+      "post": {
+        "description": "Giriş yapmış kullanıcıya yeni bir doğrulama bağlantısı gönderir (idempotent).",
+        "operationId": "resend_verification_api_v1_auth_resend_verification_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Verification",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/reset-password": {
+      "post": {
+        "description": "Sıfırlama token'ını tüketir, yeni parolayı ayarlar ve TÜM oturumları iptal eder.\n\nParola değişince mevcut refresh token aileleri geçersizlenir (çalınmış oturum\nyeni parolayla yaşayamaz). Geçersiz/süresi dolmuş token → 400.",
+        "operationId": "reset_password_api_v1_auth_reset_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/switch-org": {
+      "post": {
+        "description": "Aktif organizasyonu değiştirir ve hedef org için yeni token'lar üretir.\n\nKullanıcının hedef organizasyonda üyeliği yoksa 403. Önceki org'un token'ları\niptal edilmez (çoklu-org eşzamanlı oturumlara izin verilir).",
+        "operationId": "switch_org_api_v1_auth_switch_org_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchOrgRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Switch Org",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify-email": {
+      "post": {
+        "description": "E-posta doğrulama token'ını tüketir ve kullanıcıyı doğrulanmış işaretler.\n\nToken tek-kullanımlıktır (atomik GETDEL). Geçersiz/süresi dolmuş → 400.",
+        "operationId": "verify_email_api_v1_auth_verify_email_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Email",
         "tags": [
           "auth"
         ]
@@ -2419,6 +3057,181 @@
         "summary": "Retry Job",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/v1/members": {
+      "get": {
+        "description": "Aktif organizasyonun üyelerini listeler (her rol görebilir).",
+        "operationId": "list_members_api_v1_members_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberResponse"
+                  },
+                  "title": "Response List Members Api V1 Members Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Members",
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/api/v1/members/{user_id}": {
+      "delete": {
+        "description": "Bir üyeyi organizasyondan çıkarır (admin). Son yönetici çıkarılamaz.\n\nÇıkarılan kullanıcının bu org'a olan erişimi kesilir; oturumları (refresh\ntoken'ları) da iptal edilir (en-iyi-çaba — kısa erişim token'ı doğal süresinde\nbiter). Kullanıcı başka org'lara üyse onlardaki erişimi etkilenmez.",
+        "operationId": "remove_member_api_v1_members__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Member",
+        "tags": [
+          "members"
+        ]
+      },
+      "patch": {
+        "description": "Bir üyenin rolünü değiştirir (admin). Son yönetici düşürülemez.",
+        "operationId": "update_member_role_api_v1_members__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Member Role",
+        "tags": [
+          "members"
         ]
       }
     },
@@ -3442,6 +4255,56 @@
         "summary": "Patch Timeline Event",
         "tags": [
           "findings"
+        ]
+      }
+    },
+    "/api/v1/usage": {
+      "get": {
+        "description": "Aktif kiracının kullanımını döndürür.\n\nAbonelik yoksa ilk erişimde varsayılan FREE plan oluşturulur.",
+        "operationId": "get_usage_api_v1_usage_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Usage",
+        "tags": [
+          "usage"
         ]
       }
     },

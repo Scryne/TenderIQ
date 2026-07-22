@@ -63,3 +63,20 @@ def test_token_requires_exp_claim() -> None:
     )
     with pytest.raises(jwt.PyJWTError):
         decode_access_token(eternal, _SECRET)
+
+
+def test_access_token_kisa_omurlu() -> None:
+    """Erişim token'ı dakika-tabanlı kısa ömürle üretilir (J.2 madde 4; ≤1 saat)."""
+    import time
+
+    token = create_access_token(
+        user_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        role="admin",
+        secret=_SECRET,
+        expires_in_minutes=30,
+    )
+    payload = decode_access_token(token, _SECRET)
+    remaining = payload.exp - int(time.time())
+    # ~30 dk (üretim/çözme gecikmesi için ±60 sn tolerans).
+    assert 30 * 60 - 60 <= remaining <= 30 * 60 + 60

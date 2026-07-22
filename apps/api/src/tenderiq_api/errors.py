@@ -31,6 +31,7 @@ class ErrorCode(StrEnum):
     FORBIDDEN = "forbidden"
     CONFLICT = "conflict"
     RATE_LIMITED = "rate_limited"
+    QUOTA_EXCEEDED = "quota_exceeded"
     INTERNAL_ERROR = "internal_error"
 
 
@@ -115,11 +116,19 @@ class RateLimitedError(AppError):
     code = ErrorCode.RATE_LIMITED
 
 
+class QuotaExceededError(AppError):
+    """Plan kotası aşıldı (402) — abonelik yükseltmesi veya dönem beklemesi gerekir."""
+
+    status_code = status.HTTP_402_PAYMENT_REQUIRED
+    code = ErrorCode.QUOTA_EXCEEDED
+
+
 _HTTP_STATUS_TO_CODE: dict[int, ErrorCode] = {
     status.HTTP_400_BAD_REQUEST: ErrorCode.VALIDATION_ERROR,
     status.HTTP_401_UNAUTHORIZED: ErrorCode.UNAUTHORIZED,
     status.HTTP_403_FORBIDDEN: ErrorCode.FORBIDDEN,
     status.HTTP_404_NOT_FOUND: ErrorCode.NOT_FOUND,
+    status.HTTP_402_PAYMENT_REQUIRED: ErrorCode.QUOTA_EXCEEDED,
     status.HTTP_409_CONFLICT: ErrorCode.CONFLICT,
     status.HTTP_429_TOO_MANY_REQUESTS: ErrorCode.RATE_LIMITED,
 }

@@ -23,7 +23,12 @@ from tenderiq_api.dependencies import (
     TenantSessionDep,
     require_role,
 )
-from tenderiq_api.errors import ConflictError, NotFoundError, ValidationFailedError
+from tenderiq_api.errors import (
+    ConflictError,
+    NotFoundError,
+    QuotaExceededError,
+    ValidationFailedError,
+)
 from tenderiq_api.routers.v1.jobs import JobResponse
 from tenderiq_api.routers.v1.tenders import DocumentResponse
 from tenderiq_core.db.tenant import set_tenant_context
@@ -35,6 +40,7 @@ from tenderiq_core.models import (
     JobStatus,
     Role,
 )
+from tenderiq_core.services import quota
 from tenderiq_core.services.audit import record_audit
 from tenderiq_core.uploads import MAGIC_PROBE_LENGTH, matches_magic_bytes
 
@@ -101,6 +107,7 @@ async def complete_upload(
     henüz görünmeyen bir satırı okuma yarışını önler).
     """
     rejection_reason: str | None = None
+    quota_exceeded: quota.QuotaExceededError | None = None
     response: DocumentCompleteResponse | None = None
     job_to_enqueue: Job | None = None
 
@@ -145,6 +152,17 @@ async def complete_upload(
                 if not matches_magic_bytes(document.content_type, head):
                     rejection_reason = "Dosya içeriği beyan edilen türle uyuşmuyor."
 
+            # Yetkili kota denetimi: kayıt anındaki erken red aşılmış olabilir
+            # (tamamlanmamış çok sayıda kayıt). Aşımda nesne yine silinir/failed
+            # yapılır (ortak red yolu) ama HTTP 402 döner (içerik reddi 400).
+            if rejection_reason is None:
+                try:
+                    await quota.enforce_document_quota(session, principal.tenant_id)
+                except quota.QuotaExceededError as exc:
+                    quota_exceeded = exc
+                    label = quota.LIMIT_LABELS_TR.get(exc.limit_kind, exc.limit_kind)
+                    rejection_reason = f"Aylık {label} kotanız dolu ({exc.used}/{exc.limit})."
+
             if rejection_reason is not None:
                 # Doğrulamayı geçemeyen nesne depoda bırakılmaz (depolama istismarı).
                 await asyncio.to_thread(storage.delete_object, document.storage_key)
@@ -168,6 +186,9 @@ async def complete_upload(
                     status=JobStatus.QUEUED,
                 )
                 session.add(job_to_enqueue)
+                # Kota sayımı: doküman burada "kullanılmış" sayılır (pages=0;
+                # gerçek sayfa sayısı parsing sonrası worker'da güncellenir).
+                await quota.record_document_usage(session, principal.tenant_id, document.id)
                 record_audit(
                     session,
                     tenant_id=principal.tenant_id,
@@ -184,6 +205,18 @@ async def complete_upload(
                 )
 
     # Transaction commit edildi; başarısızlık kalıcı, iş güvenle kuyruklanabilir.
+    if quota_exceeded is not None:
+        raise QuotaExceededError(
+            (rejection_reason or "Aylık kotanız dolu.")
+            + " Planınızı yükseltin veya bir sonraki döneme kadar bekleyin.",
+            details=[
+                {
+                    "limit_kind": quota_exceeded.limit_kind,
+                    "used": quota_exceeded.used,
+                    "limit": quota_exceeded.limit,
+                }
+            ],
+        )
     if rejection_reason is not None:
         raise ValidationFailedError(rejection_reason)
     assert response is not None  # noqa: S101 - tip daraltma

@@ -111,6 +111,24 @@ class Settings(BaseSettings):
 
     # ── Kimlik ────────────────────────────────────────────────────────────────
     auth_secret: str | None = None
+    # Erişim token'ı KISA ömürlüdür (≤1 saat, J.2 madde 4): çalınsa bile pencere
+    # dardır. Oturum, her kullanımda rotasyona uğrayan refresh token ile sessizce
+    # sürdürülür (services.refresh_tokens).
+    access_token_expire_minutes: int = 60
+    # Refresh token ömrü: kullanıcı bu süre boyunca yeniden giriş yapmadan
+    # oturumunu sürdürebilir (tek-kullanım + rotasyon + reuse-detection; Redis).
+    refresh_token_expire_days: int = 30
+
+    # ── E-posta / hesap doğrulama (Sprint 3.3-D) ─────────────────────────────
+    # "logging" (dev/varsayılan: e-posta gerçekten gönderilmez, gövde+bağlantı
+    # loglanır) | gerçek sağlayıcı (Resend/Postmark/SES — anahtarla, prod). Bağlantı
+    # ve tek-kullanımlık token'lar sağlayıcıdan bağımsız çalışır (seam).
+    email_provider: str = "logging"
+    email_from: str = "no-reply@tenderiq.local"
+    # E-postadaki doğrulama/sıfırlama bağlantılarının işaret ettiği web tabanı.
+    app_base_url: str = "http://localhost:3000"
+    email_verify_token_ttl_hours: int = 24
+    password_reset_token_ttl_hours: int = 1
 
     # ── Yükleme sınırları (Sprint 1.1 güvenlik) ──────────────────────────────
     upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB; ileride plan kotasına bağlanır

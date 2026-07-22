@@ -9,7 +9,7 @@ import jwt
 from pydantic import BaseModel, ValidationError
 
 ALGORITHM = "HS256"
-DEFAULT_EXPIRE_HOURS = 12
+DEFAULT_EXPIRE_MINUTES = 60  # kısa ömür (J.2): oturum refresh token ile sürdürülür
 
 
 class TokenPayload(BaseModel):
@@ -27,11 +27,11 @@ def create_access_token(
     tenant_id: uuid.UUID,
     role: str,
     secret: str,
-    expires_in_hours: int = DEFAULT_EXPIRE_HOURS,
+    expires_in_minutes: int = DEFAULT_EXPIRE_MINUTES,
 ) -> str:
-    """İmzalı bir JWT erişim token'ı üretir."""
+    """İmzalı bir JWT erişim token'ı üretir (kısa ömürlü; bkz. DEFAULT_EXPIRE_MINUTES)."""
     now = datetime.now(UTC)
-    exp = now + timedelta(hours=expires_in_hours)
+    exp = now + timedelta(minutes=expires_in_minutes)
     payload = {
         "sub": str(user_id),
         "tenant_id": str(tenant_id),
