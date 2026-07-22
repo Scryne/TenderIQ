@@ -21,3 +21,8 @@ class User(UUIDPKMixin, TimestampMixin, Base):
     full_name: Mapped[str | None] = mapped_column(String(255))
     hashed_password: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    # E-posta doğrulaması (Sprint 3.3-D): kayıtta False; doğrulama bağlantısıyla True.
+    # Giriş bloke edilmez (yalnız gösterim/işaret); mevcut hesaplar False başlar.
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )

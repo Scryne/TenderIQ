@@ -30,6 +30,7 @@ class AuditAction(StrEnum):
     DOCUMENT_DELETED = "document.deleted"
     JOB_RETRIED = "job.retried"
     ROLE_CHANGED = "role.changed"
+    MEMBERSHIP_REMOVED = "membership.removed"
     # İnsan-döngüde inceleme (Sprint 3.2): resource_type = FindingKind değeri,
     # resource_id = bulgu id'si — bulgu başına düzenleme geçmişinin kaynağıdır.
     FINDING_APPROVED = "finding.approved"

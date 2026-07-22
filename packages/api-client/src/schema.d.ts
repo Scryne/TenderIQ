@@ -4,6 +4,28 @@
  */
 
 export interface paths {
+    "/api/v1/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forgot Password
+         * @description Parola sıfırlama bağlantısı gönderir.
+         *
+         *     Kullanıcı bulunmasa bile 204 döner (kullanıcı numaralandırma sızmaz).
+         */
+        post: operations["forgot_password_api_v1_auth_forgot_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -18,6 +40,29 @@ export interface paths {
          * @description Kimlik doğrular ve bir JWT erişim token'ı döndürür.
          */
         post: operations["login_api_v1_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description Refresh token ailesini iptal eder (oturumu sonlandırır). Idempotent.
+         *
+         *     Erişim token'ı denylist'lenmez; kısa ömürlü olduğundan doğal süresinde biter.
+         *     Redis kesintisinde en-iyi-çaba (best-effort) davranır; yine 204 döner.
+         */
+        post: operations["logout_api_v1_auth_logout_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -44,6 +89,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Memberships
+         * @description Geçerli kullanıcının üyeliklerini (organizasyon + rol) listeler.
+         *
+         *     İstemci, çoklu-org seçici sunmak için kullanır; ``is_active`` geçerli token'ın
+         *     aktif organizasyonunu işaretler.
+         */
+        get: operations["memberships_api_v1_auth_memberships_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh
+         * @description Refresh token'ı doğrular, rotasyonla yeniler ve yeni erişim token'ı üretir.
+         *
+         *     Token tek-kullanımlıktır: her başarılı yenileme yeni bir refresh token döndürür
+         *     ve eskisini geçersizler. Kullanılmış bir token yeniden sunulursa tüm oturum
+         *     ailesi iptal edilir (hırsızlık savunması). Kullanıcı bu arada pasifleştirildiyse
+         *     veya üyeliği kaldırıldıysa yenileme reddedilir (deaktivasyon onurlandırılır).
+         */
+        post: operations["refresh_api_v1_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -58,6 +151,94 @@ export interface paths {
          * @description Yeni bir organizasyon ve admin kullanıcı oluşturur.
          */
         post: operations["register_api_v1_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/resend-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Verification
+         * @description Giriş yapmış kullanıcıya yeni bir doğrulama bağlantısı gönderir (idempotent).
+         */
+        post: operations["resend_verification_api_v1_auth_resend_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Sıfırlama token'ını tüketir, yeni parolayı ayarlar ve TÜM oturumları iptal eder.
+         *
+         *     Parola değişince mevcut refresh token aileleri geçersizlenir (çalınmış oturum
+         *     yeni parolayla yaşayamaz). Geçersiz/süresi dolmuş token → 400.
+         */
+        post: operations["reset_password_api_v1_auth_reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/switch-org": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch Org
+         * @description Aktif organizasyonu değiştirir ve hedef org için yeni token'lar üretir.
+         *
+         *     Kullanıcının hedef organizasyonda üyeliği yoksa 403. Önceki org'un token'ları
+         *     iptal edilmez (çoklu-org eşzamanlı oturumlara izin verilir).
+         */
+        post: operations["switch_org_api_v1_auth_switch_org_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email
+         * @description E-posta doğrulama token'ını tüketir ve kullanıcıyı doğrulanmış işaretler.
+         *
+         *     Token tek-kullanımlıktır (atomik GETDEL). Geçersiz/süresi dolmuş → 400.
+         */
+        post: operations["verify_email_api_v1_auth_verify_email_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -265,6 +446,54 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Members
+         * @description Aktif organizasyonun üyelerini listeler (her rol görebilir).
+         */
+        get: operations["list_members_api_v1_members_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Member
+         * @description Bir üyeyi organizasyondan çıkarır (admin). Son yönetici çıkarılamaz.
+         *
+         *     Çıkarılan kullanıcının bu org'a olan erişimi kesilir; oturumları (refresh
+         *     token'ları) da iptal edilir (en-iyi-çaba — kısa erişim token'ı doğal süresinde
+         *     biter). Kullanıcı başka org'lara üyse onlardaki erişimi etkilenmez.
+         */
+        delete: operations["remove_member_api_v1_members__user_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Member Role
+         * @description Bir üyenin rolünü değiştirir (admin). Son yönetici düşürülemez.
+         */
+        patch: operations["update_member_role_api_v1_members__user_id__patch"];
         trace?: never;
     };
     "/api/v1/requirements/{finding_id}": {
@@ -576,6 +805,28 @@ export interface paths {
          * @description Takvim öğesini onaylar/reddeder/geri alır veya içeriğini düzeltir (AuditLog'lu).
          */
         patch: operations["patch_timeline_event_api_v1_timeline_events__finding_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Usage
+         * @description Aktif kiracının kullanımını döndürür.
+         *
+         *     Abonelik yoksa ilk erişimde varsayılan FREE plan oluşturulur.
+         */
+        get: operations["get_usage_api_v1_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/healthz": {
@@ -964,6 +1215,17 @@ export interface components {
             section: string | null;
         };
         /**
+         * ForgotPasswordRequest
+         * @description Parola sıfırlama bağlantısı talebi.
+         */
+        ForgotPasswordRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /**
          * GroundingResolution
          * @description Bulgunun kaynağa bağlanma düzeyi (§6.9, ADR-0006).
          * @enum {string}
@@ -1035,6 +1297,66 @@ export interface components {
             password: string;
         };
         /**
+         * LogoutRequest
+         * @description Oturumu (refresh token ailesini) sonlandırma talebi.
+         */
+        LogoutRequest: {
+            /** Refresh Token */
+            refresh_token: string;
+        };
+        /**
+         * MemberResponse
+         * @description Aktif organizasyonun bir üyesi.
+         */
+        MemberResponse: {
+            /** Email */
+            email: string;
+            /** Email Verified */
+            email_verified: boolean;
+            /** Full Name */
+            full_name: string | null;
+            role: components["schemas"]["Role"];
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * MembershipInfo
+         * @description Kullanıcının bir organizasyondaki üyeliği (çoklu-org seçimi için).
+         */
+        MembershipInfo: {
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Organization Name */
+            organization_name: string;
+            /** Organization Slug */
+            organization_slug: string;
+            role: components["schemas"]["Role"];
+        };
+        /**
+         * PlanTier
+         * @description Abonelik kademesi.
+         * @enum {string}
+         */
+        PlanTier: "free" | "pro" | "enterprise";
+        /**
+         * QuotaUsage
+         * @description Tek bir kota boyutu: kullanılan / limit (``limit=None`` ⇒ sınırsız).
+         */
+        QuotaUsage: {
+            /** Limit */
+            limit: number | null;
+            /** Used */
+            used: number;
+        };
+        /**
          * ReadinessComponent
          * @description Tek bir bağımlılığın (DB, Redis) hazırlık durumu.
          */
@@ -1055,6 +1377,14 @@ export interface components {
             components: components["schemas"]["ReadinessComponent"][];
             /** Ready */
             ready: boolean;
+        };
+        /**
+         * RefreshRequest
+         * @description Refresh token ile yeni erişim token'ı talebi.
+         */
+        RefreshRequest: {
+            /** Refresh Token */
+            refresh_token: string;
         };
         /**
          * RegisterRequest
@@ -1115,6 +1445,16 @@ export interface components {
             source: components["schemas"]["FindingSource"];
             /** Text */
             text: string;
+        };
+        /**
+         * ResetPasswordRequest
+         * @description Token ile yeni parola belirleme.
+         */
+        ResetPasswordRequest: {
+            /** New Password */
+            new_password: string;
+            /** Token */
+            token: string;
         };
         /**
          * ReviewAction
@@ -1184,6 +1524,30 @@ export interface components {
          * @enum {string}
          */
         Role: "admin" | "member" | "viewer";
+        /**
+         * RoleUpdate
+         * @description Üye rolü güncelleme.
+         */
+        RoleUpdate: {
+            role: components["schemas"]["Role"];
+        };
+        /**
+         * SubscriptionStatus
+         * @description Abonelik durumu.
+         * @enum {string}
+         */
+        SubscriptionStatus: "active" | "past_due" | "canceled" | "trialing";
+        /**
+         * SwitchOrgRequest
+         * @description Aktif organizasyonu değiştirme talebi.
+         */
+        SwitchOrgRequest: {
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+        };
         /**
          * TenderCreate
          * @description Yeni ihale projesi.
@@ -1270,16 +1634,42 @@ export interface components {
         TimelineKind: "tender_date" | "bid_deadline" | "delivery" | "warranty" | "other";
         /**
          * TokenResponse
-         * @description JWT erişim token'ı.
+         * @description Kısa ömürlü erişim token'ı + (varsa) rotasyonlu refresh token.
          */
         TokenResponse: {
             /** Access Token */
             access_token: string;
+            /** Expires In */
+            expires_in: number;
+            /** Refresh Token */
+            refresh_token?: string | null;
             /**
              * Token Type
              * @default bearer
              */
             token_type: string;
+        };
+        /**
+         * UsageResponse
+         * @description Kiracının içinde bulunulan dönemdeki kullanımı ve plan limitleri.
+         */
+        UsageResponse: {
+            documents: components["schemas"]["QuotaUsage"];
+            pages: components["schemas"]["QuotaUsage"];
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            plan: components["schemas"]["PlanTier"];
+            /** Plan Name */
+            plan_name: string;
+            status: components["schemas"]["SubscriptionStatus"];
         };
         /**
          * UserResponse
@@ -1291,6 +1681,8 @@ export interface components {
              * Format: email
              */
             email: string;
+            /** Email Verified */
+            email_verified: boolean;
             /** Full Name */
             full_name: string | null;
             /**
@@ -1319,6 +1711,14 @@ export interface components {
             type: string;
         };
         /**
+         * VerifyEmailRequest
+         * @description E-posta doğrulama token'ı.
+         */
+        VerifyEmailRequest: {
+            /** Token */
+            token: string;
+        };
+        /**
          * VersionResponse
          * @description Servis sürüm/ortam bilgisi.
          */
@@ -1338,6 +1738,37 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    forgot_password_api_v1_auth_forgot_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     login_api_v1_auth_login_post: {
         parameters: {
             query?: never;
@@ -1359,6 +1790,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TokenResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -1402,6 +1864,70 @@ export interface operations {
             };
         };
     };
+    memberships_api_v1_auth_memberships_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_api_v1_auth_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_api_v1_auth_register_post: {
         parameters: {
             query?: never;
@@ -1423,6 +1949,132 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_verification_api_v1_auth_resend_verification_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_api_v1_auth_reset_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    switch_org_api_v1_auth_switch_org_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SwitchOrgRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_api_v1_auth_verify_email_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -1800,6 +2452,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_members_api_v1_members_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_member_api_v1_members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_member_role_api_v1_members__user_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2342,6 +3093,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TimelineEventResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_usage_api_v1_usage_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageResponse"];
                 };
             };
             /** @description Validation Error */

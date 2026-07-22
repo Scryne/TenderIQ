@@ -23,6 +23,7 @@ from tenderiq_core.logging import get_logger
 from tenderiq_core.models import Document, Job
 from tenderiq_core.models import ParsedElement as ParsedElementRow
 from tenderiq_core.parsing import DocumentParser, ParsedDocument
+from tenderiq_core.services.quota import set_document_usage_pages_sync
 from tenderiq_core.storage import StorageService
 from tenderiq_core.uploads import normalize_content_type
 from tenderiq_worker.db import tenant_session
@@ -88,6 +89,9 @@ def run_parsing_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         refreshed = session.get(Document, document_id)
         if refreshed is not None:
             refreshed.page_count = parsed.page_count
+        # Sayfa kotası: tamamlamada pages=0 ile eklenen kullanım kaydını gerçek
+        # sayfa sayısıyla güncelle (idempotent — yeniden parse aynı değeri yazar).
+        set_document_usage_pages_sync(session, document_id, parsed.page_count)
 
     logger.info(
         "parse_tamam",

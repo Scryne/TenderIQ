@@ -84,8 +84,11 @@ async def authenticate(
         return None
     if not user.is_active:
         return None
+    # Çoklu-org: giriş varsayılan olarak EN ERKEN katılınan üyeliği seçer
+    # (deterministik; eskiden sırasız `first()` rastgele org seçebiliyordu).
+    # Kullanıcı sonra `POST /auth/switch-org` ile aktif org'u değiştirebilir.
     membership: Membership | None = await session.scalar(
-        select(Membership).where(Membership.user_id == user.id)
+        select(Membership).where(Membership.user_id == user.id).order_by(Membership.created_at)
     )
     if membership is None:
         return None

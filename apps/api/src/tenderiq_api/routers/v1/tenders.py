@@ -22,7 +22,12 @@ from tenderiq_api.dependencies import (
     TenantSessionDep,
     require_role,
 )
-from tenderiq_api.errors import ConflictError, NotFoundError, ValidationFailedError
+from tenderiq_api.errors import (
+    ConflictError,
+    NotFoundError,
+    QuotaExceededError,
+    ValidationFailedError,
+)
 from tenderiq_core.db.tenant import set_tenant_context
 from tenderiq_core.findings import (
     ComplianceStatus,
@@ -50,6 +55,7 @@ from tenderiq_core.models import (
     TenderStatus,
     TimelineEvent,
 )
+from tenderiq_core.services import quota
 from tenderiq_core.services.audit import record_audit
 from tenderiq_core.storage import safe_key_component
 from tenderiq_core.uploads import is_allowed_content_type
@@ -386,6 +392,19 @@ async def create_document(
                 upload_url=upload_url,
                 storage_key=existing.storage_key,
             )
+
+    # Kota denetimi: yeni yükleme başlatmadan önce (erken red — kullanıcı boşa
+    # yükleme yapmaz). Idempotent tekrar (yukarıda döndü) denetlenmez. Tamamlama
+    # anında (documents.complete_upload) yetkili ikinci denetim yapılır.
+    try:
+        await quota.enforce_document_quota(session, principal.tenant_id)
+    except quota.QuotaExceededError as exc:
+        label = quota.LIMIT_LABELS_TR.get(exc.limit_kind, exc.limit_kind)
+        raise QuotaExceededError(
+            f"Aylık {label} kotanız doldu ({exc.used}/{exc.limit}). "
+            "Planınızı yükseltin veya bir sonraki döneme kadar bekleyin.",
+            details=[{"limit_kind": exc.limit_kind, "used": exc.used, "limit": exc.limit}],
+        ) from exc
 
     document_id = uuid.uuid4()
     safe_filename = safe_key_component(body.filename)
