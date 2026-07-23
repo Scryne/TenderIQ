@@ -11,7 +11,11 @@ export function middleware(request: NextRequest): NextResponse {
   const hasSession = request.cookies.has(SESSION_COOKIE);
   const { pathname } = request.nextUrl;
 
-  const isProtected = pathname.startsWith("/tenders") || pathname.startsWith("/capability");
+  const isProtected =
+    pathname.startsWith("/tenders") ||
+    pathname.startsWith("/capability") ||
+    pathname.startsWith("/usage") ||
+    pathname.startsWith("/settings");
   if (isProtected && !hasSession) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -29,5 +33,11 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ["/tenders/:path*", "/capability/:path*", "/login"],
+  matcher: [
+    "/tenders/:path*",
+    "/capability/:path*",
+    "/usage/:path*",
+    "/settings/:path*",
+    "/login",
+  ],
 };

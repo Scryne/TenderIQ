@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from tenderiq_api.routers.v1 import (
     auth,
+    billing,
     capability_profile,
     documents,
     export,
@@ -24,6 +25,7 @@ api_v1_router.include_router(tenders.router)
 api_v1_router.include_router(findings.router)
 api_v1_router.include_router(export.router)
 api_v1_router.include_router(documents.router)
+api_v1_router.include_router(billing.router)
 api_v1_router.include_router(capability_profile.router)
 api_v1_router.include_router(invitations.router)
 api_v1_router.include_router(jobs.router)

@@ -22,6 +22,8 @@
     "web:lint": "pnpm --filter @tenderiq/web lint",
     "web:typecheck": "pnpm --filter @tenderiq/web typecheck",
     "api-client:generate": "pnpm --filter @tenderiq/api-client generate",
+    "e2e:seed": "uv run python scripts/seed_e2e.py",
+    "test:e2e": "playwright test",
     "lint": "pnpm run lint:py",
     "typecheck": "pnpm run typecheck:py",
     "test": "pnpm run test:py",
