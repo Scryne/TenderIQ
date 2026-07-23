@@ -94,6 +94,12 @@ function LoginForm() {
             <Button type="submit" disabled={login.isPending}>
               {login.isPending ? "Giriş yapılıyor…" : "Giriş yap"}
             </Button>
+            <Link
+              href="/forgot-password"
+              className="text-center text-sm text-muted-foreground hover:underline"
+            >
+              Parolamı unuttum
+            </Link>
             <Link href="/" className="text-center text-sm text-muted-foreground hover:underline">
               Ana sayfaya dön
             </Link>

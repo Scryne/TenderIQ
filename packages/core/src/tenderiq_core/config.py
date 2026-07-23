@@ -133,6 +133,17 @@ class Settings(BaseSettings):
     # token'larından daha uzun: davet edilen kişi hemen yanıt vermeyebilir.
     invitation_token_ttl_hours: int = 72
 
+    # ── Ödeme / abonelik (Sprint 3.3-B) ──────────────────────────────────────
+    # "manual" (dev/varsayılan): harici ağ geçidi yok — yükseltme test modunda
+    # ANINDA etkinleşir. Webhook yolu yine gerçektir (HMAC-SHA256 imzalı + idempotent),
+    # böylece gerçek sağlayıcı entegrasyonunun imza/idempotency mantığı test edilir.
+    # "iyzico"/"paytr"/"stripe": gerçek sağlayıcı — sandbox/canlı anahtarlarla aynı
+    # BillingProvider seam'ine takılır (anahtarlar geldiğinde etkinleşir).
+    billing_provider: str = "manual"
+    # Webhook imza doğrulama sırrı (HMAC-SHA256, ham gövde üzerinde). Gerçek
+    # sağlayıcıda sağlayıcının webhook sırrı; "manual" sağlayıcı da bununla imzalar.
+    billing_webhook_secret: str | None = None
+
     # ── Yükleme sınırları (Sprint 1.1 güvenlik) ──────────────────────────────
     upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB; ileride plan kotasına bağlanır
     upload_pending_ttl_hours: int = 24  # yarım kalan yüklemeler bu süreden sonra failed olur

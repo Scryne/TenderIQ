@@ -187,6 +187,54 @@
         "title": "CapabilityProfileUpsert",
         "type": "object"
       },
+      "CheckoutRequest": {
+        "description": "Bir plana yükseltme/geçiş talebi.",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/PlanTier"
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "title": "CheckoutRequest",
+        "type": "object"
+      },
+      "CheckoutResponse": {
+        "description": "Checkout sonucu: anında etkinleşti mi, yoksa ağ geçidine mi yönlendirilecek.",
+        "properties": {
+          "activated": {
+            "title": "Activated",
+            "type": "boolean"
+          },
+          "checkout_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout Url"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanTier"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "activated",
+          "checkout_url",
+          "plan"
+        ],
+        "title": "CheckoutResponse",
+        "type": "object"
+      },
       "ComplianceResultPatch": {
         "additionalProperties": false,
         "description": "Uygunluk değerlendirmesi düzeltme alanları (durum + gerekçe).",
@@ -1193,6 +1241,58 @@
         "title": "MembershipInfo",
         "type": "object"
       },
+      "PlanInfo": {
+        "description": "Bir plan kademesinin kullanıcıya-görünür tanımı.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "documents_per_month": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documents Per Month"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "monthly_price_try": {
+            "title": "Monthly Price Try",
+            "type": "integer"
+          },
+          "pages_per_month": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages Per Month"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/PlanTier"
+          }
+        },
+        "required": [
+          "tier",
+          "display_name",
+          "documents_per_month",
+          "pages_per_month",
+          "monthly_price_try",
+          "is_current"
+        ],
+        "title": "PlanInfo",
+        "type": "object"
+      },
       "PlanTier": {
         "description": "Abonelik kademesi.",
         "enum": [
@@ -2048,6 +2148,20 @@
         ],
         "title": "VersionResponse",
         "type": "object"
+      },
+      "WebhookResponse": {
+        "description": "Webhook işleme sonucu.",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "WebhookResponse",
+        "type": "object"
       }
     }
   },
@@ -2528,6 +2642,142 @@
         "summary": "Verify Email",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/billing/checkout": {
+      "post": {
+        "description": "Bir plana geçiş/yükseltme başlatır (admin).\n\nTest-modu (manual) sağlayıcıda plan anında etkinleşir ve denetime yazılır; gerçek\nsağlayıcıda ``checkout_url`` döner (etkinleşme webhook'la gelir).",
+        "operationId": "create_checkout_api_v1_billing_checkout_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Checkout",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/billing/plans": {
+      "get": {
+        "description": "Mevcut plan kademelerini listeler; kiracının geçerli kademesini işaretler.",
+        "operationId": "list_plans_api_v1_billing_plans_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlanInfo"
+                  },
+                  "title": "Response List Plans Api V1 Billing Plans Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Plans",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/billing/webhook": {
+      "post": {
+        "description": "Ödeme sağlayıcısı webhook'u (kimliksiz; HMAC imzayla doğrulanır, idempotent).\n\nİmza geçersizse 400. Olay daha önce işlenmişse durum tekrar uygulanmaz\n(``duplicate``). Kiracı bağlamı olayın imzalı gövdesinden (güvenilir) türetilir.",
+        "operationId": "billing_webhook_api_v1_billing_webhook_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Billing Webhook",
+        "tags": [
+          "billing"
         ]
       }
     },

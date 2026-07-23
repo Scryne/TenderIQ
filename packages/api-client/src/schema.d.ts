@@ -245,6 +245,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Checkout
+         * @description Bir plana geçiş/yükseltme başlatır (admin).
+         *
+         *     Test-modu (manual) sağlayıcıda plan anında etkinleşir ve denetime yazılır; gerçek
+         *     sağlayıcıda ``checkout_url`` döner (etkinleşme webhook'la gelir).
+         */
+        post: operations["create_checkout_api_v1_billing_checkout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Plans
+         * @description Mevcut plan kademelerini listeler; kiracının geçerli kademesini işaretler.
+         */
+        get: operations["list_plans_api_v1_billing_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Billing Webhook
+         * @description Ödeme sağlayıcısı webhook'u (kimliksiz; HMAC imzayla doğrulanır, idempotent).
+         *
+         *     İmza geçersizse 400. Olay daha önce işlenmişse durum tekrar uygulanmaz
+         *     (``duplicate``). Kiracı bağlamı olayın imzalı gövdesinden (güvenilir) türetilir.
+         */
+        post: operations["billing_webhook_api_v1_billing_webhook_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/capability-profile": {
         parameters: {
             query?: never;
@@ -1051,6 +1117,26 @@ export interface components {
             content: string;
         };
         /**
+         * CheckoutRequest
+         * @description Bir plana yükseltme/geçiş talebi.
+         */
+        CheckoutRequest: {
+            plan: components["schemas"]["PlanTier"];
+        };
+        /**
+         * CheckoutResponse
+         * @description Checkout sonucu: anında etkinleşti mi, yoksa ağ geçidine mi yönlendirilecek.
+         */
+        CheckoutResponse: {
+            /** Activated */
+            activated: boolean;
+            /** Checkout Url */
+            checkout_url: string | null;
+            plan: components["schemas"]["PlanTier"];
+            /** Provider */
+            provider: string;
+        };
+        /**
          * ComplianceResultPatch
          * @description Uygunluk değerlendirmesi düzeltme alanları (durum + gerekçe).
          */
@@ -1525,6 +1611,23 @@ export interface components {
             role: components["schemas"]["Role"];
         };
         /**
+         * PlanInfo
+         * @description Bir plan kademesinin kullanıcıya-görünür tanımı.
+         */
+        PlanInfo: {
+            /** Display Name */
+            display_name: string;
+            /** Documents Per Month */
+            documents_per_month: number | null;
+            /** Is Current */
+            is_current: boolean;
+            /** Monthly Price Try */
+            monthly_price_try: number;
+            /** Pages Per Month */
+            pages_per_month: number | null;
+            tier: components["schemas"]["PlanTier"];
+        };
+        /**
          * PlanTier
          * @description Abonelik kademesi.
          * @enum {string}
@@ -1913,6 +2016,14 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * WebhookResponse
+         * @description Webhook işleme sonucu.
+         */
+        WebhookResponse: {
+            /** Status */
+            status: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -2267,6 +2378,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_checkout_api_v1_billing_checkout_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_plans_api_v1_billing_plans_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    billing_webhook_api_v1_billing_webhook_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookResponse"];
                 };
             };
         };

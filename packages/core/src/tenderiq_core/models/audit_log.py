@@ -31,6 +31,9 @@ class AuditAction(StrEnum):
     JOB_RETRIED = "job.retried"
     ROLE_CHANGED = "role.changed"
     MEMBERSHIP_REMOVED = "membership.removed"
+    # Abonelik/plan değişimi (Sprint 3.3-B): resource_type = "subscription",
+    # resource_id = abonelik id'si; meta = {old_plan, new_plan, source}.
+    SUBSCRIPTION_CHANGED = "subscription.changed"
     # Üye daveti yaşam döngüsü (Sprint 3.3-E-2): resource_type = "invitation",
     # resource_id = davet id'si; accept'te ayrıca yeni üyelik oluşur.
     MEMBER_INVITED = "member.invited"

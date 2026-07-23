@@ -7,22 +7,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  API_URL,
-  REFRESH_COOKIE,
-  SESSION_COOKIE,
-  SESSION_MAX_AGE_SECONDS,
-} from "@/lib/server/backend";
-
-function cookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-  };
-}
+import { API_URL, REFRESH_COOKIE, SESSION_COOKIE } from "@/lib/server/backend";
+import { writeSessionCookies } from "@/lib/server/session";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const credentials: unknown = await request.json().catch(() => null);
@@ -70,12 +56,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, tokens.access_token, cookieOptions());
-  // Refresh token, Redis kesintisinde backend'te üretilmemiş olabilir (null):
-  // o durumda yalnız kısa erişim token'ıyla çalışılır, sessiz yenileme olmaz.
-  if (typeof tokens.refresh_token === "string") {
-    response.cookies.set(REFRESH_COOKIE, tokens.refresh_token, cookieOptions());
-  }
+  writeSessionCookies(response, {
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+  });
   return response;
 }
 

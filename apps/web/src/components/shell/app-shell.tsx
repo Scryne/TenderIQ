@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
+  Check,
   ClipboardCheck,
   CreditCard,
   FileStack,
@@ -50,8 +51,8 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: "Hesap",
     items: [
-      { href: "/usage", label: "Kullanım ve abonelik", icon: CreditCard, soon: true },
-      { href: "/settings", label: "Ayarlar", icon: Settings, soon: true },
+      { href: "/usage", label: "Kullanım ve abonelik", icon: CreditCard },
+      { href: "/settings", label: "Ayarlar", icon: Settings },
     ],
   },
 ];
@@ -68,6 +69,8 @@ function breadcrumbFor(pathname: string): { label: string; href?: string }[] {
     return crumbs;
   }
   if (pathname.startsWith("/capability")) return [{ label: "Yetkinlik profili" }];
+  if (pathname.startsWith("/usage")) return [{ label: "Kullanım ve abonelik" }];
+  if (pathname.startsWith("/settings")) return [{ label: "Ayarlar" }];
   return [];
 }
 
@@ -140,11 +143,31 @@ function UserFooter() {
     },
   });
 
+  const memberships = useQuery({
+    queryKey: ["memberships"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/v1/auth/memberships");
+      if (error !== undefined) throw new Error("Organizasyonlar alınamadı.");
+      return data;
+    },
+  });
+
   async function logout() {
     await fetch("/api/session", { method: "DELETE" });
     router.push("/login");
     router.refresh();
   }
+
+  async function switchOrg(organizationId: string) {
+    const response = await fetch("/api/session/switch-org", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ organization_id: organizationId }),
+    });
+    if (response.ok) router.refresh();
+  }
+
+  const orgs = memberships.data ?? [];
 
   const name = me.data?.full_name ?? me.data?.email ?? "…";
 
@@ -175,8 +198,29 @@ function UserFooter() {
             </span>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuContent align="start" className="w-60">
           <DropdownMenuLabel className="truncate">{me.data?.email}</DropdownMenuLabel>
+          {orgs.length > 1 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-overline text-ink-3">
+                Organizasyon
+              </DropdownMenuLabel>
+              {orgs.map((org) => (
+                <DropdownMenuItem
+                  key={org.organization_id}
+                  disabled={org.is_active}
+                  onSelect={() => void switchOrg(org.organization_id)}
+                >
+                  <Check
+                    className={cn("size-4", org.is_active ? "text-brand" : "opacity-0")}
+                    strokeWidth={2}
+                  />
+                  <span className="truncate">{org.organization_name}</span>
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void logout()}>
             <LogOut className="size-4" strokeWidth={1.5} />
