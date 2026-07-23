@@ -129,6 +129,9 @@ class Settings(BaseSettings):
     app_base_url: str = "http://localhost:3000"
     email_verify_token_ttl_hours: int = 24
     password_reset_token_ttl_hours: int = 1
+    # Üye daveti bağlantısının geçerlilik süresi (Sprint 3.3-E-2). Doğrulama/sıfırlama
+    # token'larından daha uzun: davet edilen kişi hemen yanıt vermeyebilir.
+    invitation_token_ttl_hours: int = 72
 
     # ── Yükleme sınırları (Sprint 1.1 güvenlik) ──────────────────────────────
     upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB; ileride plan kotasına bağlanır

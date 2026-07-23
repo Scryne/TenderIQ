@@ -405,6 +405,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invitations
+         * @description Aktif organizasyonun bekleyen (PENDING) davetlerini listeler (admin).
+         */
+        get: operations["list_invitations_api_v1_invitations_get"];
+        put?: never;
+        /**
+         * Create Invitation
+         * @description Aktif organizasyona bir üye davet eder (admin). E-posta zaten üyeyse 409.
+         *
+         *     Aynı e-posta için bekleyen bir davet varsa yenisiyle süperse edilir ("yeniden
+         *     gönder" etkisi). Davet bağlantısı e-posta seam'iyle gönderilir (dev'de loglanır).
+         */
+        post: operations["create_invitation_api_v1_invitations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Invitation
+         * @description Bir daveti kabul eder (kimliksiz): kullanıcıyı bulur/oluşturur ve üyelik ekler.
+         *
+         *     Yeni hesapta parola zorunludur ve otomatik giriş token'ları döner; mevcut
+         *     kullanıcı otomatik giriş yapmaz (yalnız üyelik eklenir). Geçersiz/süresi dolmuş
+         *     /kullanılmış davet → 400.
+         */
+        post: operations["accept_invitation_api_v1_invitations_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lookup Invitation
+         * @description Bir daveti kimliksiz önizler (kabul ekranı için). Geçersiz/süresi dolmuş → 400.
+         */
+        get: operations["lookup_invitation_api_v1_invitations_lookup_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/{invitation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Invitation
+         * @description Bekleyen bir daveti iptal eder (admin). Kabul edilmiş davet iptal edilemez (409).
+         */
+        delete: operations["revoke_invitation_api_v1_invitations__invitation_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -874,6 +965,32 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AcceptInvitationRequest
+         * @description Daveti kabul: token + (yeni hesap için) parola/ad.
+         */
+        AcceptInvitationRequest: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Password */
+            password?: string | null;
+            /** Token */
+            token: string;
+        };
+        /**
+         * AcceptInvitationResponse
+         * @description Kabul sonucu; yeni hesap için otomatik-giriş token'ları eşlik eder.
+         */
+        AcceptInvitationResponse: {
+            /** Account Created */
+            account_created: boolean;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            tokens?: components["schemas"]["TokenResponse"] | null;
+        };
+        /**
          * BulkReviewAction
          * @description Toplu inceleme eylemi (yalnız onay/red — geri alma tekildir).
          * @enum {string}
@@ -972,6 +1089,19 @@ export interface components {
          * @enum {string}
          */
         ComplianceStatus: "met" | "partial" | "unmet";
+        /**
+         * CreateInvitationRequest
+         * @description Yeni davet: e-posta + verilecek rol.
+         */
+        CreateInvitationRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** @default member */
+            role: components["schemas"]["Role"];
+        };
         /**
          * DeliverableKind
          * @description Sunulacak belge tipi (§8.1 ``Deliverable``).
@@ -1247,6 +1377,60 @@ export interface components {
              */
             status: string;
         };
+        /**
+         * InvitationPreviewResponse
+         * @description Kabul ekranı için kimliksiz davet önizlemesi.
+         */
+        InvitationPreviewResponse: {
+            /** Account Exists */
+            account_exists: boolean;
+            /** Email */
+            email: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Organization Name */
+            organization_name: string;
+            role: components["schemas"]["Role"];
+        };
+        /**
+         * InvitationResponse
+         * @description Bir davet kaydı (token DÖNMEZ — yalnız e-postayla iletilir).
+         */
+        InvitationResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string;
+            /** Expired */
+            expired: boolean;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            role: components["schemas"]["Role"];
+            status: components["schemas"]["InvitationStatus"];
+        };
+        /**
+         * InvitationStatus
+         * @description Davetin yaşam döngüsü durumu.
+         *
+         *     ``EXPIRED`` saklanmaz — süre aşımı ``expires_at``'ten türetilir; süresi geçmiş
+         *     ``PENDING`` bir davet accept sırasında geçersiz sayılır.
+         * @enum {string}
+         */
+        InvitationStatus: "pending" | "accepted" | "revoked";
         /**
          * JobResponse
          * @description İşleme işinin durumu.
@@ -2387,6 +2571,167 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["FindingHistoryEntry"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_invitations_api_v1_invitations_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_invitation_api_v1_invitations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_invitation_api_v1_invitations_accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptInvitationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lookup_invitation_api_v1_invitations_lookup_get: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_invitation_api_v1_invitations__invitation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                invitation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
