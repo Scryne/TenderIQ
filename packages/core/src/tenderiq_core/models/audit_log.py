@@ -31,6 +31,11 @@ class AuditAction(StrEnum):
     JOB_RETRIED = "job.retried"
     ROLE_CHANGED = "role.changed"
     MEMBERSHIP_REMOVED = "membership.removed"
+    # Üye daveti yaşam döngüsü (Sprint 3.3-E-2): resource_type = "invitation",
+    # resource_id = davet id'si; accept'te ayrıca yeni üyelik oluşur.
+    MEMBER_INVITED = "member.invited"
+    INVITATION_REVOKED = "invitation.revoked"
+    INVITATION_ACCEPTED = "invitation.accepted"
     # İnsan-döngüde inceleme (Sprint 3.2): resource_type = FindingKind değeri,
     # resource_id = bulgu id'si — bulgu başına düzenleme geçmişinin kaynağıdır.
     FINDING_APPROVED = "finding.approved"
