@@ -340,7 +340,10 @@ async def refresh(
         raise UnauthorizedError("Sunucu kimlik doğrulaması yapılandırılmamış (AUTH_SECRET).")
     try:
         rotated = await refresh_tokens.rotate_refresh_token(
-            redis, body.refresh_token, ttl_seconds=settings.refresh_token_expire_days * 86_400
+            redis,
+            body.refresh_token,
+            ttl_seconds=settings.refresh_token_expire_days * 86_400,
+            grace_seconds=settings.refresh_reuse_grace_seconds,
         )
     except refresh_tokens.ReusedRefreshTokenError as exc:
         raise UnauthorizedError(

@@ -380,6 +380,35 @@ export interface paths {
         patch: operations["patch_deliverable_api_v1_deliverables__finding_id__patch"];
         trace?: never;
     };
+    "/api/v1/documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Document
+         * @description Dokümanı siler (yumuşak) — ihalenin kendisi etkilenmez.
+         *
+         *     Tek bir yanlış dosyayı ihaleyi bozmadan kaldırmak için. Nesne depolamadaki
+         *     dosya bu aşamada DURUR; saklama penceresi dolunca zamanlanmış iş hem satırı
+         *     hem dosyayı kalıcı siler (KVKK §8.3).
+         *
+         *     Not: bu dokümandan çıkarılmış bulgular da okuma yollarından düşmez — onlar
+         *     ``document_id``'ye bağlıdır ve kalıcı silmede CASCADE ile giderler. Bulguların
+         *     anında gizlenmesi gerekiyorsa ihale silinmelidir; tek doküman silme, hatalı
+         *     yüklemeyi geri almak içindir.
+         */
+        delete: operations["delete_document_api_v1_documents__document_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_id}/complete": {
         parameters: {
             query?: never;
@@ -773,7 +802,22 @@ export interface paths {
         get: operations["get_tender_api_v1_tenders__tender_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Tender
+         * @description İhaleyi siler (yumuşak): anında görünmez olur, saklama penceresi sonunda yok edilir.
+         *
+         *     Nesne depolamadaki dosyalara bu aşamada dokunulmaz — pencere içinde
+         *     ``restore`` ile geri alınabilir. Kalıcı silme zamanlanmış işin
+         *     sorumluluğundadır (``tenderiq_core.services.deletion``, KVKK §8.3).
+         *
+         *     **İşaret dokümanlara da yayılır.** Yalnız ihaleyi işaretlemek yetmez: bir
+         *     dokümanı ihalesine JOIN etmeden sorgulayan yollar (ör.
+         *     ``GET /documents/{id}/file``, doküman listesi) silinmiş ihalenin dosyasını
+         *     yine de verirdi — imzalı indirme URL'i dâhil. Kademeli işaretlenenler
+         *     ``deleted_with_tender`` ile ayrıca damgalanır; ``restore`` yalnız onları geri
+         *     açar, böylece kullanıcının daha önce TEK TEK sildiği doküman dirilmez.
+         */
+        delete: operations["delete_tender_api_v1_tenders__tender_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -835,6 +879,10 @@ export interface paths {
         /**
          * List Documents
          * @description Bir ihaleye bağlı dokümanları listeler.
+         *
+         *     Var olmayan (veya silinmiş/başka kiracıya ait) ihale için 404 döner — boş
+         *     liste değil. Kardeş bulgu uçları da böyle davranır; "ihale yok" ile "ihalenin
+         *     dokümanı yok" ayrımı istemci için anlamlıdır.
          */
         get: operations["list_documents_api_v1_tenders__tender_id__documents_get"];
         put?: never;
@@ -916,6 +964,31 @@ export interface paths {
         get: operations["list_requirements_api_v1_tenders__tender_id__requirements_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenders/{tender_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Tender
+         * @description Yumuşak silinmiş bir ihaleyi geri alır (saklama penceresi içindeyken).
+         *
+         *     Varsayılan okuma filtresi tam da bu satırı gizlediğinden ``include_deleted``
+         *     opt-out'u zorunludur; aksi hâlde geri alınacak kayıt hiç bulunamazdı.
+         *     Kalıcı silinmiş (satırı gitmiş) bir ihale geri alınamaz — 404 döner ve bu
+         *     bilinçlidir: KVKK silmesi geri alınabilir olsaydı anlamı kalmazdı.
+         */
+        post: operations["restore_tender_api_v1_tenders__tender_id__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2739,6 +2812,37 @@ export interface operations {
             };
         };
     };
+    delete_document_api_v1_documents__document_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     complete_upload_api_v1_documents__document_id__complete_post: {
         parameters: {
             query?: never;
@@ -3463,6 +3567,37 @@ export interface operations {
             };
         };
     };
+    delete_tender_api_v1_tenders__tender_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_compliance_api_v1_tenders__tender_id__compliance_get: {
         parameters: {
             query?: never;
@@ -3696,6 +3831,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RequirementResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_tender_api_v1_tenders__tender_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenderResponse"];
                 };
             };
             /** @description Validation Error */

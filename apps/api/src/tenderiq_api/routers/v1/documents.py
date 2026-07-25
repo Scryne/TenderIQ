@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -223,3 +224,39 @@ async def complete_upload(
     if job_to_enqueue is not None:
         enqueue(job_to_enqueue.id, principal.tenant_id)
     return response
+
+
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[_writer],
+)
+async def delete_document(
+    document_id: uuid.UUID, session: TenantSessionDep, principal: PrincipalDep
+) -> None:
+    """Dokümanı siler (yumuşak) — ihalenin kendisi etkilenmez.
+
+    Tek bir yanlış dosyayı ihaleyi bozmadan kaldırmak için. Nesne depolamadaki
+    dosya bu aşamada DURUR; saklama penceresi dolunca zamanlanmış iş hem satırı
+    hem dosyayı kalıcı siler (KVKK §8.3).
+
+    Not: bu dokümandan çıkarılmış bulgular da okuma yollarından düşmez — onlar
+    ``document_id``'ye bağlıdır ve kalıcı silmede CASCADE ile giderler. Bulguların
+    anında gizlenmesi gerekiyorsa ihale silinmelidir; tek doküman silme, hatalı
+    yüklemeyi geri almak içindir.
+    """
+    document = await session.get(Document, document_id)
+    if document is None:
+        raise NotFoundError("Doküman bulunamadı.")
+
+    document.deleted_at = datetime.now(UTC)
+    record_audit(
+        session,
+        tenant_id=principal.tenant_id,
+        action=AuditAction.DOCUMENT_DELETED,
+        resource_type="document",
+        resource_id=document_id,
+        actor_user_id=principal.user_id,
+        meta={"filename": document.filename, "tender_id": str(document.tender_id)},
+    )
+    await session.flush()

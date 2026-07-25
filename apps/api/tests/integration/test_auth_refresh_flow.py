@@ -66,14 +66,50 @@ def test_refresh_rotasyon_ve_reuse_detection(api_client: TestClient) -> None:
         api_client.get("/api/v1/auth/me", headers=_bearer(body2["access_token"])).status_code == 200
     )
 
-    # rt1 tek-kullanımlık: yeniden sunulması → 401 + tüm aile iptali.
-    reuse = api_client.post("/api/v1/auth/refresh", json={"refresh_token": rt1})
-    assert reuse.status_code == 401
-    assert reuse.json()["error"]["code"] == "unauthorized"
+    # rt1 pencere İÇİNDE yeniden sunuldu: bu meşru eşzamanlılıktır (tek sayfa
+    # yüklemesinin paralel istekleri), hırsızlık değil → kabul edilir ve çağıran
+    # aynı aileden kendi yeni token'ını alır. Aile İPTAL EDİLMEZ.
+    concurrent = api_client.post("/api/v1/auth/refresh", json={"refresh_token": rt1})
+    assert concurrent.status_code == 200, concurrent.text
+    assert concurrent.json()["refresh_token"] not in (rt1, rt2)
 
-    # Aile iptal edildiğinden geçerli görünen rt2 de artık reddedilir (hırsızlık savunması).
-    rt2_after = api_client.post("/api/v1/auth/refresh", json={"refresh_token": rt2})
-    assert rt2_after.status_code == 401
+    # Aile ayakta olduğundan rt2 hâlâ çalışır.
+    assert api_client.post("/api/v1/auth/refresh", json={"refresh_token": rt2}).status_code == 200
+
+
+def test_refresh_pencere_disinda_reuse_aileyi_iptal_eder(
+    api_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Grace penceresi DIŞINDAKİ tekrar gerçek reuse'dur: aile tümüyle iptal edilir.
+
+    Pencere ayardan gelir; 0 vererek "tolerans yok" davranışı 10 saniye beklemeden
+    sınanır (bkz. ``refresh_reuse_grace_seconds``).
+    """
+    import os
+
+    from tenderiq_core.config import get_settings
+
+    monkeypatch.setitem(os.environ, "REFRESH_REUSE_GRACE_SECONDS", "0")
+    get_settings.cache_clear()
+    try:
+        _register(api_client, slug="rt-reuse", email="reuse@org.com")
+        first = _login_or_skip(api_client, email="reuse@org.com")
+        rt1 = first["refresh_token"]
+
+        refreshed = api_client.post("/api/v1/auth/refresh", json={"refresh_token": rt1})
+        assert refreshed.status_code == 200, refreshed.text
+        rt2 = refreshed.json()["refresh_token"]
+
+        # rt1 tek-kullanımlık: yeniden sunulması → 401 + tüm aile iptali.
+        reuse = api_client.post("/api/v1/auth/refresh", json={"refresh_token": rt1})
+        assert reuse.status_code == 401
+        assert reuse.json()["error"]["code"] == "unauthorized"
+
+        # Aile iptal edildiğinden geçerli GÖRÜNEN rt2 de reddedilir (hırsızlık savunması).
+        rt2_after = api_client.post("/api/v1/auth/refresh", json={"refresh_token": rt2})
+        assert rt2_after.status_code == 401
+    finally:
+        get_settings.cache_clear()
 
 
 def test_logout_oturumu_iptal_eder(api_client: TestClient) -> None:

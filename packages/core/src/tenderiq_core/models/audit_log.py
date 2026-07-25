@@ -29,6 +29,13 @@ class AuditAction(StrEnum):
     DOCUMENT_UPLOAD_REJECTED = "document.upload_rejected"
     DOCUMENT_DELETED = "document.deleted"
     JOB_RETRIED = "job.retried"
+    # KVKK iki fazlı silme (Faz 4): `*.deleted` yumuşak silme (geri alınabilir),
+    # `*.purged` saklama penceresi dolduktan sonraki KALICI silme. Purge kaydı
+    # denetim izinin kendisidir — silinen satır artık yok, kanıt bu kayıttır.
+    TENDER_DELETED = "tender.deleted"
+    TENDER_RESTORED = "tender.restored"
+    DOCUMENT_RESTORED = "document.restored"
+    DATA_PURGED = "data.purged"
     ROLE_CHANGED = "role.changed"
     MEMBERSHIP_REMOVED = "membership.removed"
     # Abonelik/plan değişimi (Sprint 3.3-B): resource_type = "subscription",
