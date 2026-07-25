@@ -51,7 +51,7 @@ export function FindingCommentsDialog({
 
   return (
     <Dialog open={target !== null} onOpenChange={(open) => open || onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="size-4 text-ink-3" strokeWidth={1.5} />

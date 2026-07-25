@@ -55,6 +55,14 @@ pgdata/
 scratch/
 *.local
 
+# --- Tasarım (DESIGN.md §14) ---
+# refs/ ve decisions.md commit edilir; ajanın aldığı screenshot'lar edilmez.
+design/shots/
+.env.claude
+
+# Claude Code: commands/ ve skills/ paylaşılır; yerel MCP/izin durumu edilmez.
+.claude/settings.local.json
+
 # --- Gizli spike/eval dokümanları (KVKK — gerçek şartnameler ASLA commit edilmez) ---
 spike-docs/
 spike-out/

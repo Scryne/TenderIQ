@@ -158,6 +158,40 @@ async def record_document_usage(
     return record
 
 
+def enforce_page_quota_sync(
+    session: Session, tenant_id: uuid.UUID, *, now: datetime | None = None
+) -> None:
+    """Parsing SONRASI gerçek sayfa sayısıyla dönem kotasını denetler (worker, senkron).
+
+    Yükleme anındaki denetim sayfa boyutunu bilemez (kayıt ``pages=0`` ile açılır;
+    gerçek sayıyı ancak parsing üretir). Bu yüzden dönemin ilk dokümanı, sayfa
+    limitinin kaç katı olursa olsun kabul edilirdi — limit yalnızca BİR SONRAKİ
+    dokümanı engellerdi. Bu denetim, aşan dokümanın pahalı fazlarına
+    (indexing → embedding → LLM çıkarımı) geçmesini durdurur; parse maliyeti
+    zaten ödenmiştir.
+
+    Aşım KALICI bir hatadır: çağıran (task) yeniden denememeli, işi ``failed``
+    yapmalıdır. Kiracı bağlamı ayarlı bir oturumda çağrılmalıdır (RLS).
+    """
+    subscription = session.scalar(select(Subscription).where(Subscription.tenant_id == tenant_id))
+    plan = get_plan(subscription.plan if subscription is not None else DEFAULT_PLAN_TIER)
+    if plan.pages_per_month is None:
+        return  # sınırsız (kurumsal)
+    period_start, period_end = current_period_bounds(now or datetime.now(UTC))
+    pages_used = int(
+        session.scalar(
+            select(func.coalesce(func.sum(UsageRecord.pages), 0)).where(
+                UsageRecord.recorded_at >= period_start,
+                UsageRecord.recorded_at < period_end,
+            )
+        )
+        or 0
+    )
+    # Kullanım bu noktada zaten kaydedilmiştir; tam limite eşitlik aşım değildir.
+    if pages_used > plan.pages_per_month:
+        raise QuotaExceededError("pages", pages_used, plan.pages_per_month)
+
+
 def set_document_usage_pages_sync(session: Session, document_id: uuid.UUID, pages: int) -> None:
     """Bir dokümanın kullanım kaydındaki sayfa sayısını günceller (worker, senkron).
 

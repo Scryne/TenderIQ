@@ -21,9 +21,12 @@ function buildHeaders(request: NextRequest, accessToken: string | undefined): He
     const value = request.headers.get(name);
     if (value !== null) headers.set(name, value);
   }
-  // Gerçek istemci IP'si backend oran sınırlamasına taşınır: Next sunucusu (veya
-  // önündeki LB) x-forwarded-for'u doldurur; backend TRUSTED_PROXY_COUNT ayarıyla
-  // sondan N girdiye güvenir.
+  // x-forwarded-for OLDUĞU GİBİ geçirilir; bu route kendi gördüğü istemci
+  // adresini EKLEYEMEZ (App Router handler'ında soket adresi yoktur). Yani bu
+  // katman güvenilir bir proxy hop'u DEĞİLDİR: başlık, önünde onu yazan gerçek
+  // bir ters-proxy yoksa tamamen istemci kontrolündedir. Backend bu yüzden
+  // varsayılan TRUSTED_PROXY_COUNT=0 ile başlığı yok sayar; değeri ancak Next'in
+  // önüne nginx/Caddy/CDN konduğunda >0 yapın (bkz. .env.example).
   const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor !== null) headers.set("x-forwarded-for", forwardedFor);
   if (accessToken !== undefined) headers.set("authorization", `Bearer ${accessToken}`);

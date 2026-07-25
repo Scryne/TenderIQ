@@ -199,7 +199,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_production_hardening(self) -> Self:
-        """Production'da güvensiz varsayılanlarla açılışı engeller (fail-fast)."""
+        """Production'da güvensiz varsayılanlarla açılışı engeller (fail-fast).
+
+        Dev varsayılanları (``manual`` ödeme, ``logging`` e-posta) production'da
+        SESSİZCE bozulur: uygulama sağlıklı görünür ama kimse hesabını doğrulayamaz
+        veya parolasını sıfırlayamaz, ve plan yükseltmesi ödeme almadan etkinleşir.
+        Bu yüzden açılışta reddedilirler.
+        """
         if self.environment is Environment.PRODUCTION:
             if not self.auth_secret or len(self.auth_secret) < MIN_AUTH_SECRET_LENGTH:
                 raise ValueError(
@@ -209,6 +215,18 @@ class Settings(BaseSettings):
                 )
             if self.debug:
                 raise ValueError("Production'da DEBUG=true olamaz.")
+            if self.billing_provider == "manual":
+                raise ValueError(
+                    "Production'da BILLING_PROVIDER=manual olamaz: test-modu sağlayıcı "
+                    "ödeme almadan planı ANINDA etkinleştirir (herhangi bir org yöneticisi "
+                    "kendine kurumsal plan verebilir). Gerçek sağlayıcıyı bağlayın."
+                )
+            if self.email_provider == "logging":
+                raise ValueError(
+                    "Production'da EMAIL_PROVIDER=logging olamaz: e-posta gönderilmez "
+                    "(doğrulama/parola sıfırlama/davet akışları sessizce çalışmaz) ve "
+                    "bağlantılar token'larıyla birlikte loglara yazılır."
+                )
         return self
 
     @property

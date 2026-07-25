@@ -23,7 +23,7 @@ from tenderiq_core.logging import get_logger
 from tenderiq_core.models import Document, Job
 from tenderiq_core.models import ParsedElement as ParsedElementRow
 from tenderiq_core.parsing import DocumentParser, ParsedDocument
-from tenderiq_core.services.quota import set_document_usage_pages_sync
+from tenderiq_core.services.quota import enforce_page_quota_sync, set_document_usage_pages_sync
 from tenderiq_core.storage import StorageService
 from tenderiq_core.uploads import normalize_content_type
 from tenderiq_worker.db import tenant_session
@@ -92,6 +92,13 @@ def run_parsing_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         # Sayfa kotası: tamamlamada pages=0 ile eklenen kullanım kaydını gerçek
         # sayfa sayısıyla güncelle (idempotent — yeniden parse aynı değeri yazar).
         set_document_usage_pages_sync(session, document_id, parsed.page_count)
+
+    # Kota denetimi COMMIT SONRASI ayrı bir oturumda: gerçek sayfa sayısı kalıcı
+    # olmalı (sonraki dokümanlar doğru sayımla reddedilsin), ama aşan doküman
+    # pahalı fazlara (indexing/embedding/LLM) geçmemeli. Aşım kalıcı hatadır —
+    # tasks.documents bunu retry etmeden `failed`e çeker.
+    with tenant_session(tenant_id) as session:
+        enforce_page_quota_sync(session, tenant_id)
 
     logger.info(
         "parse_tamam",

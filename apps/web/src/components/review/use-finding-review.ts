@@ -326,6 +326,10 @@ export async function downloadTenderReport(
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
+  // Firefox indirmeyi yalnız DOM'a bağlı bir anchor'da başlatır; object URL de
+  // click() dönmeden iptal edilirse indirme yarışta düşebilir → bir tik ertele.
+  document.body.appendChild(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

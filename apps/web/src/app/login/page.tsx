@@ -5,15 +5,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { AuthLayout } from "@/components/auth/auth-layout";
+import { InlineError } from "@/components/states";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 function LoginForm() {
   const router = useRouter();
@@ -31,82 +27,93 @@ function LoginForm() {
       });
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error("Çok fazla deneme yapıldı; lütfen daha sonra yeniden deneyin.");
+          throw new Error(
+            "Çok fazla deneme yapıldı. Birkaç dakika bekleyip yeniden deneyin.",
+          );
         }
         if (response.status === 401) {
           throw new Error("E-posta veya parola hatalı.");
         }
-        throw new Error("Giriş yapılamadı; lütfen daha sonra yeniden deneyin.");
+        throw new Error("Giriş yapılamadı. Biraz sonra yeniden deneyin.");
       }
     },
     onSuccess: () => {
       const next = searchParams.get("next");
       // Yalnızca site-içi yollar: "//evil.com" gibi protokol-göreli URL'ler dışarı kaçırır.
       const isInternal = next !== null && next.startsWith("/") && !next.startsWith("//");
-      router.push(isInternal ? next : "/tenders");
+      router.push(isInternal ? next : "/panel");
       router.refresh();
     },
   });
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-6 p-8">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Giriş yap</CardTitle>
-          <CardDescription>TenderIQ hesabınızla oturum açın.</CardDescription>
-        </CardHeader>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            login.mutate();
-          }}
-        >
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium">
-                E-posta
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="text-sm font-medium">
-                Parola
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-            {login.isError && <p className="text-sm text-destructive">{login.error.message}</p>}
-          </CardContent>
-          <CardFooter className="flex-col items-stretch gap-3">
-            <Button type="submit" disabled={login.isPending}>
-              {login.isPending ? "Giriş yapılıyor…" : "Giriş yap"}
-            </Button>
+    <AuthLayout
+      title="Giriş yap"
+      description="TenderIQ hesabınızla oturum açın."
+      footer={
+        <span>
+          Hesabınız yok mu? Kapalı beta için{" "}
+          <a
+            href="mailto:beta@tenderiq.local?subject=Kapal%C4%B1%20beta%20talebi"
+            className="text-ink-2 underline decoration-border-strong underline-offset-4 hover:decoration-ink-1"
+          >
+            davet isteyin
+          </a>
+          .
+        </span>
+      }
+    >
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          login.mutate();
+        }}
+      >
+        {/* Hata form ÜSTÜNDE tek blok, alan altında değil (§9.6). */}
+        {login.isError && <InlineError message={login.error.message} />}
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email">E-posta</Label>
+          <Input
+            id="email"
+            type="email"
+            required
+            autoComplete="email"
+            autoFocus
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="ad.soyad@firma.com.tr"
+            aria-invalid={login.isError || undefined}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <Label htmlFor="password">Parola</Label>
             <Link
               href="/forgot-password"
-              className="text-center text-sm text-muted-foreground hover:underline"
+              className="text-xs text-ink-3 underline decoration-border-strong underline-offset-4 hover:text-ink-1 hover:decoration-ink-1"
             >
               Parolamı unuttum
             </Link>
-            <Link href="/" className="text-center text-sm text-muted-foreground hover:underline">
-              Ana sayfaya dön
-            </Link>
-          </CardFooter>
-        </form>
-      </Card>
-    </main>
+          </div>
+          <Input
+            id="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            aria-invalid={login.isError || undefined}
+          />
+        </div>
+
+        <Button type="submit" className="mt-1 w-full" loading={login.isPending}>
+          Giriş yap
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }
 

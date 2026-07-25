@@ -1,64 +1,118 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
+import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
+import { Slot } from "radix-ui";
+import type * as React from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
+/**
+ * Buton — DESIGN.md §8.5.
+ *
+ * Yükseklik sm 32 · md 36 (panel varsayılanı) · lg 40. Metin 14px/500, ASLA
+ * uppercase (§13.2 ve Ek B.3: CSS uppercase Türkçe'de "i"→"I" yapar).
+ * `disabled` yalnız opaklık düşürür, renk değiştirmez. Focus halkası global
+ * `:focus-visible` kuralından gelir — burada `outline-none` yazılmaz (§12).
+ */
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  [
+    "relative inline-flex shrink-0 select-none items-center justify-center gap-1.5",
+    "whitespace-nowrap rounded-sm font-medium",
+    "transition-colors duration-[120ms] ease-out",
+    "disabled:pointer-events-none disabled:opacity-50",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+    "[&_svg:not([class*='size-'])]:size-4",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
-        outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        // Sayfada TEK tane (§8.5). Mürekkep zemin, kâğıt metin.
+        primary: "bg-accent text-ink-on-accent hover:bg-accent-hover",
+        // Yan eylemler
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "border border-border-strong bg-surface text-ink-1 hover:bg-surface-2",
+        // Tablo içi, ikon butonları
+        ghost: "text-ink-2 hover:bg-hover hover:text-ink-1",
+        // Yalnız yıkıcı eylem
+        danger: "bg-danger text-white hover:opacity-90",
+        // Yıkıcı ama ikincil (menü içi)
+        "danger-ghost": "text-danger hover:bg-danger-weak",
+        link: "text-ink-1 underline decoration-border-strong underline-offset-4 hover:decoration-ink-1",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
+        xs: "h-6 gap-1 px-2 text-xs [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-8 px-3 text-sm",
+        md: "h-9 px-3.5 text-base",
+        lg: "h-10 px-5 text-base",
+        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3.5",
         "icon-sm": "size-8",
+        icon: "size-9",
         "icon-lg": "size-10",
       },
     },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-)
+    defaultVariants: { variant: "primary", size: "md" },
+  },
+);
+
+type ButtonProps = React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean;
+    /**
+     * Yükleniyor: metin yerinde kalır ve buton genişliği DEĞİŞMEZ (§8.5 —
+     * layout zıplaması yasak). Etiket görünmez olur, spinner üstüne biner.
+     */
+    loading?: boolean;
+  };
 
 function Button({
   className,
-  variant = "default",
-  size = "default",
+  variant,
+  size,
   asChild = false,
+  loading = false,
+  disabled,
+  children,
   ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
-  const Comp = asChild ? Slot.Root : "button"
+}: ButtonProps) {
+  const Comp = asChild ? Slot.Root : "button";
+
+  if (asChild) {
+    return (
+      <Comp
+        data-slot="button"
+        className={cn(buttonVariants({ variant, size }), className)}
+        {...props}
+      >
+        {children}
+      </Comp>
+    );
+  }
 
   return (
-    <Comp
+    <button
       data-slot="button"
-      data-variant={variant}
-      data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      data-loading={loading ? "" : undefined}
+      disabled={disabled === true || loading}
+      aria-busy={loading || undefined}
+      className={cn(buttonVariants({ variant, size }), className)}
       {...props}
-    />
-  )
+    >
+      {loading && (
+        <Loader2
+          aria-hidden
+          className="absolute size-4 animate-spin"
+          strokeWidth={2}
+        />
+      )}
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5",
+          loading && "invisible",
+        )}
+      >
+        {children}
+      </span>
+    </button>
+  );
 }
 
-export { Button, buttonVariants }
+export { Button, buttonVariants };

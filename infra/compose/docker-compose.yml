@@ -60,9 +60,14 @@ services:
       dockerfile: infra/docker/api.Dockerfile
     environment:
       <<: *app-env
-      # Web istekleri Next proxy'sinden (web servisi) gelir; X-Forwarded-For'un
-      # sondan 1 girdisi güvenilirdir (oran sınırlama gerçek istemci IP'sini görür).
-      TRUSTED_PROXY_COUNT: "1"
+      # TRUSTED_PROXY_COUNT bilinçli olarak AYARLANMAZ (varsayılan 0 = XFF yok sayılır).
+      # Buradaki `web` (Next) servisi X-Forwarded-For'a KENDİ gördüğü istemci
+      # adresini EKLEMEZ — gelen başlığı olduğu gibi geçirir. Dolayısıyla "sondan
+      # 1 girdi güvenilir" varsayımı bu kurulumda geçersizdir: değer tamamen
+      # istemci kontrolündedir ve >0 vermek IP oran sınırlamasını taklit edilebilir
+      # kılar. XFF'e ancak Next'in ÖNÜNE başlığı kendisi yazan gerçek bir ters-proxy
+      # (nginx/Caddy/CDN) konduğunda güvenilmelidir; o zaman değer o zincirdeki
+      # güvenilir hop sayısıdır (bkz. .env.example).
     env_file:
       - path: ../../.env
         required: false

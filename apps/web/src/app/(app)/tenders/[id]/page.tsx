@@ -1,47 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, ScanSearch, UploadCloud } from "lucide-react";
-import Link from "next/link";
-import { use, useRef, useState, type CSSProperties } from "react";
+import { use, useRef, useState } from "react";
+import { toast } from "sonner";
 
-import { PageHeader } from "@/components/shell/page-header";
-import { StatusPill } from "@/components/status-pill";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  SideNote,
+  TenderDetailView,
+  UploadCard,
+  type DocumentRow,
+} from "@/components/tenders/tender-detail-view";
 import { api } from "@/lib/api";
 import { useTenderStream } from "@/lib/tender-stream";
-import { cn } from "@/lib/utils";
-
-// İşleme hattı fazları (§5.5) — ilerleme göstergesi bu sırayla çizilir.
-const PIPELINE_STEPS = [
-  { key: "queued", label: "Kuyrukta" },
-  { key: "parsing", label: "Ayrıştırma" },
-  { key: "indexing", label: "İndeksleme" },
-  { key: "extracting", label: "Çıkarım" },
-  { key: "review_ready", label: "İncelemeye hazır" },
-] as const;
-
-const DOCUMENT_KINDS = [
-  { value: "technical", label: "Teknik şartname" },
-  { value: "administrative", label: "İdari şartname" },
-  { value: "contract", label: "Sözleşme" },
-  { value: "addendum", label: "Zeyilname" },
-  { value: "other", label: "Diğer" },
-] as const;
 
 const EXTENSION_CONTENT_TYPES: Record<string, string> = {
   pdf: "application/pdf",
@@ -59,49 +29,6 @@ function resolveContentType(file: File): string {
 function apiErrorMessage(error: unknown, fallback: string): string {
   const message = (error as { error?: { message?: string } } | undefined)?.error?.message;
   return typeof message === "string" && message.length > 0 ? message : fallback;
-}
-
-function JobProgress({
-  jobStatus,
-  errorMessage,
-}: {
-  jobStatus: string;
-  errorMessage: string | null;
-}) {
-  if (jobStatus === "failed") {
-    return (
-      <div
-        className="rail-active pl-3 text-sm text-danger"
-        style={{ "--rail-color": "var(--danger)" } as CSSProperties}
-      >
-        İşleme başarısız oldu{errorMessage !== null ? `: ${errorMessage}` : "."}
-      </div>
-    );
-  }
-  const activeIndex = PIPELINE_STEPS.findIndex((step) => step.key === jobStatus);
-  return (
-    <ol className="flex flex-wrap items-center gap-2">
-      {PIPELINE_STEPS.map((step, index) => {
-        const done = index < activeIndex || jobStatus === "review_ready";
-        const active = index === activeIndex && jobStatus !== "review_ready";
-        return (
-          <li key={step.key} className="flex items-center gap-2">
-            {index > 0 && <span className="text-ink-3">›</span>}
-            <span
-              className={cn(
-                "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                done && "bg-success-weak text-success",
-                active && "animate-pulse bg-brand-weak text-brand",
-                !done && !active && "bg-surface-2 text-ink-3",
-              )}
-            >
-              {step.label}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
-  );
 }
 
 export default function TenderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -134,6 +61,20 @@ export default function TenderDetailPage({ params }: { params: Promise<{ id: str
     },
   });
 
+  const retryJob = useMutation({
+    mutationFn: async (jobId: string) => {
+      const { error } = await api.POST("/api/v1/jobs/{job_id}/retry", {
+        params: { path: { job_id: jobId } },
+      });
+      if (error !== undefined) throw new Error("İşleme yeniden başlatılamadı.");
+    },
+    onSuccess: () => {
+      toast.success("İşleme yeniden başlatıldı.");
+      void queryClient.invalidateQueries({ queryKey: ["documents", tenderId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const upload = useMutation({
     mutationFn: async (file: File) => {
       const contentType = resolveContentType(file);
@@ -162,7 +103,10 @@ export default function TenderDetailPage({ params }: { params: Promise<{ id: str
       });
       if (completed.error !== undefined) {
         throw new Error(
-          apiErrorMessage(completed.error, "Dosya doğrulamadan geçemedi (tür/boyut uyuşmazlığı)."),
+          apiErrorMessage(
+            completed.error,
+            "Dosya doğrulamadan geçmedi. Tür ve boyutu kontrol edin.",
+          ),
         );
       }
       return completed.data;
@@ -173,137 +117,64 @@ export default function TenderDetailPage({ params }: { params: Promise<{ id: str
     },
   });
 
-  // SSE snapshot'ı geldiyse onu, gelmediyse REST sonucunu göster.
-  const documentRows =
-    snapshot?.documents ??
-    documents.data?.map((d) => ({
-      id: d.id,
-      filename: d.filename,
-      status: d.status,
+  const restRows: DocumentRow[] =
+    documents.data?.map((document) => ({
+      id: document.id,
+      filename: document.filename,
+      status: document.status,
+      kind: document.kind,
+      sizeBytes: document.size_bytes,
       job: null,
-    })) ??
-    [];
+    })) ?? [];
 
-  const reviewReady = documentRows.some((d) => d.job?.status === "review_ready");
+  // SSE snapshot'ı geldiyse onu esas al; dosya boyutu/türü REST'ten tamamlanır.
+  const restById = new Map(restRows.map((row) => [row.id, row]));
+  const rows: DocumentRow[] =
+    snapshot?.documents.map((document) => ({
+      id: document.id,
+      filename: document.filename,
+      status: document.status,
+      kind: restById.get(document.id)?.kind ?? null,
+      sizeBytes: restById.get(document.id)?.sizeBytes ?? null,
+      job: document.job,
+    })) ?? restRows;
+
+  const reviewReady = rows.some((row) => row.job?.status === "review_ready");
 
   return (
-    <>
-      <PageHeader
-        title={tender.data?.title ?? "İhale"}
-        context={
-          <span className="inline-flex flex-wrap items-center gap-2">
-            Doküman yükleyin; analiz bittiğinde bulguları kaynaklarıyla inceleyin.
-            <StatusPill
-              tone={connected ? "success" : "neutral"}
-              label={connected ? "Canlı" : "Bağlanıyor…"}
-            />
-          </span>
-        }
-        actions={
-          <Button asChild variant={reviewReady ? "default" : "secondary"}>
-            <Link
-              href={`/tenders/${tenderId}/review`}
-              aria-disabled={!reviewReady}
-              tabIndex={reviewReady ? undefined : -1}
-              className={reviewReady ? undefined : "pointer-events-none opacity-50"}
-            >
-              <ScanSearch className="size-4" strokeWidth={1.75} />
-              Bulguları incele
-            </Link>
-          </Button>
-        }
-      />
-
-      <div className="flex flex-col gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-[15px]">Şartname yükle</CardTitle>
-            <CardDescription>
-              PDF, DOCX veya XLSX (en fazla 100 MB). Yükleme sonrası analiz otomatik başlar.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="flex flex-wrap items-center gap-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const file = fileInputRef.current?.files?.[0];
-                if (file !== undefined) upload.mutate(file);
-              }}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                required
-                accept=".pdf,.docx,.xlsx"
-                className="text-sm text-ink-2 file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink-1"
-              />
-              <Select value={kind} onValueChange={setKind}>
-                <SelectTrigger className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOCUMENT_KINDS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button type="submit" disabled={upload.isPending}>
-                <UploadCloud className="size-4" strokeWidth={1.75} />
-                {upload.isPending ? "Yükleniyor…" : "Yükle ve analiz et"}
-              </Button>
-            </form>
-            {upload.isError && <p className="mt-2 text-sm text-danger">{upload.error.message}</p>}
-          </CardContent>
-        </Card>
-
-        <div className="flex flex-col gap-3">
-          <h2 className="text-[15px] font-semibold text-ink-1">Dokümanlar</h2>
-          {documents.isPending && snapshot === null && (
-            <p className="text-sm text-ink-3">Yükleniyor…</p>
-          )}
-          {documentRows.length === 0 && !documents.isPending && (
-            <div className="flex flex-col items-center gap-3 rounded-xl border bg-surface py-12">
-              <span className="flex size-10 items-center justify-center rounded-lg bg-surface-2">
-                <FileText className="size-5 text-ink-3" strokeWidth={1.5} />
-              </span>
-              <p className="text-sm text-ink-2">
-                Henüz doküman yok. İlk şartnameyi yukarıdan yükleyin.
-              </p>
-            </div>
-          )}
-          {documentRows.map((document) => (
-            <Card key={document.id}>
-              <CardContent className="space-y-3 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="flex min-w-0 items-center gap-2.5">
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-2">
-                      <FileText className="size-4 text-ink-2" strokeWidth={1.5} />
-                    </span>
-                    <span className="truncate text-sm font-medium text-ink-1">
-                      {document.filename}
-                    </span>
-                  </span>
-                  {document.status === "pending_upload" && (
-                    <StatusPill tone="neutral" label="Yükleme bekleniyor" />
-                  )}
-                  {document.status === "failed" && (
-                    <StatusPill tone="danger" label="Yükleme başarısız" />
-                  )}
-                </div>
-                {document.job !== null && (
-                  <JobProgress
-                    jobStatus={document.job.status}
-                    errorMessage={document.job.error_message}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </>
+    <TenderDetailView
+      title={tender.data?.title ?? "İhale"}
+      documents={rows}
+      documentsState={
+        documents.isPending && snapshot === null
+          ? "loading"
+          : documents.isError
+            ? "error"
+            : "ready"
+      }
+      errorMessage={documents.error?.message}
+      onRetry={() => void documents.refetch()}
+      connected={connected}
+      reviewHref={`/tenders/${tenderId}/review`}
+      reviewReady={reviewReady}
+      onRetryJob={(jobId) => retryJob.mutate(jobId)}
+      retryingJobId={retryJob.isPending ? retryJob.variables : null}
+      uploader={
+        <>
+          <UploadCard
+            kind={kind}
+            onKindChange={setKind}
+            onSubmit={(file) => upload.mutate(file)}
+            pending={upload.isPending}
+            error={upload.isError ? upload.error.message : null}
+            fileInputRef={fileInputRef}
+          />
+          <SideNote title="İpucu">
+            Teknik ve idari şartnameyi ayrı ayrı yükleyin. Zeyilname varsa onu da ekleyin —
+            uygunluk analizi en güncel maddeyi esas alır.
+          </SideNote>
+        </>
+      }
+    />
   );
 }

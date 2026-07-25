@@ -10,7 +10,7 @@ from tenderiq_core.agents import (
     GroundingResolution,
     ground_item,
 )
-from tenderiq_core.agents.grounding import normalize_for_match
+from tenderiq_core.agents.grounding import MIN_QUOTE_CHARS, normalize_for_match
 from tenderiq_core.retrieval import CorpusEntry, RetrievedChunk
 
 # İki öğeli bir chunk: madde başlığı + gövde (gerçek şartname dili).
@@ -111,3 +111,24 @@ def test_bos_alinti_dusuk_guven() -> None:
 def test_normalize_tr_katlamasi() -> None:
     assert normalize_for_match("İSTANBUL IĞDIR") == "istanbul ığdır"
     assert normalize_for_match("“tırnak” – tire") == '"tırnak" - tire'
+
+
+def test_onemsiz_kisa_alinti_kanit_sayilmaz() -> None:
+    """D-06: eşik altı alıntı, tesadüfi eşleşmeyle ELEMENT damgası ALMAMALI.
+
+    "26" gibi bir dize chunk'ın ilk öğesinde ("Madde 26 - Geçici teminat")
+    gerçekten geçer; eşik olmadan en keskin güvenle oraya bağlanır ve inceleme
+    ekranı yanlış pasajı vurgulardı.
+    """
+    source = _ground("26")
+    assert source.resolution is GroundingResolution.UNGROUNDED  # type: ignore[attr-defined]
+    assert source.element_seq is None  # type: ignore[attr-defined]
+
+
+def test_esik_sinirindaki_alinti_kabul_edilir() -> None:
+    """Eşik, meşru kısa maddeleri kaynaksız bırakmayacak kadar dar olmalı."""
+    quote = "Geçici teminat"  # 14 karakter (MIN_QUOTE_CHARS = 12)
+    assert len(normalize_for_match(quote)) >= MIN_QUOTE_CHARS
+    source = _ground(quote)
+    assert source.resolution is GroundingResolution.ELEMENT  # type: ignore[attr-defined]
+    assert source.element_seq == 10  # type: ignore[attr-defined]

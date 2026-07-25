@@ -1,11 +1,12 @@
 "use client";
 
+import { CheckCircle2, Loader2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
+import { AuthNotice } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 
 type State = "pending" | "success" | "error";
@@ -30,24 +31,39 @@ function VerifyEmail() {
   }, [token]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-6 p-8">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>E-posta doğrulama</CardTitle>
-          <CardDescription>
-            {state === "pending" && "E-posta adresiniz doğrulanıyor…"}
-            {state === "success" && "E-posta adresiniz doğrulandı. Teşekkürler!"}
-            {state === "error" &&
-              "Doğrulama bağlantısı geçersiz veya süresi dolmuş. Yeni bir bağlantı isteyin."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild className="w-full">
-            <Link href="/tenders">Uygulamaya git</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </main>
+    <AuthNotice title="E-posta doğrulama">
+      <div className="flex items-start gap-3">
+        {state === "pending" && (
+          <Loader2 aria-hidden className="mt-0.5 size-4 shrink-0 animate-spin text-ink-3" />
+        )}
+        {state === "success" && (
+          <CheckCircle2
+            aria-hidden
+            className="mt-0.5 size-4 shrink-0 text-success"
+            strokeWidth={1.75}
+          />
+        )}
+        {state === "error" && (
+          <TriangleAlert
+            aria-hidden
+            className="mt-0.5 size-4 shrink-0 text-danger"
+            strokeWidth={1.75}
+          />
+        )}
+        <p aria-live="polite">
+          {state === "pending" && "E-posta adresiniz doğrulanıyor…"}
+          {state === "success" &&
+            "E-posta adresiniz doğrulandı. Artık tüm özellikleri kullanabilirsiniz."}
+          {state === "error" &&
+            "Bağlantı geçersiz ya da süresi dolmuş. Ayarlar sayfasından yeni bir doğrulama e-postası isteyin."}
+        </p>
+      </div>
+      <Button asChild className="w-full">
+        <Link href={state === "error" ? "/settings" : "/panel"}>
+          {state === "error" ? "Ayarlara git" : "Panele git"}
+        </Link>
+      </Button>
+    </AuthNotice>
   );
 }
 

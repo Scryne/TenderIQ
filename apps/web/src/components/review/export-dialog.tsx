@@ -1,8 +1,8 @@
 "use client";
 
-/** Word/Excel export dialogu (Sprint 3.2, §4.1): biçim seç → indir. */
+/** Word/Excel export dialogu: biçim seç → indir. */
 
-import { Download, FileSpreadsheet, FileText } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
+  DialogBody,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -18,13 +20,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 type ExportFormat = "docx" | "xlsx";
 
-const FORMATS: { value: ExportFormat; label: string; hint: string; icon: typeof FileText }[] = [
-  { value: "docx", label: "Word (.docx)", hint: "Yapılandırılmış rapor + kaynakça", icon: FileText },
+const FORMATS: { value: ExportFormat; label: string; hint: string; icon: LucideIcon }[] = [
+  {
+    value: "docx",
+    label: "Word (.docx)",
+    hint: "Yapılandırılmış rapor + kaynakça",
+    icon: FileText,
+  },
   {
     value: "xlsx",
     label: "Excel (.xlsx)",
@@ -43,6 +49,7 @@ export function ExportDialog({ tenderId }: { tenderId: string }) {
     setBusy(true);
     try {
       await downloadTenderReport(tenderId, format, includePending);
+      // Eylem sonucu geçmiş zamanla yazılır (§8.8).
       toast.success("Rapor indirildi.");
       setOpen(false);
     } catch (error) {
@@ -55,56 +62,83 @@ export function ExportDialog({ tenderId }: { tenderId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <Download data-slot="icon" />
+        <Button variant="secondary">
+          <Download strokeWidth={1.75} />
           Rapor indir
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Analiz raporunu dışa aktar</DialogTitle>
           <DialogDescription>
-            Rapora onaylı ve düzeltilmiş bulgular girer; kaynak referansları (sayfa no)
-            raporda görünür.
+            Rapora onaylı ve düzeltilmiş bulgular girer. Her satırın kaynak referansı (sayfa ve
+            madde) raporda korunur.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-2">
-          {FORMATS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setFormat(option.value)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors",
-                format === option.value
-                  ? "border-brand bg-brand-weak/40 ring-2 ring-brand/20"
-                  : "hover:border-border-strong hover:bg-surface-2/50",
-              )}
-            >
-              <option.icon className="size-5 shrink-0 text-ink-2" strokeWidth={1.5} />
-              <span>
-                <span className="block text-sm font-medium text-ink-1">{option.label}</span>
-                <span className="block text-xs text-ink-3">{option.hint}</span>
-              </span>
-            </button>
-          ))}
-        </div>
+        <DialogBody className="flex flex-col gap-4">
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-overline mb-2 text-ink-3">BİÇİM</legend>
+            {FORMATS.map((option) => {
+              const selected = format === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-3 rounded-sm border px-3.5 py-3 transition-colors duration-[120ms]",
+                    selected
+                      ? "border-accent bg-surface-2"
+                      : "border-border hover:border-border-strong hover:bg-surface-2",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="export-format"
+                    value={option.value}
+                    checked={selected}
+                    onChange={() => setFormat(option.value)}
+                    className="sr-only"
+                  />
+                  <option.icon
+                    aria-hidden
+                    className={cn("size-5 shrink-0", selected ? "text-ink-1" : "text-ink-3")}
+                    strokeWidth={1.5}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-ink-1">{option.label}</span>
+                    <span className="block text-xs text-ink-3">{option.hint}</span>
+                  </span>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "ml-auto size-4 shrink-0 rounded-full border",
+                      selected ? "border-accent bg-accent" : "border-border-strong",
+                    )}
+                  />
+                </label>
+              );
+            })}
+          </fieldset>
 
-        <Label className="flex items-center gap-2 text-[13px] font-normal text-ink-2">
-          <Checkbox
-            checked={includePending}
-            onCheckedChange={(checked) => setIncludePending(checked === true)}
-          />
-          Onay bekleyen bulguları da dahil et (raporda &quot;Onay bekliyor&quot; olarak işaretlenir)
-        </Label>
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm text-ink-2">
+            <Checkbox
+              className="mt-0.5"
+              checked={includePending}
+              onCheckedChange={(checked) => setIncludePending(checked === true)}
+            />
+            Onay bekleyen bulguları da dahil et — raporda &quot;Onay bekliyor&quot; olarak
+            işaretlenir.
+          </label>
+        </DialogBody>
 
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={busy}>
-            Vazgeç
-          </Button>
-          <Button size="sm" onClick={run} disabled={busy}>
-            {busy ? "Üretiliyor…" : "İndir"}
+          <DialogClose asChild>
+            <Button variant="secondary" disabled={busy}>
+              İptal
+            </Button>
+          </DialogClose>
+          <Button onClick={run} loading={busy}>
+            İndir
           </Button>
         </DialogFooter>
       </DialogContent>

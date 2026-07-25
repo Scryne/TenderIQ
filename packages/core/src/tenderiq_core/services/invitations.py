@@ -28,6 +28,7 @@ from tenderiq_core.models import (
     User,
 )
 from tenderiq_core.security.passwords import hash_password
+from tenderiq_core.services.auth import normalize_email
 
 _TOKEN_BYTES = 32  # 256-bit entropi
 
@@ -62,7 +63,8 @@ def _hash_token(token: str) -> str:
 
 
 def _normalize_email(email: str) -> str:
-    return email.strip().lower()
+    """Hesap kimliğiyle AYNI kanonik biçim (bkz. ``services.auth.normalize_email``)."""
+    return normalize_email(email)
 
 
 async def _find_active_member(

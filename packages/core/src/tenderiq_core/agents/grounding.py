@@ -31,6 +31,7 @@ from pydantic import BaseModel
 from tenderiq_core.findings import GroundingResolution
 
 __all__ = [
+    "MIN_QUOTE_CHARS",
     "ElementView",
     "GroundedSource",
     "GroundingResolution",
@@ -44,6 +45,13 @@ _TR_CASEFOLD = str.maketrans({"İ": "i", "I": "ı"})
 # LLM çıktısı tipografik işaretleri düzleştirebilir; iki yön de aynı forma iner.
 _PUNCT_EQUIV = str.maketrans({"’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-"})
 _WS_RE = re.compile(r"\s+")
+
+# Bir alıntının KANIT sayılması için gereken asgari normalize uzunluk. Eşik
+# olmadan "1" / "ve" gibi önemsiz bir alıntı, chunk aralığındaki ilk öğede
+# tesadüfen bulunur ve en keskin güvenle (ELEMENT) damgalanırdı — inceleme
+# ekranı yanlış pasajı vurgular, kullanıcı yanlış kanıta bakarak onaylardı.
+# Eşiğin altındaki öğe UNGROUNDED'a düşer (yazılır ama API'den dönmez, ADR-0006).
+MIN_QUOTE_CHARS = 12
 
 
 class GroundedSource(BaseModel):
@@ -103,10 +111,11 @@ def ground_item(
 ) -> GroundedSource:
     """Tek bir ajan öğesini kaynağına bağlar (bağlanamazsa UNGROUNDED).
 
-    ``source_index`` 1-indekslidir (istemdeki ``[KAYNAK n]`` numarası).
+    ``source_index`` 1-indekslidir (istemdeki ``[KAYNAK n]`` numarası). Alıntı
+    ``MIN_QUOTE_CHARS``'tan kısaysa kanıt sayılmaz (bkz. sabitin gerekçesi).
     """
     normalized_quote = normalize_for_match(quote)
-    if not normalized_quote or not (1 <= source_index <= len(contexts)):
+    if len(normalized_quote) < MIN_QUOTE_CHARS or not (1 <= source_index <= len(contexts)):
         return GroundedSource(resolution=GroundingResolution.UNGROUNDED, quote=quote)
     chunk = contexts[source_index - 1]
 

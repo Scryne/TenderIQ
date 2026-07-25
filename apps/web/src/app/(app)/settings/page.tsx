@@ -1,14 +1,24 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { MailPlus, UserCog, Users } from "lucide-react";
 
-import { PageHeader } from "@/components/shell/page-header";
 import { AccountSection } from "@/components/settings/account-section";
 import { InvitationsSection } from "@/components/settings/invitations-section";
 import { MembersSection } from "@/components/settings/members-section";
+import { PageHeader } from "@/components/shell/page-header";
+import { ForbiddenState } from "@/components/states";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 
+/**
+ * Ayarlar — DESIGN.md §9.7.
+ *
+ * Sol dikey sekme navigasyonu (200px) + sağ içerik. Kaydetme modeli sayfa
+ * genelinde TEK: her ayar grubu kendi kartında, kart içinde kaydeder. Anında
+ * kaydeden toggle ile kart altı kaydet butonu karıştırılmaz.
+ */
 export default function SettingsPage() {
   const me = useQuery({
     queryKey: ["me"],
@@ -22,20 +32,58 @@ export default function SettingsPage() {
   const isAdmin = me.data?.role === "admin";
 
   return (
-    <>
+    <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Ayarlar"
-        context="Hesabınızı, organizasyon üyelerini ve davetleri yönetin."
+        description="Hesabınızı, çalışma alanı üyelerini ve davetleri yönetin."
       />
 
-      {me.isPending && <Skeleton className="h-40 w-full" />}
-      {me.data && (
-        <div className="space-y-8">
-          <AccountSection />
-          <MembersSection isAdmin={isAdmin} currentUserId={me.data.id} />
-          {isAdmin && <InvitationsSection />}
+      {me.isPending && (
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-48 w-full" />
         </div>
       )}
-    </>
+
+      {me.data !== undefined && (
+        <Tabs defaultValue="account" className="gap-6 lg:flex-row">
+          <TabsList
+            variant="vertical"
+            className="shrink-0 lg:sticky lg:top-20 lg:w-[200px] lg:self-start"
+          >
+            <TabsTrigger value="account">
+              <UserCog strokeWidth={1.75} />
+              Hesap
+            </TabsTrigger>
+            <TabsTrigger value="members">
+              <Users strokeWidth={1.75} />
+              Üyeler
+            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="invitations">
+                <MailPlus strokeWidth={1.75} />
+                Davetler
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          <div className="min-w-0 flex-1">
+            <TabsContent value="account">
+              <AccountSection />
+            </TabsContent>
+            <TabsContent value="members">
+              <MembersSection isAdmin={isAdmin} currentUserId={me.data.id} />
+            </TabsContent>
+            <TabsContent value="invitations">
+              {isAdmin ? (
+                <InvitationsSection />
+              ) : (
+                <ForbiddenState description="Davet gönderme yönetici yetkisi gerektirir. Çalışma alanı yöneticinizden isteyin." />
+              )}
+            </TabsContent>
+          </div>
+        </Tabs>
+      )}
+    </div>
   );
 }

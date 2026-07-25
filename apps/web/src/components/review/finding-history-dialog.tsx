@@ -80,7 +80,7 @@ export function FindingHistoryDialog({
 
   return (
     <Dialog open={target !== null} onOpenChange={(open) => open || onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="size-4 text-ink-3" strokeWidth={1.5} />
@@ -106,7 +106,7 @@ export function FindingHistoryDialog({
               history.data?.map((entry) => {
                 const changes = (entry.meta?.changes ?? null) as Changes | null;
                 return (
-                  <div key={entry.id} className="rounded-lg border px-3 py-2">
+                  <div key={entry.id} className="rounded-sm border border-border px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[13px] font-medium text-ink-1">
                         {ACTION_LABELS[entry.action] ?? entry.action}

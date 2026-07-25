@@ -82,9 +82,7 @@ def _seed_identity(factory: sessionmaker[Session]) -> tuple[uuid.UUID, uuid.UUID
             )
         )
         if membership is None:
-            session.add(
-                Membership(user_id=user.id, organization_id=org.id, role=Role.ADMIN)
-            )
+            session.add(Membership(user_id=user.id, organization_id=org.id, role=Role.ADMIN))
         return org.id, user.id
 
 
