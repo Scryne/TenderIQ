@@ -75,7 +75,6 @@ const MOCK_PANEL: PanelData = {
   inProgress: [
     { id: "t2", title: "2026/119023 — Kurum içi yazılım geliştirme hizmet alımı" },
   ],
-  detailLoading: false,
 };
 
 export default function ShellPreviewPage() {

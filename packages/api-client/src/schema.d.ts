@@ -653,6 +653,28 @@ export interface paths {
         patch: operations["update_member_role_api_v1_members__user_id__patch"];
         trace?: never;
     };
+    "/api/v1/panel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Panel
+         * @description Aktif kiracının panel özetini tek çağrıda döndürür.
+         *
+         *     ``limit`` son tarih ve maruziyet listelerinin her birine ayrı ayrı uygulanır.
+         */
+        get: operations["get_panel_api_v1_panel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/requirements/{finding_id}": {
         parameters: {
             query?: never;
@@ -1609,6 +1631,115 @@ export interface components {
             /** Organization Slug */
             organization_slug: string;
             role: components["schemas"]["Role"];
+        };
+        /**
+         * PanelDeadline
+         * @description Yaklaşan tarih/süre öğesi — kaynağıyla birlikte.
+         */
+        PanelDeadline: {
+            /** Due Date */
+            due_date: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /** Page */
+            page: number;
+            /** Section */
+            section: string | null;
+            /**
+             * Tender Id
+             * Format: uuid
+             */
+            tender_id: string;
+            /** Tender Title */
+            tender_title: string;
+            /** Value Text */
+            value_text: string;
+        };
+        /**
+         * PanelExposure
+         * @description Eleme riski taşıyan madde: yüksek risk veya karşılanmayan gereksinim.
+         */
+        PanelExposure: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Page */
+            page: number;
+            /** Section */
+            section: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "risk" | "compliance";
+            /**
+             * Tender Id
+             * Format: uuid
+             */
+            tender_id: string;
+            /** Tender Title */
+            tender_title: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * PanelResponse
+         * @description Genel bakış ekranının tüm verisi.
+         */
+        PanelResponse: {
+            /** Deadlines */
+            deadlines: components["schemas"]["PanelDeadline"][];
+            documents: components["schemas"]["QuotaUsage"];
+            /** Exposures */
+            exposures: components["schemas"]["PanelExposure"][];
+            /** In Progress */
+            in_progress: components["schemas"]["PanelTenderRef"][];
+            pages: components["schemas"]["QuotaUsage"];
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            plan: components["schemas"]["PlanTier"];
+            /** Plan Name */
+            plan_name: string;
+            tenders: components["schemas"]["PanelTenderCounts"];
+        };
+        /**
+         * PanelTenderCounts
+         * @description İhalelerin duruma göre dağılımı.
+         */
+        PanelTenderCounts: {
+            /** Analyzing */
+            analyzing: number;
+            /** Archived */
+            archived: number;
+            /** Draft */
+            draft: number;
+            /** Review Ready */
+            review_ready: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * PanelTenderRef
+         * @description Panelden ihaleye geçiş için asgari referans.
+         */
+        PanelTenderRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
         };
         /**
          * PlanInfo
@@ -3093,6 +3224,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_panel_api_v1_panel_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelResponse"];
                 };
             };
             /** @description Validation Error */
