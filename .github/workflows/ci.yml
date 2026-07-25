@@ -122,11 +122,70 @@ jobs:
           ghcr.io/gitleaks/gitleaks:latest detect --source=/repo --no-banner --redact
       - name: uv kurulumu
         uses: astral-sh/setup-uv@v4
-      - name: Bağımlılık denetimi (pip-audit)
+      - name: Bağımlılık denetimi (pip-audit — BLOKE EDİCİ)
+        # J.2 #7: eskiden `|| true` ile koşuyordu, yani hiçbir şeyi engellemiyordu.
+        # Artık bulgu merge'i bloke eder. Düzeltilemeyen açıklar
+        # .github/pip-audit-ignore.txt'ye GEREKÇESİYLE yazılır.
         run: |
           uv export --frozen --no-dev --no-emit-workspace -o /tmp/req.txt \
             || uv export --frozen --no-dev -o /tmp/req.txt
-          uvx pip-audit -r /tmp/req.txt || true
+
+          ignores=()
+          while read -r line; do
+            id="${line%%#*}"          # satır sonu yorumunu at
+            id="$(echo "$id" | tr -d '[:space:]')"
+            [ -n "$id" ] && ignores+=(--ignore-vuln "$id")
+          done < <(grep -v '^[[:space:]]*#' .github/pip-audit-ignore.txt || true)
+
+          if [ ${#ignores[@]} -gt 0 ]; then
+            echo "İstisna sayısı: $(( ${#ignores[@]} / 2 ))"
+          fi
+          uvx pip-audit -r /tmp/req.txt "${ignores[@]}"
+
+      - name: Trivy — bağımlılık + yapılandırma taraması (BLOKE EDİCİ)
+        # pip-audit yalnız Python paketlerini görür; trivy npm/pnpm kilidini ve
+        # Dockerfile yanlış yapılandırmalarını da kapsar. `secret` tarayıcısı
+        # bilinçli KAPALI: sır taraması yukarıda gitleaks ile zaten yapılıyor.
+        # Resmî imajla koşulur (gitleaks ile aynı desen) — action sürüm etiketine
+        # bağımlılık yok ve yerelde birebir aynı komut doğrulanabiliyor.
+        run: >-
+          docker run --rm -v "${{ github.workspace }}:/repo:ro"
+          aquasec/trivy:latest fs /repo
+          --scanners vuln,misconfig
+          --severity HIGH,CRITICAL
+          --ignore-unfixed
+          --ignorefile /repo/.github/trivyignore
+          --skip-dirs node_modules --skip-dirs .venv
+          --timeout 15m
+          --exit-code 1
+
+  image-scan:
+    name: İmaj taraması (trivy)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, worker, web]
+    steps:
+      - uses: actions/checkout@v4
+      - name: İmajı derle
+        # Yalnız tarama için; registry'ye push edilmez.
+        run: >-
+          docker build -f infra/docker/${{ matrix.image }}.Dockerfile
+          -t tenderiq-${{ matrix.image }}:ci .
+      - name: Trivy (imaj — taban imaj + çalışma zamanı CVE'leri)
+        # Docker soketi bağlanır ki trivy yerel imaj deposundan okusun
+        # (imaj registry'ye push edilmiyor).
+        run: >-
+          docker run --rm
+          -v /var/run/docker.sock:/var/run/docker.sock
+          -v "${{ github.workspace }}/.github:/cfg:ro"
+          aquasec/trivy:latest image tenderiq-${{ matrix.image }}:ci
+          --severity HIGH,CRITICAL
+          --ignore-unfixed
+          --ignorefile /cfg/trivyignore
+          --timeout 15m
+          --exit-code 1
 
   # NOT: AI golden-set regresyon kapısı backend job'ında BLOKE EDİCİ koşuyor
   # (Sprint 2.4, --gate + sample fixture). Gerçek golden-set (private) çıktısı

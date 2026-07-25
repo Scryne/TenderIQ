@@ -1,13 +1,17 @@
 # TenderIQ web imajı — Next.js standalone çıktısı, pnpm monorepo, çok aşamalı.
 # syntax=docker/dockerfile:1
 FROM node:22-bookworm-slim AS base
-ENV PNPM_HOME=/pnpm \
-    PATH=/pnpm:$PATH \
-    NEXT_TELEMETRY_DISABLED=1
-RUN corepack enable
+ENV NEXT_TELEMETRY_DISABLED=1
+# Taban imajın devraldığı Debian CVE'leri için güvenlik yaması (bkz. api.Dockerfile).
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 # ── Build aşaması ────────────────────────────────────────────────────────────
 FROM base AS build
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH
+RUN corepack enable
 WORKDIR /app
 
 # 1) Yalnızca manifestler + kilit — bağımlılık katmanını önbelleğe al.
@@ -33,6 +37,17 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
+
+# Çalışma imajında paket yöneticisi YOK: `node server.js` dışında hiçbir şey
+# koşmuyor. Node taban imajıyla gelen npm CLI kendi bağımlılıklarını (tar,
+# sigstore, brace-expansion…) taşır ve bunlar imaj taramasında HIGH/CRITICAL
+# olarak çıkar — kullanılmasalar bile saldırı yüzeyidir. Kaldırmak hem taramayı
+# temizler hem de gerçekten yüzeyi daraltır (npm'i sildiğimiz için imajda
+# `npm install` çalıştırılamaz — bu bilinçlidir).
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 RUN groupadd --system --gid 1001 nodejs \
     && useradd --system --uid 1001 --gid nodejs nextjs
 
