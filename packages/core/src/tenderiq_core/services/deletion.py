@@ -24,22 +24,37 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from tenderiq_core.db.soft_delete import INCLUDE_DELETED
-from tenderiq_core.models import Document, Tender
+from tenderiq_core.models import (
+    CapabilityProfile,
+    Document,
+    Invitation,
+    Membership,
+    Organization,
+    Tender,
+    User,
+)
 
 __all__ = [
     "DeleteObject",
+    "OrganizationPurgeResult",
     "PurgeResult",
     "collect_purgeable",
+    "collect_purgeable_organizations",
     "purge_cutoff",
+    "purge_organization_sync",
     "purge_tenant_sync",
 ]
 
 #: Nesne depolamadan tek anahtar siler; başarılıysa ``True``.
 DeleteObject = Callable[[str], bool]
+
+#: Kapatılıp anonimleştirilmiş organizasyonun slug ön eki (mezar taşı işareti).
+#: Süpürmenin idempotent olmasını sağlar: bu ön eki taşıyan satır tekrar işlenmez.
+_TOMBSTONE_PREFIX = "deleted-"
 
 
 @dataclass
@@ -157,4 +172,118 @@ def purge_tenant_sync(
         session.execute(delete(Document).where(Document.id.in_(orphan_ids)))
         result.documents = len(orphan_ids)
 
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Organizasyon (hesap) kapatma — KVKK md. 7
+#
+# Buradaki asıl gerilim: silme hakkı ile KANUNİ SAKLAMA yükümlülüğü çakışır.
+# ``TenantMixin`` her kiracı tablosunu ``organization.id``'ye CASCADE ile bağlar,
+# dolayısıyla organizasyon satırını silmek ``subscription``, ``usage_record`` ve
+# ``audit_log``'u da götürür. Fatura/defter kayıtları VUK gereği 10 yıl saklanır;
+# KVKK md. 7 de kanuni saklama yükümlülüğü olan veriyi istisna tutar.
+#
+# Çözüm: satır **mezar taşı** olarak kalır. Kiracının İÇERİĞİ (ihale, doküman,
+# bulgu, dosya, üyelik, davet, yetkinlik profili) kalıcı silinir; organizasyonun
+# adı/slug'ı anonimleştirilir; fatura ve denetim kayıtları durur.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class OrganizationPurgeResult:
+    """Bir organizasyon kapatmasında kalıcı silinenlerin özeti."""
+
+    tenders: int = 0
+    objects_deleted: int = 0
+    objects_failed: int = 0
+    memberships: int = 0
+    invitations: int = 0
+    users_deleted: int = 0
+    anonymized: bool = False
+
+
+def collect_purgeable_organizations(session: Session, cutoff: datetime) -> list[Organization]:
+    """Saklama penceresi dolmuş, kapatılmış organizasyonlar.
+
+    Zaten anonimleştirilmiş olanlar (``slug`` mezar taşı biçiminde) tekrar
+    işlenmez; süpürme idempotenttir.
+    """
+    return list(
+        session.scalars(
+            select(Organization)
+            .where(
+                Organization.deleted_at.is_not(None),
+                Organization.deleted_at < cutoff,
+                Organization.slug.not_like(f"{_TOMBSTONE_PREFIX}%"),
+            )
+            .execution_options(**{INCLUDE_DELETED: True})
+        )
+    )
+
+
+def purge_organization_sync(
+    session: Session,
+    organization: Organization,
+    *,
+    delete_object: DeleteObject,
+) -> OrganizationPurgeResult:
+    """Kapatılmış bir organizasyonun içeriğini KALICI siler (kiracı bağlamında çağrılır).
+
+    Silinenler: nesne depolamadaki dosyalar → ihaleler (CASCADE ile doküman,
+    öğe, chunk, embedding, iş, bulgular, yorumlar) → yetkinlik profili → davetler
+    → üyelikler → başka üyeliği kalmayan kullanıcı hesapları.
+
+    Korunanlar: ``subscription``, ``usage_record``, ``audit_log`` ve
+    organizasyon satırının kendisi (anonimleştirilmiş hâlde).
+    """
+    result = OrganizationPurgeResult()
+    opts = {INCLUDE_DELETED: True}
+
+    # 1) Dosyalar önce (bkz. purge_tenant_sync'teki sıra gerekçesi).
+    documents = list(session.scalars(select(Document).execution_options(**opts)))
+    for document in documents:
+        if delete_object(document.storage_key):
+            result.objects_deleted += 1
+        else:
+            result.objects_failed += 1
+
+    # Bir dosya bile silinemediyse DB'ye dokunma: anahtarları kaybedersek dosyalar
+    # depoda yetim kalır ve bir daha bulunamaz. Sonraki koşu yeniden dener.
+    if result.objects_failed:
+        return result
+
+    tender_ids = list(session.scalars(select(Tender.id).execution_options(**opts)))
+    if tender_ids:
+        session.execute(delete(Tender).where(Tender.id.in_(tender_ids)))
+        result.tenders = len(tender_ids)
+
+    session.execute(delete(CapabilityProfile))
+    session.execute(delete(Invitation).where(Invitation.organization_id == organization.id))
+
+    member_user_ids = list(
+        session.scalars(
+            select(Membership.user_id).where(Membership.organization_id == organization.id)
+        )
+    )
+    session.execute(delete(Membership).where(Membership.organization_id == organization.id))
+    result.memberships = len(member_user_ids)
+
+    # 2) Başka hiçbir organizasyonda üyeliği kalmayan kullanıcılar: hesabın
+    #    varlık sebebi kalmadı, kişisel veri silinir. Denetim kaydındaki
+    #    ``actor_user_id`` FK'si ON DELETE SET NULL olduğundan iz kaybolmaz,
+    #    yalnız kime ait olduğu anonimleşir — istenen de budur.
+    for user_id in member_user_ids:
+        remaining = session.scalar(
+            select(func.count()).select_from(Membership).where(Membership.user_id == user_id)
+        )
+        if remaining:
+            continue
+        session.execute(delete(User).where(User.id == user_id))
+        result.users_deleted += 1
+
+    # 3) Mezar taşı: ad ve slug anonimleştirilir, satır durur (fatura/denetim FK'leri).
+    organization.name = "Kapatılmış organizasyon"
+    organization.slug = f"{_TOMBSTONE_PREFIX}{organization.id}"
+    result.anonymized = True
     return result

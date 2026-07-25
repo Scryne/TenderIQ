@@ -682,6 +682,90 @@ export interface paths {
         patch: operations["update_member_role_api_v1_members__user_id__patch"];
         trace?: never;
     };
+    "/api/v1/organizations/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Current Organization
+         * @description Aktif organizasyonu döndürür.
+         */
+        get: operations["get_current_organization_api_v1_organizations_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/current/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Current Organization
+         * @description Hesabı kapatır: organizasyon ve tüm içeriği silinmek üzere işaretlenir (KVKK md. 7).
+         *
+         *     Yalnız **yönetici** çağırabilir ve organizasyonun slug'ını doğru yazması
+         *     gerekir. Kapatma sonrası:
+         *
+         *     - Organizasyon ve tüm ihaleler/dokümanlar anında görünmez olur.
+         *     - Tüm üyelerin oturumları iptal edilir; bu organizasyona giriş yapılamaz.
+         *       (Üyenin BAŞKA bir organizasyonu varsa oraya girmeye devam eder.)
+         *     - ``DATA_RETENTION_DAYS`` sonunda içerik ve dosyalar KALICI silinir.
+         *
+         *     **Fatura kayıtları ve denetim izi silinmez:** VUK gereği saklanması zorunlu
+         *     olduğundan organizasyon satırı anonimleştirilmiş hâlde kalır. Bu, KVKK md. 7'nin
+         *     kanuni saklama yükümlülüğü istisnasıdır ve aydınlatma metninde beyan edilir.
+         *
+         *     Geri alma ucu **bilinçli olarak yoktur**: hesap kapatma nadir ve ağır bir
+         *     işlemdir, yanlışlıkla yapıldıysa saklama penceresi içinde destek kanalından
+         *     elle geri alınır (`organization.deleted_at = NULL`).
+         */
+        post: operations["close_current_organization_api_v1_organizations_current_close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/current/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export My Data
+         * @description Veri sahibinin kendi verisinin makine-okunur kopyasını döndürür (KVKK md. 11).
+         *
+         *     Kapsam **aktif organizasyondur**: kullanıcı birden çok organizasyona üyeyse
+         *     her biri için ayrı ayrı çağırır (org değiştirip tekrar ister). Bu bilinçlidir —
+         *     RLS kiracı bağlamı tek org'a bağlıdır ve onu delip geçmek, izolasyonun tek
+         *     dayanağını istisnaya çevirirdi.
+         *
+         *     Yumuşak silinmiş kayıtlar dışa aktarmada GÖRÜNMEZ: kullanıcı onları zaten
+         *     silmiştir, "işlenen veri" değildirler.
+         */
+        get: operations["export_my_data_api_v1_organizations_current_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/panel": {
         parameters: {
             query?: never;
@@ -1232,6 +1316,26 @@ export interface components {
             provider: string;
         };
         /**
+         * CloseAccountRequest
+         * @description Hesap kapatma onayı.
+         *
+         *     Slug'ın elle yazılması istenir: tek tıkla geri alınamaz bir silme tetiklenmesin.
+         */
+        CloseAccountRequest: {
+            /** Confirm Slug */
+            confirm_slug: string;
+        };
+        /**
+         * CloseAccountResponse
+         * @description Kapatma sonucu ve kalıcı silmenin ne zaman olacağı.
+         */
+        CloseAccountResponse: {
+            /** Purge After Days */
+            purge_after_days: number;
+            /** Tenders Deleted */
+            tenders_deleted: number;
+        };
+        /**
          * ComplianceResultPatch
          * @description Uygunluk değerlendirmesi düzeltme alanları (durum + gerekçe).
          */
@@ -1282,6 +1386,38 @@ export interface components {
             email: string;
             /** @default member */
             role: components["schemas"]["Role"];
+        };
+        /**
+         * DataExportResponse
+         * @description KVKK md. 11 veri sahibi erişim hakkı — yapılandırılmış kopya.
+         *
+         *     Kapsam bilinçli olarak "kişisel veri + envanter"dir. Çıkarılmış bulguların
+         *     tamamı (binlerce satır) burada DEĞİLDİR: onlar kişisel veri değil, kullanıcının
+         *     yüklediği dokümandan üretilen iş çıktısıdır ve Word/Excel export'uyla zaten
+         *     alınabilir. Bu ayrım aydınlatma metninde de aynı şekilde anlatılmalıdır.
+         */
+        DataExportResponse: {
+            account: components["schemas"]["ExportedAccount"];
+            /**
+             * Active Organization Id
+             * Format: uuid
+             */
+            active_organization_id: string;
+            /** Audit Trail */
+            audit_trail: components["schemas"]["ExportedAuditEntry"][];
+            /** Comments */
+            comments: components["schemas"]["ExportedComment"][];
+            /** Documents */
+            documents: components["schemas"]["ExportedDocument"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Memberships */
+            memberships: components["schemas"]["ExportedMembership"][];
+            /** Tenders */
+            tenders: components["schemas"]["ExportedTender"][];
         };
         /**
          * DeliverableKind
@@ -1415,6 +1551,157 @@ export interface components {
          * @enum {string}
          */
         ExportFormat: "docx" | "xlsx";
+        /**
+         * ExportedAccount
+         * @description Kullanıcının hesap verisi.
+         */
+        ExportedAccount: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string;
+            /** Email Verified */
+            email_verified: boolean;
+            /** Full Name */
+            full_name: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /**
+         * ExportedAuditEntry
+         * @description Kullanıcının KENDİ yaptığı işlemlerin denetim kaydı.
+         */
+        ExportedAuditEntry: {
+            /** Action */
+            action: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Resource Id */
+            resource_id: string | null;
+            /** Resource Type */
+            resource_type: string;
+        };
+        /**
+         * ExportedComment
+         * @description Kullanıcının bir bulguya yazdığı yorum (kişisel veri: yazar + metin).
+         */
+        ExportedComment: {
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Finding Id
+             * Format: uuid
+             */
+            finding_id: string;
+            /** Finding Kind */
+            finding_kind: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Tender Id
+             * Format: uuid
+             */
+            tender_id: string;
+        };
+        /**
+         * ExportedDocument
+         * @description Doküman ENVANTERİ — dosyanın kendisi değil.
+         *
+         *     Dosya içeriği bu dışa aktarmaya konmaz: yüzlerce megabaytlık PDF'leri JSON'a
+         *     gömmek ne taşınabilir ne de yararlıdır. Kullanıcı dosyalarına inceleme
+         *     ekranından zaten erişebilir; buradaki liste "hangi dosyalar işleniyor"
+         *     sorusunu cevaplar (KVKK md. 11/b).
+         */
+        ExportedDocument: {
+            /** Content Type */
+            content_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Filename */
+            filename: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Page Count */
+            page_count: number | null;
+            /** Size Bytes */
+            size_bytes: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Tender Id
+             * Format: uuid
+             */
+            tender_id: string;
+        };
+        /**
+         * ExportedMembership
+         * @description Kullanıcının bir organizasyondaki üyeliği.
+         */
+        ExportedMembership: {
+            /**
+             * Joined At
+             * Format: date-time
+             */
+            joined_at: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Organization Name */
+            organization_name: string;
+            /** Organization Slug */
+            organization_slug: string;
+            /** Role */
+            role: string;
+        };
+        /**
+         * ExportedTender
+         * @description İhale envanteri.
+         */
+        ExportedTender: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        };
         /**
          * FindingCommentCreate
          * @description Yeni bulgu yorumu.
@@ -1704,6 +1991,21 @@ export interface components {
             /** Organization Slug */
             organization_slug: string;
             role: components["schemas"]["Role"];
+        };
+        /**
+         * OrganizationResponse
+         * @description Aktif organizasyon özeti.
+         */
+        OrganizationResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
         };
         /**
          * PanelDeadline
@@ -3328,6 +3630,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_current_organization_api_v1_organizations_current_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_current_organization_api_v1_organizations_current_close_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CloseAccountResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_my_data_api_v1_organizations_current_export_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportResponse"];
                 };
             };
             /** @description Validation Error */

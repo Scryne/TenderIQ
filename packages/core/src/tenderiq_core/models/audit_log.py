@@ -36,6 +36,11 @@ class AuditAction(StrEnum):
     TENDER_RESTORED = "tender.restored"
     DOCUMENT_RESTORED = "document.restored"
     DATA_PURGED = "data.purged"
+    # KVKK md. 7 hesap kapatma. Organizasyon satırı anonimleştirilse de bu kayıt
+    # kalır: "kim, ne zaman kapattı" sorusunun tek cevabıdır.
+    ORGANIZATION_CLOSED = "organization.closed"
+    # KVKK md. 11 veri sahibi erişim hakkı — kim kendi verisini dışa aktardı.
+    DATA_EXPORTED = "data.exported"
     ROLE_CHANGED = "role.changed"
     MEMBERSHIP_REMOVED = "membership.removed"
     # Abonelik/plan değişimi (Sprint 3.3-B): resource_type = "subscription",
