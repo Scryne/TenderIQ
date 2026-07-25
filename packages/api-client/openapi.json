@@ -1241,6 +1241,243 @@
         "title": "MembershipInfo",
         "type": "object"
       },
+      "PanelDeadline": {
+        "description": "Yaklaşan tarih/süre öğesi — kaynağıyla birlikte.",
+        "properties": {
+          "due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "tender_id": {
+            "format": "uuid",
+            "title": "Tender Id",
+            "type": "string"
+          },
+          "tender_title": {
+            "title": "Tender Title",
+            "type": "string"
+          },
+          "value_text": {
+            "title": "Value Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tender_id",
+          "tender_title",
+          "label",
+          "value_text",
+          "due_date",
+          "page",
+          "section"
+        ],
+        "title": "PanelDeadline",
+        "type": "object"
+      },
+      "PanelExposure": {
+        "description": "Eleme riski taşıyan madde: yüksek risk veya karşılanmayan gereksinim.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "source": {
+            "enum": [
+              "risk",
+              "compliance"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "tender_id": {
+            "format": "uuid",
+            "title": "Tender Id",
+            "type": "string"
+          },
+          "tender_title": {
+            "title": "Tender Title",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tender_id",
+          "tender_title",
+          "text",
+          "source",
+          "page",
+          "section"
+        ],
+        "title": "PanelExposure",
+        "type": "object"
+      },
+      "PanelResponse": {
+        "description": "Genel bakış ekranının tüm verisi.",
+        "properties": {
+          "deadlines": {
+            "items": {
+              "$ref": "#/components/schemas/PanelDeadline"
+            },
+            "title": "Deadlines",
+            "type": "array"
+          },
+          "documents": {
+            "$ref": "#/components/schemas/QuotaUsage"
+          },
+          "exposures": {
+            "items": {
+              "$ref": "#/components/schemas/PanelExposure"
+            },
+            "title": "Exposures",
+            "type": "array"
+          },
+          "in_progress": {
+            "items": {
+              "$ref": "#/components/schemas/PanelTenderRef"
+            },
+            "title": "In Progress",
+            "type": "array"
+          },
+          "pages": {
+            "$ref": "#/components/schemas/QuotaUsage"
+          },
+          "period_end": {
+            "format": "date-time",
+            "title": "Period End",
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanTier"
+          },
+          "plan_name": {
+            "title": "Plan Name",
+            "type": "string"
+          },
+          "tenders": {
+            "$ref": "#/components/schemas/PanelTenderCounts"
+          }
+        },
+        "required": [
+          "tenders",
+          "plan",
+          "plan_name",
+          "period_end",
+          "documents",
+          "pages",
+          "deadlines",
+          "exposures",
+          "in_progress"
+        ],
+        "title": "PanelResponse",
+        "type": "object"
+      },
+      "PanelTenderCounts": {
+        "description": "İhalelerin duruma göre dağılımı.",
+        "properties": {
+          "analyzing": {
+            "title": "Analyzing",
+            "type": "integer"
+          },
+          "archived": {
+            "title": "Archived",
+            "type": "integer"
+          },
+          "draft": {
+            "title": "Draft",
+            "type": "integer"
+          },
+          "review_ready": {
+            "title": "Review Ready",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "draft",
+          "analyzing",
+          "review_ready",
+          "archived"
+        ],
+        "title": "PanelTenderCounts",
+        "type": "object"
+      },
+      "PanelTenderRef": {
+        "description": "Panelden ihaleye geçiş için asgari referans.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "PanelTenderRef",
+        "type": "object"
+      },
       "PlanInfo": {
         "description": "Bir plan kademesinin kullanıcıya-görünür tanımı.",
         "properties": {
@@ -3912,6 +4149,68 @@
         "summary": "Update Member Role",
         "tags": [
           "members"
+        ]
+      }
+    },
+    "/api/v1/panel": {
+      "get": {
+        "description": "Aktif kiracının panel özetini tek çağrıda döndürür.\n\n``limit`` son tarih ve maruziyet listelerinin her birine ayrı ayrı uygulanır.",
+        "operationId": "get_panel_api_v1_panel_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PanelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Panel",
+        "tags": [
+          "panel"
         ]
       }
     },

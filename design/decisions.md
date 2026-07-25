@@ -164,3 +164,31 @@ hizalanıp blok olarak ortalandı. 9 → em cinsinden ölçü, metnin üstüne b
    ve renk-tek-başına-bilgi-taşımaz kuralları elle denetlendi ve geçti.
 4. `/panel` verisi beş uçtan birleşiyor (incelemeye hazır ilk 5 ihale için N+1).
    Kapalı beta ölçeğinde yeterli; `GET /api/v1/panel` toplu ucu açılmalı.
+
+---
+
+## 2026-07-25 · panel tek uca bağlandı
+
+**Karar.** `/panel` beş uçtan (ihaleler + kullanım + her ihale için takvim/risk/
+uygunluk) birleşmeyi bıraktı; `GET /api/v1/panel` tek çağrısına geçti.
+
+**Neden sadece performans değil.** Eski hâl istek sayısını sınırlamak için yalnız
+ilk 5 incelemeye-hazır ihalenin bulgularını çekiyordu. Yani ekran "en yakın son
+teklif tarihi"ni değil "ilk beş ihalenin en yakın tarihi"ni gösteriyordu —
+BRIEF'teki birincil işi (5 saniyede eleme riskini görmek) sessizce yanlışlıyordu.
+
+**Tarih ayrıştırma sunucuya taşındı** (`tenderiq_core.dates.parse_tr_date`,
+`lib/format.ts → parseTrDate` ile aynı sözleşme). Sıralama istemcide kalsaydı
+sunucu anlamlı bir LIMIT uygulayamaz, tüm satırları göndermek zorunda kalırdı.
+Ham metin (`value_text`) yanıtta korunur — kaynağa sadık gösterim şart.
+
+**Bileşen değişikliği.** `PanelData.detailLoading` kaldırıldı: tek uçla "üst veri
+geldi, ayrıntılar geliyor" ara durumu yok. Üst seviye `state="loading"` iskeleti
+duruyor.
+
+**Gerçek veriyle doğrulama.** Faz 2 kiracısının 6 takvim bulgusundan 2'si
+ayrıştırıldı ve başa alındı (28/02/2025 → 28/08/2025); "28/08/2025 tarihinden
+önce olmamak üzere" gibi cümle içine gömülü tarih yakalandı, "14:00" ve "150
+(yüzelli) takvim günüdür" ayrıştırılamayıp ham metniyle sonda kaldı.
+
+**Çekim.** `design/preview` 375+1440: 0 konsol hatası, 0 yatay taşma.

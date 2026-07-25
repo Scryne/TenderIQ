@@ -57,8 +57,6 @@ export type PanelData = {
   deadlines: DeadlineItem[];
   exposures: ExposureItem[];
   inProgress: { id: string; title: string }[];
-  /** Toplam bulgu ve bunların kaçının kaynağa bağlı olduğu. */
-  detailLoading: boolean;
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -136,16 +134,14 @@ export function PanelView({
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
         <MetricCard
           label="ELEME RİSKİ"
-          value={data.detailLoading ? "…" : formatNumber(data.exposures.length)}
+          value={formatNumber(data.exposures.length)}
           unit="madde"
           tone={data.exposures.length > 0 ? "danger" : "success"}
           icon={ShieldAlert}
           qualifier={
-            data.detailLoading
-              ? "Bulgular taranıyor"
-              : data.exposures.length === 0
-                ? "Açık madde yok"
-                : `${formatNumber(new Set(data.exposures.map((item) => item.tenderId)).size)} ihalede`
+            data.exposures.length === 0
+              ? "Açık madde yok"
+              : `${formatNumber(new Set(data.exposures.map((item) => item.tenderId)).size)} ihalede`
           }
         />
         <MetricCard
@@ -195,13 +191,7 @@ export function PanelView({
               description="Karşılanmayan gereksinimler ve yüksek riskli sözleşme maddeleri — her biri kaynağıyla."
             />
             <Card>
-              {data.detailLoading ? (
-                <CardContent className="flex flex-col gap-4">
-                  <Skeleton className="h-12" />
-                  <Skeleton className="h-12" />
-                  <Skeleton className="h-12" />
-                </CardContent>
-              ) : data.exposures.length === 0 ? (
+              {data.exposures.length === 0 ? (
                 <CardContent className="py-10 text-center">
                   <p className="text-sm font-medium text-ink-1">Açık eleme riski yok</p>
                   <p className="mt-1 text-sm text-ink-2">
@@ -250,12 +240,7 @@ export function PanelView({
               description="Şartnameden çıkarılan tarihler. Metin ayrıştırılamadıysa dokümandaki hali gösterilir."
             />
             <Card>
-              {data.detailLoading ? (
-                <CardContent className="flex flex-col gap-4">
-                  <Skeleton className="h-12" />
-                  <Skeleton className="h-12" />
-                </CardContent>
-              ) : data.deadlines.length === 0 ? (
+              {data.deadlines.length === 0 ? (
                 <CardContent className="py-10 text-center">
                   <p className="text-sm font-medium text-ink-1">Takvim maddesi çıkarılmadı</p>
                   <p className="mt-1 text-sm text-ink-2">

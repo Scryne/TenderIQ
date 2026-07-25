@@ -124,7 +124,6 @@ const MOCK_PANEL: PanelData = {
     },
   ],
   inProgress: [{ id: MOCK_TENDERS[1].id, title: MOCK_TENDERS[1].title }],
-  detailLoading: false,
 };
 
 const EMPTY_PANEL: PanelData = {
