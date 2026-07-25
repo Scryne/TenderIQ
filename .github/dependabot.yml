@@ -1,0 +1,67 @@
+# Bağımlılık güncelleme otomasyonu — J.2 #7 (tedarik zinciri).
+#
+# Solo-dev gerçekliği: her güncelleme için ayrı PR gürültü yaratır. Bu yüzden
+# küçük/yama sürümleri TEK gruplu PR'da toplanır; ana (major) sürümler ayrı gelir
+# çünkü onlar gerçekten okunmayı hak eder. Güvenlik güncellemeleri gruplanmaz —
+# Dependabot onları her hâlükârda ayrı ve öncelikli açar.
+version: 2
+
+updates:
+  # ── Python (uv workspace: pyproject.toml + uv.lock) ───────────────────────
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ── JavaScript (pnpm workspace) ───────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 5
+    groups:
+      js-minor-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # Sprint 3.1 sürüm kısıtı: pdfjs-dist 5.x'in ESM çıktısı Next dev'in
+      # zorunlu eval-source-map devtool'uyla çakışıyor (mozilla/pdf.js#20435,
+      # react-pdf#2031). Exact pin bilinçlidir; upstream düzelene dek elle
+      # yükseltilir. Bkz. GELISTIRME_PLANI.md Sprint 3.1 notu.
+      - dependency-name: pdfjs-dist
+      - dependency-name: react-pdf
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ── GitHub Actions (pin'lenmiş action sürümleri) ──────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(ci)"
+
+  # ── Docker taban imajları ─────────────────────────────────────────────────
+  - package-ecosystem: docker
+    directories:
+      - /infra/docker
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(docker)"

@@ -744,8 +744,9 @@ Faz 0 denetiminde kapatılanlar için D bölümüne bakınız. Kalan backlog (ö
 | 4 | Refresh token + rotasyon + logout/iptal (Redis denylist); access token ≤1 saat | 12 saatlik iptal-edilemez JWT beta için kabul edilemez | Faz 3 Sprint 3.3 |
 | 5 | E-posta doğrulama + parola sıfırlama | Hesap ele geçirme & spam kayıt | Faz 3 Sprint 3.3 |
 | 6 | Çoklu-org seçimi + davet + üye yönetimi (bugün ilk üyelik rastgele) | Çok kullanıcılı kiracılar | Faz 3 Sprint 3.3 |
-| 7 | `pip-audit`'i **bloke edici** yap (istisna listesiyle) + Dependabot/Renovate + imaj taraması (trivy) | Tedarik zinciri | Faz 2 sonu |
+| 7 | ~~`pip-audit`'i **bloke edici** yap (istisna listesiyle) + Dependabot/Renovate + imaj taraması (trivy)~~ ✅ 2026-07-25 | Tedarik zinciri | Faz 2 sonu |
 | 8 | Sır rotasyon prosedürü (AUTH_SECRET, R2, LLM anahtarları) — çift-anahtar destekli | Sızıntı müdahalesi | GA öncesi |
+|   | *(#7 notu, 2026-07-25)* `pip-audit` artık `\|\| true` olmadan koşar; istisnalar `.github/pip-audit-ignore.txt`'de gerekçeliyle tutulur. Trivy iki kapıda: `fs` (vuln+misconfig, gitleaks ile çakışmasın diye `secret` kapalı) ve üç imajın taraması. Kapılar açılırken **bulunan gerçek sorunlar kapatıldı**: 8 npm HIGH (Next.js SSRF×2+DoS dâhil), api/worker imajlarında root kullanıcı, taban imajlarda 26 Debian CVE'si, web çalışma imajındaki kullanılmayan npm CLI. Dependabot: uv/npm/actions/docker, küçük sürümler gruplu. | | |
 | 9 | (Ops.) 2FA/TOTP — kurumsal müşteri isterse | Satış gereksinimi | Talep gelince |
 
 ### J.3 Veri Dayanıklılığı & Felaket Kurtarma

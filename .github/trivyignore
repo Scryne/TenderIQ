@@ -1,0 +1,10 @@
+# Trivy istisna listesi — J.2 #7
+#
+# Trivy CI'da BLOKE EDİCİDİR (HIGH/CRITICAL). `ignore-unfixed: true` olduğundan
+# yaması OLMAYAN açıklar zaten bloke etmez; buraya yalnız yaması olduğu hâlde
+# bilinçli olarak uygulanmayanlar yazılır.
+#
+# Biçim (satır başına bir tane), GEREKÇESİZ SATIR EKLEMEYİN:
+#   CVE-2026-XXXXX  # 2026-07-25 · neden · ne zaman yeniden bakılacak
+#
+# Şu an istisna yok.

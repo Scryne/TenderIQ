@@ -1,0 +1,13 @@
+# pip-audit istisna listesi — J.2 #7
+#
+# pip-audit CI'da BLOKE EDİCİDİR. Bir güvenlik açığı düzeltilemiyorsa (upstream
+# yaması yok, bizi etkilemiyor, ya da yükseltme başka bir şeyi kırıyor) buraya
+# GEREKÇESİYLE ve TARİHİYLE yazılır. Gerekçesiz satır eklemeyin: bu dosya
+# "neden hâlâ açık" sorusunun tek cevabıdır.
+#
+# Biçim (satır başına bir tane):
+#   GHSA-xxxx-xxxx-xxxx  # 2026-07-25 · neden · ne zaman yeniden bakılacak
+#
+# Boş satırlar ve `#` ile başlayan satırlar yok sayılır.
+#
+# Şu an istisna yok.

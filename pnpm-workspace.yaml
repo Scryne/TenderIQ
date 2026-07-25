@@ -20,3 +20,13 @@ allowBuilds:
 # Ayna güncellenince bu override kaldırılabilir.
 overrides:
   caniuse-lite: 1.0.30001800
+
+  # --- Güvenlik override'ları (trivy HIGH kapısı, J.2 #7) ------------------
+  # Aşağıdakiler GEÇİŞLİ bağımlılıklardır: doğrudan bizim manifestimizde yok,
+  # bu yüzden yükseltmeleri ancak override ile zorlanabilir. Her biri trivy'nin
+  # bloke edici taramasında HIGH olarak çıktı ve yaması mevcut.
+  # Üst paket kendi bağımlılığını yamalı sürüme taşıdığında bu satırlar kaldırılır.
+  brace-expansion: ">=5.0.8" # CVE-2026-14257 — ReDoS
+  fast-uri: ">=3.1.4" # CVE-2026-16221
+  postcss: ">=8.5.18" # CVE-2026-45623 + GHSA-r28c-9q8g-f849 — sourceMappingURL yol aşımı
+  sharp: ">=0.35.0" # GHSA-f88m-g3jw-g9cj — libvips CVE'leri
