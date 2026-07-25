@@ -3266,6 +3266,59 @@
         ]
       }
     },
+    "/api/v1/documents/{document_id}": {
+      "delete": {
+        "description": "Dokümanı siler (yumuşak) — ihalenin kendisi etkilenmez.\n\nTek bir yanlış dosyayı ihaleyi bozmadan kaldırmak için. Nesne depolamadaki\ndosya bu aşamada DURUR; saklama penceresi dolunca zamanlanmış iş hem satırı\nhem dosyayı kalıcı siler (KVKK §8.3).\n\nNot: bu dokümandan çıkarılmış bulgular da okuma yollarından düşmez — onlar\n``document_id``'ye bağlıdır ve kalıcı silmede CASCADE ile giderler. Bulguların\nanında gizlenmesi gerekiyorsa ihale silinmelidir; tek doküman silme, hatalı\nyüklemeyi geri almak içindir.",
+        "operationId": "delete_document_api_v1_documents__document_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
     "/api/v1/documents/{document_id}/complete": {
       "post": {
         "description": "Yüklemeyi doğrular, dokümanı ``uploaded`` yapar ve işleme job'ını kuyruklar.\n\nIdempotent: zaten ``uploaded`` bir doküman için mevcut son iş döndürülür.\nKiracı bağlamı elle kurulur; job kuyruklama commit SONRASI yapılır (worker'ın\nhenüz görünmeyen bir satırı okuma yarışını önler).",
@@ -4489,6 +4542,57 @@
       }
     },
     "/api/v1/tenders/{tender_id}": {
+      "delete": {
+        "description": "İhaleyi siler (yumuşak): anında görünmez olur, saklama penceresi sonunda yok edilir.\n\nNesne depolamadaki dosyalara bu aşamada dokunulmaz — pencere içinde\n``restore`` ile geri alınabilir. Kalıcı silme zamanlanmış işin\nsorumluluğundadır (``tenderiq_core.services.deletion``, KVKK §8.3).\n\n**İşaret dokümanlara da yayılır.** Yalnız ihaleyi işaretlemek yetmez: bir\ndokümanı ihalesine JOIN etmeden sorgulayan yollar (ör.\n``GET /documents/{id}/file``, doküman listesi) silinmiş ihalenin dosyasını\nyine de verirdi — imzalı indirme URL'i dâhil. Kademeli işaretlenenler\n``deleted_with_tender`` ile ayrıca damgalanır; ``restore`` yalnız onları geri\naçar, böylece kullanıcının daha önce TEK TEK sildiği doküman dirilmez.",
+        "operationId": "delete_tender_api_v1_tenders__tender_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Tender",
+        "tags": [
+          "tenders"
+        ]
+      },
       "get": {
         "description": "Tek bir ihaleyi döndürür (RLS: başka kiracınınki 404).",
         "operationId": "get_tender_api_v1_tenders__tender_id__get",
@@ -4678,7 +4782,7 @@
     },
     "/api/v1/tenders/{tender_id}/documents": {
       "get": {
-        "description": "Bir ihaleye bağlı dokümanları listeler.",
+        "description": "Bir ihaleye bağlı dokümanları listeler.\n\nVar olmayan (veya silinmiş/başka kiracıya ait) ihale için 404 döner — boş\nliste değil. Kardeş bulgu uçları da böyle davranır; \"ihale yok\" ile \"ihalenin\ndokümanı yok\" ayrımı istemci için anlamlıdır.",
         "operationId": "list_documents_api_v1_tenders__tender_id__documents_get",
         "parameters": [
           {
@@ -5034,6 +5138,66 @@
           }
         },
         "summary": "List Requirements",
+        "tags": [
+          "tenders"
+        ]
+      }
+    },
+    "/api/v1/tenders/{tender_id}/restore": {
+      "post": {
+        "description": "Yumuşak silinmiş bir ihaleyi geri alır (saklama penceresi içindeyken).\n\nVarsayılan okuma filtresi tam da bu satırı gizlediğinden ``include_deleted``\nopt-out'u zorunludur; aksi hâlde geri alınacak kayıt hiç bulunamazdı.\nKalıcı silinmiş (satırı gitmiş) bir ihale geri alınamaz — 404 döner ve bu\nbilinçlidir: KVKK silmesi geri alınabilir olsaydı anlamı kalmazdı.",
+        "operationId": "restore_tender_api_v1_tenders__tender_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tender_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tender Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Tender",
         "tags": [
           "tenders"
         ]

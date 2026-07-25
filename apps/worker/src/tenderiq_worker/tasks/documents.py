@@ -23,6 +23,7 @@ from sqlalchemy import select
 from tenderiq_core.config import get_settings
 from tenderiq_core.logging import get_logger, job_id_var, tenant_id_var
 from tenderiq_core.models import (
+    AuditAction,
     Document,
     DocumentStatus,
     InvalidJobTransitionError,
@@ -33,7 +34,13 @@ from tenderiq_core.models import (
     TenderStatus,
 )
 from tenderiq_core.observability import bind_sentry_tags
-from tenderiq_core.queueing import TASK_CLEANUP_STALE_UPLOADS, TASK_PROCESS_DOCUMENT
+from tenderiq_core.queueing import (
+    TASK_CLEANUP_STALE_UPLOADS,
+    TASK_PROCESS_DOCUMENT,
+    TASK_PURGE_DELETED,
+)
+from tenderiq_core.services.audit import record_audit
+from tenderiq_core.services.deletion import purge_cutoff, purge_tenant_sync
 from tenderiq_core.services.quota import QuotaExceededError
 from tenderiq_core.storage import StorageNotConfiguredError
 from tenderiq_worker.celery_app import celery_app
@@ -247,3 +254,74 @@ def _delete_objects_best_effort(keys: list[str]) -> None:
             storage.delete_object(key)
         except Exception:
             logger.warning("supurge_nesne_silinemedi", key=key, exc_info=True)
+
+
+@celery_app.task(name=TASK_PURGE_DELETED)
+def purge_deleted() -> int:
+    """Saklama penceresi dolan yumuşak silmeleri KALICI olarak siler (KVKK §8.3).
+
+    Kullanıcının "sil" demesi veriyi anında yok etmez (bkz.
+    ``tenderiq_core.services.deletion``); bu iş pencereyi dolduranları
+    kesinleştirir: önce nesne depolamadaki dosyalar, sonra DB satırları
+    (CASCADE alt tabloları götürür).
+
+    Depolama yapılandırılmamışsa iş HİÇBİR ŞEY silmez ve uyarı basar: dosyayı
+    silemeyeceksek DB satırını silmek, depoda erişilemez ve artık kime ait
+    olduğu bilinmeyen dosya bırakırdı.
+
+    RLS gereği kiracı kiracı dolaşılır (``organization`` kiracı-kök tablodur).
+    """
+    settings = get_settings()
+    cutoff = purge_cutoff(settings.data_retention_days, now=_utcnow())
+
+    try:
+        storage = get_storage()
+    except StorageNotConfiguredError:
+        logger.warning("kalici_silme_atlandi_depo_yok")
+        return 0
+
+    def _delete_object(key: str) -> bool:
+        try:
+            storage.delete_object(key)
+        except Exception:
+            logger.warning("kalici_silme_nesne_silinemedi", key=key, exc_info=True)
+            return False
+        return True
+
+    factory = get_session_factory()
+    with factory() as session:
+        tenant_ids = list(session.scalars(select(Organization.id)))
+
+    purged_total = 0
+    for tenant_id in tenant_ids:
+        with tenant_session(tenant_id) as session:
+            result = purge_tenant_sync(session, cutoff=cutoff, delete_object=_delete_object)
+            if not result.anything:
+                continue
+            # Denetim kaydı silinen satırdan SONRA da kalmalı: kalıcı silmenin
+            # gerçekleştiğinin tek kanıtı budur (satırın kendisi artık yok).
+            record_audit(
+                session,
+                tenant_id=tenant_id,
+                action=AuditAction.DATA_PURGED,
+                resource_type="tenant",
+                resource_id=tenant_id,
+                meta={
+                    "tenders": result.tenders,
+                    "documents": result.documents,
+                    "objects_deleted": result.objects_deleted,
+                    "objects_failed": result.objects_failed,
+                    "retention_days": settings.data_retention_days,
+                },
+            )
+        purged_total += result.tenders + result.documents
+        logger.info(
+            "kalici_silme_yapildi",
+            tenant_id=str(tenant_id),
+            tenders=result.tenders,
+            documents=result.documents,
+            objects_deleted=result.objects_deleted,
+            objects_failed=result.objects_failed,
+        )
+
+    return purged_total

@@ -6,13 +6,13 @@ import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -28,6 +28,7 @@ from tenderiq_api.errors import (
     QuotaExceededError,
     ValidationFailedError,
 )
+from tenderiq_core.db.soft_delete import INCLUDE_DELETED
 from tenderiq_core.db.tenant import set_tenant_context
 from tenderiq_core.findings import (
     ComplianceStatus,
@@ -351,6 +352,94 @@ async def get_tender(tender_id: uuid.UUID, session: TenantSessionDep) -> TenderR
     return TenderResponse.model_validate(tender)
 
 
+@router.delete(
+    "/{tender_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[_writer],
+)
+async def delete_tender(
+    tender_id: uuid.UUID, session: TenantSessionDep, principal: PrincipalDep
+) -> None:
+    """İhaleyi siler (yumuşak): anında görünmez olur, saklama penceresi sonunda yok edilir.
+
+    Nesne depolamadaki dosyalara bu aşamada dokunulmaz — pencere içinde
+    ``restore`` ile geri alınabilir. Kalıcı silme zamanlanmış işin
+    sorumluluğundadır (``tenderiq_core.services.deletion``, KVKK §8.3).
+
+    **İşaret dokümanlara da yayılır.** Yalnız ihaleyi işaretlemek yetmez: bir
+    dokümanı ihalesine JOIN etmeden sorgulayan yollar (ör.
+    ``GET /documents/{id}/file``, doküman listesi) silinmiş ihalenin dosyasını
+    yine de verirdi — imzalı indirme URL'i dâhil. Kademeli işaretlenenler
+    ``deleted_with_tender`` ile ayrıca damgalanır; ``restore`` yalnız onları geri
+    açar, böylece kullanıcının daha önce TEK TEK sildiği doküman dirilmez.
+    """
+    tender = await session.get(Tender, tender_id)
+    if tender is None:
+        raise NotFoundError("İhale bulunamadı.")
+
+    now = datetime.now(UTC)
+    tender.deleted_at = now
+    await session.execute(
+        update(Document)
+        .where(Document.tender_id == tender_id, Document.deleted_at.is_(None))
+        .values(deleted_at=now, deleted_with_tender=True)
+    )
+    record_audit(
+        session,
+        tenant_id=principal.tenant_id,
+        action=AuditAction.TENDER_DELETED,
+        resource_type="tender",
+        resource_id=tender_id,
+        actor_user_id=principal.user_id,
+        meta={"title": tender.title},
+    )
+    await session.flush()
+
+
+@router.post(
+    "/{tender_id}/restore",
+    response_model=TenderResponse,
+    dependencies=[_writer],
+)
+async def restore_tender(
+    tender_id: uuid.UUID, session: TenantSessionDep, principal: PrincipalDep
+) -> TenderResponse:
+    """Yumuşak silinmiş bir ihaleyi geri alır (saklama penceresi içindeyken).
+
+    Varsayılan okuma filtresi tam da bu satırı gizlediğinden ``include_deleted``
+    opt-out'u zorunludur; aksi hâlde geri alınacak kayıt hiç bulunamazdı.
+    Kalıcı silinmiş (satırı gitmiş) bir ihale geri alınamaz — 404 döner ve bu
+    bilinçlidir: KVKK silmesi geri alınabilir olsaydı anlamı kalmazdı.
+    """
+    result = await session.execute(
+        select(Tender).where(Tender.id == tender_id).execution_options(**{INCLUDE_DELETED: True})
+    )
+    tender = result.scalars().first()
+    if tender is None:
+        raise NotFoundError("İhale bulunamadı.")
+    if tender.deleted_at is None:
+        raise ConflictError("İhale zaten etkin — geri alınacak bir silme yok.")
+
+    # Yalnız ihaleyle BİRLİKTE silinenler geri açılır; kullanıcının tek tek
+    # sildiği dokümanlar silinmiş kalır (bkz. delete_tender).
+    await session.execute(
+        update(Document)
+        .where(Document.tender_id == tender_id, Document.deleted_with_tender.is_(True))
+        .values(deleted_at=None, deleted_with_tender=False)
+    )
+    tender.deleted_at = None
+    record_audit(
+        session,
+        tenant_id=principal.tenant_id,
+        action=AuditAction.TENDER_RESTORED,
+        resource_type="tender",
+        resource_id=tender_id,
+        actor_user_id=principal.user_id,
+    )
+    await session.flush()
+    return TenderResponse.model_validate(tender)
+
+
 @router.post(
     "/{tender_id}/documents",
     response_model=DocumentUploadResponse,
@@ -446,7 +535,14 @@ async def create_document(
 
 @router.get("/{tender_id}/documents", response_model=list[DocumentResponse])
 async def list_documents(tender_id: uuid.UUID, session: TenantSessionDep) -> list[DocumentResponse]:
-    """Bir ihaleye bağlı dokümanları listeler."""
+    """Bir ihaleye bağlı dokümanları listeler.
+
+    Var olmayan (veya silinmiş/başka kiracıya ait) ihale için 404 döner — boş
+    liste değil. Kardeş bulgu uçları da böyle davranır; "ihale yok" ile "ihalenin
+    dokümanı yok" ayrımı istemci için anlamlıdır.
+    """
+    if await session.get(Tender, tender_id) is None:
+        raise NotFoundError("İhale bulunamadı.")
     result = await session.execute(
         select(Document).where(Document.tender_id == tender_id).order_by(Document.created_at.desc())
     )

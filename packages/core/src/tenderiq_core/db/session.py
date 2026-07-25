@@ -13,6 +13,12 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import Session, sessionmaker
 
 from tenderiq_core.config import Settings, get_settings
+from tenderiq_core.db.soft_delete import register_soft_delete_filter
+
+# Yumuşak silme filtresi `Session` SINIFINA bağlanır (bkz. db.soft_delete):
+# tek kayıt hem async hem senkron tüm oturumları kapsar ve import edildiği anda
+# etkindir — bir fabrikanın bunu kurmayı unutması mümkün olmasın.
+register_soft_delete_filter()
 
 
 def create_engine(settings: Settings | None = None) -> AsyncEngine:

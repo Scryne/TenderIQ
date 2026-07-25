@@ -5,12 +5,21 @@ from __future__ import annotations
 import uuid
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, String, UniqueConstraint, Uuid
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    Uuid,
+    false,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tenderiq_core.db.base import Base, TimestampMixin
-from tenderiq_core.db.mixins import TenantMixin, UUIDPKMixin
+from tenderiq_core.db.mixins import SoftDeleteMixin, TenantMixin, UUIDPKMixin
 
 
 class DocumentKind(StrEnum):
@@ -31,7 +40,7 @@ class DocumentStatus(StrEnum):
     FAILED = "failed"
 
 
-class Document(UUIDPKMixin, TenantMixin, TimestampMixin, Base):
+class Document(UUIDPKMixin, TenantMixin, TimestampMixin, SoftDeleteMixin, Base):
     """Bir Tender'a bağlı yüklenen dosya (kiracı-özel)."""
 
     __tablename__ = "document"
@@ -56,3 +65,10 @@ class Document(UUIDPKMixin, TenantMixin, TimestampMixin, Base):
         SAEnum(DocumentStatus, native_enum=False, length=20), nullable=False
     )
     idempotency_key: Mapped[str | None] = mapped_column(String(255))
+    # İhalesiyle BİRLİKTE mi silindi (kademeli işaret), yoksa tek tek mi?
+    # ``restore`` yalnız birlikte silinenleri geri açar. Zaman damgası eşitliğine
+    # bakmak yeterli DEĞİLDİR: ardışık iki silme aynı saat tikine düşebilir ve o
+    # zaman kullanıcının bilerek sildiği dosya da dirilir.
+    deleted_with_tender: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )

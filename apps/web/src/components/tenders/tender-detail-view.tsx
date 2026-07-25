@@ -50,6 +50,7 @@ export function TenderDetailView({
   reviewHref,
   reviewReady,
   uploader,
+  deleteAction,
   onRetryJob,
   retryingJobId,
 }: {
@@ -62,6 +63,8 @@ export function TenderDetailView({
   reviewHref: string;
   reviewReady: boolean;
   uploader: ReactNode;
+  /** İhaleyi silme eylemi (sayfa enjekte eder; katalog önizlemesinde boş kalır). */
+  deleteAction?: ReactNode;
   onRetryJob?: (jobId: string) => void;
   retryingJobId?: string | null;
 }) {
@@ -77,18 +80,23 @@ export function TenderDetailView({
           />
         }
         actions={
-          reviewReady ? (
-            <Button asChild>
-              <Link href={reviewHref}>
-                <ScanSearch strokeWidth={1.75} />
-                Bulguları incele
-              </Link>
-            </Button>
-          ) : (
-            // Devre dışı buton yerine nedenini söyleyen metin (§10.5 ruhu):
-            // kullanıcı neden tıklayamadığını bilmeli.
-            <p className="text-sm text-ink-3">Analiz bitince inceleme açılır</p>
-          )
+          <div className="flex items-center gap-2">
+            {reviewReady ? (
+              <Button asChild>
+                <Link href={reviewHref}>
+                  <ScanSearch strokeWidth={1.75} />
+                  Bulguları incele
+                </Link>
+              </Button>
+            ) : (
+              // Devre dışı buton yerine nedenini söyleyen metin (§10.5 ruhu):
+              // kullanıcı neden tıklayamadığını bilmeli.
+              <p className="text-sm text-ink-3">Analiz bitince inceleme açılır</p>
+            )}
+            {/* Yıkıcı eylem birincil eylemin SAĞINDA ve ghost tonda: yanlışlıkla
+                tıklanmaması için görsel ağırlığı en düşük öğe olmalı (§8.5). */}
+            {deleteAction}
+          </div>
         }
       />
 

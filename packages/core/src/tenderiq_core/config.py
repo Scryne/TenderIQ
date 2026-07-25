@@ -118,6 +118,12 @@ class Settings(BaseSettings):
     # Refresh token ömrü: kullanıcı bu süre boyunca yeniden giriş yapmadan
     # oturumunu sürdürebilir (tek-kullanım + rotasyon + reuse-detection; Redis).
     refresh_token_expire_days: int = 30
+    # Aynı refresh token'la gelen EŞZAMANLI yenilemelerin hırsızlık sayılmadığı
+    # pencere. Tek sayfa yüklemesi çok sayıda paralel istek üretir ve access
+    # token dolmuşsa hepsi aynı anda yenileme ister; bu meşru eşzamanlılık
+    # aileyi iptal ettirmemelidir. 0 = tolerans yok (en katı; her tekrar reuse
+    # sayılır). Asıl savunma kısa TTL + rotasyon + aile iptalidir.
+    refresh_reuse_grace_seconds: int = 10
 
     # ── E-posta / hesap doğrulama (Sprint 3.3-D) ─────────────────────────────
     # "logging" (dev/varsayılan: e-posta gerçekten gönderilmez, gövde+bağlantı
@@ -147,6 +153,12 @@ class Settings(BaseSettings):
     # ── Yükleme sınırları (Sprint 1.1 güvenlik) ──────────────────────────────
     upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB; ileride plan kotasına bağlanır
     upload_pending_ttl_hours: int = 24  # yarım kalan yüklemeler bu süreden sonra failed olur
+
+    # ── Veri saklama / kalıcı silme (KVKK, §8.3 · Faz 4) ─────────────────────
+    # Yumuşak silinen ihale/doküman bu süre sonunda KALICI olarak silinir (DB
+    # satırları + nesne depolamadaki dosyalar). Pencere "geri al" içindir; KVKK
+    # silme talebinde makul süre sınırı olduğundan sınırsız uzatılmamalıdır.
+    data_retention_days: int = 30
 
     # ── Oran sınırlama (login/register brute-force) ──────────────────────────
     auth_rate_limit_attempts: int = 5  # e-posta başına pencere içi deneme

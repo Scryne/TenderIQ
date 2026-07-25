@@ -11,7 +11,11 @@ from celery import Celery
 from tenderiq_core.config import Environment, get_settings
 from tenderiq_core.logging import configure_logging
 from tenderiq_core.observability import init_sentry
-from tenderiq_core.queueing import QUEUE_DEFAULT, TASK_CLEANUP_STALE_UPLOADS
+from tenderiq_core.queueing import (
+    QUEUE_DEFAULT,
+    TASK_CLEANUP_STALE_UPLOADS,
+    TASK_PURGE_DELETED,
+)
 
 
 def create_celery_app() -> Celery:
@@ -49,6 +53,13 @@ def create_celery_app() -> Celery:
             "cleanup-stale-uploads": {
                 "task": TASK_CLEANUP_STALE_UPLOADS,
                 "schedule": 3600.0,  # saatte bir
+            },
+            # KVKK kalıcı silme (Faz 4). Günde bir yeterlidir: eşik gün
+            # cinsindendir (DATA_RETENTION_DAYS), daha sık koşmak yalnız boş
+            # tarama üretir. Gecikme toleransı da gün ölçeğindedir.
+            "purge-deleted": {
+                "task": TASK_PURGE_DELETED,
+                "schedule": 24 * 3600.0,
             },
         },
     )

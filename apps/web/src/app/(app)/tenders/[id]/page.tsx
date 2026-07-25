@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { use, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { DeleteTenderDialog } from "@/components/tenders/delete-tender-dialog";
 import {
   SideNote,
   TenderDetailView,
@@ -157,6 +158,9 @@ export default function TenderDetailPage({ params }: { params: Promise<{ id: str
       connected={connected}
       reviewHref={`/tenders/${tenderId}/review`}
       reviewReady={reviewReady}
+      deleteAction={
+        <DeleteTenderDialog tenderId={tenderId} title={tender.data?.title ?? "Bu ihale"} />
+      }
       onRetryJob={(jobId) => retryJob.mutate(jobId)}
       retryingJobId={retryJob.isPending ? retryJob.variables : null}
       uploader={

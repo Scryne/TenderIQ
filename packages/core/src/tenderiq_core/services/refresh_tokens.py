@@ -182,7 +182,12 @@ async def rotate_refresh_token(
     claimed = await redis.set(_used_key(token_hash), str(now), nx=True, ex=ttl_seconds)
     if not claimed:
         first_used = _as_int(await redis.get(_used_key(token_hash)))
-        if first_used is None or now - first_used > grace_seconds:
+        # ``grace_seconds <= 0`` AÇIKÇA "tolerans yok" demektir. Yalnız
+        # ``now - first_used > grace_seconds`` bakmak yetmez: zaman damgası saniye
+        # çözünürlüklü olduğundan aynı saniyedeki tekrar 0 > 0 ile yanlışlıkla
+        # meşru sayılırdı — yani 0 ayarı sessizce "aynı saniyeye tolerans"a
+        # dönüşürdü.
+        if first_used is None or grace_seconds <= 0 or now - first_used > grace_seconds:
             await _revoke_family(redis, family)
             raise ReusedRefreshTokenError
     identity = RefreshIdentity(

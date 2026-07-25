@@ -10,7 +10,7 @@ from sqlalchemy import ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tenderiq_core.db.base import Base, TimestampMixin
-from tenderiq_core.db.mixins import TenantMixin, UUIDPKMixin
+from tenderiq_core.db.mixins import SoftDeleteMixin, TenantMixin, UUIDPKMixin
 
 
 class TenderStatus(StrEnum):
@@ -22,7 +22,7 @@ class TenderStatus(StrEnum):
     ARCHIVED = "archived"
 
 
-class Tender(UUIDPKMixin, TenantMixin, TimestampMixin, Base):
+class Tender(UUIDPKMixin, TenantMixin, TimestampMixin, SoftDeleteMixin, Base):
     """Analiz edilen tek bir ihale/RFP projesi (kiracı-özel)."""
 
     __tablename__ = "tender"
