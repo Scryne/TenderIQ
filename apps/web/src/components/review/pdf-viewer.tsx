@@ -101,7 +101,7 @@ export function PdfViewer({
       <div
         ref={highlightRef}
         aria-hidden
-        className="pointer-events-none absolute rounded-[3px] border-[1.5px] border-brand bg-brand/15"
+        className="pointer-events-none absolute rounded-[3px] border-[1.5px] border-evidence-edge bg-evidence-strong"
         style={{
           left: (highlight.x0 - HIGHLIGHT_PADDING_PT) * scale,
           top: (highlight.y0 - HIGHLIGHT_PADDING_PT) * scale,
@@ -113,33 +113,31 @@ export function PdfViewer({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-center gap-2 border-b bg-surface px-3 py-2">
+      <div className="flex h-11 shrink-0 items-center justify-center gap-2 border-b border-border bg-surface px-3">
         <Button
           variant="ghost"
-          size="icon"
-          className="size-8"
+          size="icon-sm"
           aria-label="Önceki sayfa"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
         >
-          <ChevronLeft className="size-4" strokeWidth={1.5} />
+          <ChevronLeft strokeWidth={1.75} />
         </Button>
-        <span className="font-mono text-xs text-ink-2">
+        <span className="min-w-16 text-center font-mono text-xs text-ink-2">
           {page} / {numPages ?? "—"}
         </span>
         <Button
           variant="ghost"
-          size="icon"
-          className="size-8"
+          size="icon-sm"
           aria-label="Sonraki sayfa"
           disabled={numPages === null || page >= numPages}
           onClick={() => onPageChange(page + 1)}
         >
-          <ChevronRight className="size-4" strokeWidth={1.5} />
+          <ChevronRight strokeWidth={1.75} />
         </Button>
       </div>
 
-      <div ref={containerRef} className="min-h-0 flex-1 overflow-auto bg-surface-2/60 p-0">
+      <div ref={containerRef} className="scroll-slim min-h-0 flex-1 overflow-auto bg-surface-2">
         {file.isPending && (
           <div className="p-4">
             <Skeleton className="h-[70vh] w-full" />
@@ -161,7 +159,7 @@ export function PdfViewer({
             }
             error={<p className="p-6 text-sm text-danger">PDF görüntülenemedi.</p>}
           >
-            <div className="relative mx-auto w-fit shadow-rest">
+            <div className="relative mx-auto my-4 w-fit bg-surface shadow-md">
               <Page
                 pageNumber={page}
                 width={renderWidth}

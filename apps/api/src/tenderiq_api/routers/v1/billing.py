@@ -165,6 +165,12 @@ async def billing_webhook(
             )
         except BillingError as exc:
             raise ValidationFailedError("Webhook olayı işlenemedi.") from exc
+    # "İşlendi" damgası COMMIT SONRASI yazılır: uygulama/commit başarısız olursa
+    # damga kalmaz ve sağlayıcının retry'ı olayı gerçekten uygulayabilir.
+    if outcome == "applied":
+        await billing_service.mark_webhook_processed(
+            redis, provider=provider.name, event_id=event.event_id
+        )
     logger.info(
         "billing_webhook_islendi",
         provider=provider.name,

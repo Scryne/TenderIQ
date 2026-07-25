@@ -1,4 +1,8 @@
-"""Kimlik doğrulama servisi: kayıt ve giriş (kiracı + kullanıcı + üyelik)."""
+"""Kimlik doğrulama servisi: kayıt ve giriş (kiracı + kullanıcı + üyelik).
+
+E-posta, hesabın kimlik anahtarıdır ve **her zaman normalize edilmiş** (kırpılmış +
+küçük harfe indirgenmiş) biçimde saklanır/aranır — bkz. ``normalize_email``.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +13,19 @@ from tenderiq_core.models import Membership, Organization, Role, User
 from tenderiq_core.security.passwords import hash_password, verify_password
 
 _dummy_hash_cache: str | None = None
+
+
+def normalize_email(email: str) -> str:
+    """E-postayı hesap kimliği olarak kullanılacak kanonik biçime indirger.
+
+    RFC'ye göre local-part teorik olarak büyük/küçük harfe duyarlıdır, ama hiçbir
+    yaygın sağlayıcı ayırt etmez; ayırt etmek pratikte iki soruna yol açar:
+    ``A@x.com`` ve ``a@x.com`` AYRI hesap olarak kaydolabilir ve kullanıcı
+    parolasını sıfırlayamaz (arama normalize edilmiş değerle yapılırdı, kayıt
+    ham değerle). Bu yüzden tek kanonik biçim kullanılır — davet akışı
+    (``services.invitations``) ve oran sınırlama anahtarları da aynı kuralı izler.
+    """
+    return email.strip().lower()
 
 
 def _dummy_hash() -> str:
@@ -43,8 +60,9 @@ async def register(
     """Yeni bir organizasyon + admin kullanıcı + üyelik oluşturur.
 
     Not: organization/user/membership RLS'siz kimlik tablolarıdır; kiracı bağlamı
-    gerektirmez.
+    gerektirmez. E-posta normalize edilerek saklanır (``normalize_email``).
     """
+    email = normalize_email(email)
     existing_user: User | None = await session.scalar(select(User).where(User.email == email))
     if existing_user is not None:
         raise EmailAlreadyExistsError(email)
@@ -75,7 +93,10 @@ async def authenticate(
 
     Pasif (``is_active=False``) kullanıcılar da parola doğru olsa bile reddedilir;
     çağırana tüm başarısızlıklar tek tip ``None`` döner (bilgi sızdırmaz).
+    Arama normalize edilmiş e-posta ile yapılır: kullanıcı kayıttakinden farklı
+    büyük/küçük harfle yazsa da girişi çalışır.
     """
+    email = normalize_email(email)
     user: User | None = await session.scalar(select(User).where(User.email == email))
     if user is None or user.hashed_password is None:
         verify_password(password, _dummy_hash())

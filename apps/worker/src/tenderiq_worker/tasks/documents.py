@@ -21,7 +21,7 @@ from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy import select
 
 from tenderiq_core.config import get_settings
-from tenderiq_core.logging import get_logger
+from tenderiq_core.logging import get_logger, job_id_var, tenant_id_var
 from tenderiq_core.models import (
     Document,
     DocumentStatus,
@@ -34,6 +34,7 @@ from tenderiq_core.models import (
 )
 from tenderiq_core.observability import bind_sentry_tags
 from tenderiq_core.queueing import TASK_CLEANUP_STALE_UPLOADS, TASK_PROCESS_DOCUMENT
+from tenderiq_core.services.quota import QuotaExceededError
 from tenderiq_core.storage import StorageNotConfiguredError
 from tenderiq_worker.celery_app import celery_app
 from tenderiq_worker.db import get_session_factory, tenant_session
@@ -167,10 +168,16 @@ def process_document(self: Task, *, job_id: str, tenant_id: str) -> str:
     tenant_uuid = uuid.UUID(tenant_id)
     # Sentry hata raporları iş/kiracı korelasyonu taşır (DSN yoksa no-op).
     bind_sentry_tags(tenant_id=tenant_uuid, job_id=job_uuid)
+    # Aynı korelasyon hattın TÜM log kayıtlarına geçer (parse/index/extract dâhil).
+    # Prefork worker süreci task'lar arası yaşadığından çıkışta sıfırlanır.
+    tenant_token = tenant_id_var.set(tenant_id)
+    job_token = job_id_var.set(job_id)
     try:
         return _run_pipeline(job_uuid, tenant_uuid)
-    except InvalidJobTransitionError as exc:
-        # Programlama hatası: retry anlamsız, işi doğrudan failed'e çek.
+    except (InvalidJobTransitionError, QuotaExceededError) as exc:
+        # Kalıcı hatalar — retry anlamsız, iş doğrudan failed'e çekilir:
+        # durum makinesi ihlali (programlama hatası) veya dönem kotası aşımı
+        # (yeniden denemek aynı sonucu verir; dönem dönene kadar geçmez).
         _record_error(job_uuid, tenant_uuid, exc, final=True)
         raise
     except Exception as exc:
@@ -187,6 +194,9 @@ def process_document(self: Task, *, job_id: str, tenant_id: str) -> str:
         except MaxRetriesExceededError:
             _record_error(job_uuid, tenant_uuid, exc, final=True)
             raise exc from None
+    finally:
+        tenant_id_var.reset(tenant_token)
+        job_id_var.reset(job_token)
 
 
 @celery_app.task(name=TASK_CLEANUP_STALE_UPLOADS)

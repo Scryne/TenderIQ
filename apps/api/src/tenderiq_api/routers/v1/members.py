@@ -168,9 +168,10 @@ async def remove_member(
         actor_user_id=principal.user_id,
         meta={"user_id": str(user_id), "role": removed_role.value},
     )
-    # Çıkarılan kullanıcının oturumlarını iptal et (mevcut refresh token'ları ölür).
+    # Çıkarılan kullanıcının YALNIZ bu org'a ait oturumları iptal edilir; başka
+    # kiracılardaki oturumları bu işlemden etkilenmez (docstring sözleşmesi).
     try:
-        await refresh_tokens.revoke_all_for_user(redis, user_id)
+        await refresh_tokens.revoke_user_sessions_for_tenant(redis, user_id, principal.tenant_id)
     except RedisError as exc:
         logger.warning("uye_oturumlari_iptal_edilemedi", error=str(exc))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

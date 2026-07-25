@@ -1,23 +1,20 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { BadgeCheck, Building2, Mail } from "lucide-react";
+import { BadgeCheck, Building2, LogOut, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { InlineError } from "@/components/states";
 import { StatusPill } from "@/components/status-pill";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
+import { ROLE_LABELS } from "@/lib/tenders";
 import { cn } from "@/lib/utils";
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Yönetici",
-  member: "Üye",
-  viewer: "İzleyici",
-};
 
 export function AccountSection() {
   const router = useRouter();
@@ -59,47 +56,57 @@ export function AccountSection() {
         body: JSON.stringify({ organization_id: organizationId }),
       });
       if (!response.ok) throw new Error();
-      toast.success("Organizasyon değiştirildi.");
+      toast.success("Çalışma alanı değiştirildi.");
       router.refresh();
     } catch {
-      toast.error("Organizasyon değiştirilemedi.");
+      toast.error("Çalışma alanı değiştirilemedi.");
     } finally {
       setSwitchingId(null);
     }
   }
 
+  async function logout() {
+    await fetch("/api/session", { method: "DELETE" });
+    router.push("/login");
+    router.refresh();
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Hesap</CardTitle>
+        <CardHeader className="block">
+          <CardTitle>Hesap</CardTitle>
+          <CardDescription>
+            Güvenlik bildirimleri ve davet e-postaları bu adrese gönderilir.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {me.isPending && <Skeleton className="h-10 w-64" />}
-          {me.data && (
+        <CardContent className="flex flex-col gap-4 pt-0">
+          {me.isPending && <Skeleton className="h-9 w-72" />}
+          {me.isError && <InlineError message={me.error.message} onRetry={() => void me.refetch()} />}
+          {me.data !== undefined && (
             <>
-              <div className="flex items-center gap-2.5 text-sm">
-                <Mail className="size-4 text-ink-3" strokeWidth={1.5} />
-                <span className="font-medium text-ink-1">{me.data.email}</span>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <Mail aria-hidden className="size-4 text-ink-3" strokeWidth={1.75} />
+                <span className="text-sm font-medium text-ink-1">{me.data.email}</span>
                 {me.data.email_verified ? (
                   <StatusPill tone="success" label="Doğrulandı" />
                 ) : (
                   <StatusPill tone="warning" label="Doğrulanmadı" />
                 )}
+                {me.data.full_name != null && me.data.full_name !== "" && (
+                  <span className="text-sm text-ink-3">· {me.data.full_name}</span>
+                )}
               </div>
+
               {!me.data.email_verified && (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning-weak/40 px-4 py-3">
-                  <p className="text-sm text-ink-2">
-                    E-posta adresinizi doğrulayın; güvenlik bildirimleri buraya gönderilir.
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-warning/30 bg-warning-weak px-4 py-3">
+                  <p className="min-w-0 flex-1 text-sm text-ink-2">
+                    E-posta adresiniz doğrulanmadı. Parola sıfırlama ve güvenlik bildirimleri
+                    doğrulanana kadar ulaşmaz.
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={resend.isPending}
-                    onClick={() => resend.mutate()}
-                  >
-                    <BadgeCheck className="size-4" strokeWidth={1.5} />
-                    {resend.isPending ? "Gönderiliyor…" : "Doğrulama bağlantısı gönder"}
+                  <Button variant="secondary" size="sm" loading={resend.isPending} onClick={() => resend.mutate()}>
+                    <BadgeCheck strokeWidth={1.75} />
+                    Doğrulama bağlantısı gönder
                   </Button>
                 </div>
               )}
@@ -109,43 +116,76 @@ export function AccountSection() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Organizasyonlarım</CardTitle>
+        <CardHeader className="block">
+          <CardTitle>Çalışma alanlarım</CardTitle>
+          <CardDescription>
+            Aynı hesapla birden fazla organizasyonda yer alabilirsiniz. Etkin alan, tüm
+            ekranlardaki verileri belirler.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {memberships.isPending && <Skeleton className="h-12 w-full" />}
+        <CardContent className="flex flex-col gap-2 pt-0">
+          {memberships.isPending && <Skeleton className="h-14 w-full" />}
           {memberships.isError && (
-            <p className="text-sm text-danger">{memberships.error.message}</p>
+            <InlineError
+              message={memberships.error.message}
+              onRetry={() => void memberships.refetch()}
+            />
           )}
           {memberships.data?.map((membership) => (
             <div
               key={membership.organization_id}
               className={cn(
-                "flex items-center gap-3 rounded-lg border px-4 py-3",
-                membership.is_active ? "rail-active border-brand/40 bg-brand-weak/30" : "bg-surface",
+                "flex flex-wrap items-center gap-3 rounded-sm border px-4 py-3",
+                membership.is_active
+                  ? "border-accent bg-surface-2"
+                  : "border-border bg-surface",
               )}
             >
-              <Building2 className="size-4 text-ink-3" strokeWidth={1.5} />
+              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-2">
+                <Building2 aria-hidden className="size-4 text-ink-2" strokeWidth={1.75} />
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-ink-1">
                   {membership.organization_name}
                 </p>
-                <p className="text-xs text-ink-3">{ROLE_LABELS[membership.role] ?? membership.role}</p>
+                <p className="mt-0.5 truncate font-mono text-[11px] text-ink-3">
+                  {membership.organization_slug}
+                </p>
               </div>
+              <Badge tone="neutral">{ROLE_LABELS[membership.role] ?? membership.role}</Badge>
               {membership.is_active ? (
-                <StatusPill tone="info" label="Aktif" />
+                <Badge tone="ink">Etkin</Badge>
               ) : (
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
+                  loading={switchingId === membership.organization_id}
                   disabled={switchingId !== null}
                   onClick={() => void switchOrg(membership.organization_id)}
                 >
-                  {switchingId === membership.organization_id ? "Geçiliyor…" : "Bu org'a geç"}
+                  Bu alana geç
                 </Button>
               )}
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      {/* §9.7 tehlikeli bölge. Bu üründe hesap silme / tüm oturumları kapatma
+          ucu YOK; var olmayan bir eylem için kart uydurmak yerine yalnız gerçek
+          eylem (oturumu kapatma) burada, danger kenarlığıyla verilir. */}
+      <Card className="border-danger/30">
+        <CardHeader className="block">
+          <CardTitle>Oturum</CardTitle>
+          <CardDescription>
+            Ortak kullanılan bir bilgisayardaysanız işiniz bittiğinde oturumu kapatın.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <Button variant="danger-ghost" onClick={() => void logout()}>
+            <LogOut strokeWidth={1.75} />
+            Oturumu kapat
+          </Button>
         </CardContent>
       </Card>
     </div>

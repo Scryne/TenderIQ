@@ -1,18 +1,25 @@
-import * as React from "react"
+import type * as React from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
+/**
+ * Kart — DESIGN.md §5.5 + §9.2 "dengeli" yoğunluk.
+ *
+ * radius 10px · 1px kenarlık · **gölge YOK**. Gölge yalnız yüzeyin üstünde
+ * yüzen şeyler içindir (dropdown, modal, toast). Her karta gölge = ucuz
+ * görünüm (§5.5, §13.5). Padding 20px; bölümler `border-t` ile ayrılır.
+ */
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card"
       className={cn(
-        "flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm",
-        className
+        "flex flex-col rounded-lg border border-border bg-surface text-ink-1",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
@@ -20,73 +27,58 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-header"
       className={cn(
-        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6",
-        className
+        "flex items-start justify-between gap-3 px-5 pt-5 pb-4",
+        "[&:has(+[data-slot=card-content])]:pb-0",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+function CardTitle({ className, ...props }: React.ComponentProps<"h3">) {
   return (
-    <div
+    <h3
       data-slot="card-title"
-      className={cn("leading-none font-semibold", className)}
+      className={cn("font-display text-lg leading-6 font-semibold text-ink-1", className)}
       {...props}
     />
-  )
+  );
 }
 
-function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
+function CardDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
-    <div
+    <p
       data-slot="card-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("mt-1 max-w-[68ch] text-sm text-ink-2", className)}
       {...props}
     />
-  )
+  );
 }
 
+/** Başlık satırının sağ ucundaki kontroller (segment, menü, filtre). */
 function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-action"
-      className={cn(
-        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
-        className
-      )}
+      className={cn("flex shrink-0 items-center gap-2", className)}
       {...props}
     />
-  )
+  );
 }
 
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-content"
-      className={cn("px-6", className)}
-      {...props}
-    />
-  )
+  return <div data-slot="card-content" className={cn("p-5", className)} {...props} />;
 }
 
 function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-footer"
-      className={cn("flex items-center px-6 [.border-t]:pt-6", className)}
+      className={cn("flex items-center gap-2 border-t border-border px-5 py-3.5", className)}
       {...props}
     />
-  )
+  );
 }
 
-export {
-  Card,
-  CardHeader,
-  CardFooter,
-  CardTitle,
-  CardAction,
-  CardDescription,
-  CardContent,
-}
+export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent };

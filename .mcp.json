@@ -10,6 +10,10 @@
     "shadcn": {
       "command": "cmd",
       "args": ["/c", "npx", "-y", "shadcn@latest", "mcp"]
+    },
+    "chrome-devtools": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "chrome-devtools-mcp@latest", "--autoConnect"]
     }
   }
 }

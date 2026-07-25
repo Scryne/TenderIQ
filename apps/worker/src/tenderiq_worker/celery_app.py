@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from celery import Celery
 
-from tenderiq_core.config import get_settings
+from tenderiq_core.config import Environment, get_settings
+from tenderiq_core.logging import configure_logging
 from tenderiq_core.observability import init_sentry
 from tenderiq_core.queueing import QUEUE_DEFAULT, TASK_CLEANUP_STALE_UPLOADS
 
@@ -16,6 +17,9 @@ from tenderiq_core.queueing import QUEUE_DEFAULT, TASK_CLEANUP_STALE_UPLOADS
 def create_celery_app() -> Celery:
     """Yapılandırılmış bir Celery uygulaması üretir."""
     settings = get_settings()
+    # İşleme hattının TAMAMI worker'da koşar; API ile aynı yapılandırılmış (JSON)
+    # log biçimi olmadan production'da parse/index/extract kayıtları aranamaz.
+    configure_logging(json_logs=settings.environment is not Environment.DEVELOPMENT)
     init_sentry(settings)  # DSN yoksa no-op; CeleryIntegration task hatalarını yakalar
     app = Celery(
         "tenderiq",
@@ -28,6 +32,14 @@ def create_celery_app() -> Celery:
         task_reject_on_worker_lost=True,
         task_track_started=True,
         worker_prefetch_multiplier=1,
+        # Zaman tavanı: parsing/OCR kullanıcı kontrolündeki bir PDF üzerinde koşar.
+        # Tavan olmadan patolojik bir doküman (dev tarama, decompression bomb) bir
+        # worker sürecini süresiz bloke edebilir — prefetch=1 olduğundan o slot
+        # başka kiracılara da kapanır. Soft limit SoftTimeLimitExceeded fırlatır;
+        # task'ın mevcut hata yolu işi backoff'la yeniden dener, denemeler
+        # tükenince `failed`e çeker. Hard limit yalnız takılan süreç için ağ.
+        task_soft_time_limit=25 * 60,
+        task_time_limit=30 * 60,
         task_default_queue=QUEUE_DEFAULT,
         result_expires=3600,
         timezone="UTC",

@@ -19,7 +19,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Gerçek istemci IP'si backend oran sınırlamasına taşınır (bkz. /api/v1 proxy'si).
+  // XFF olduğu gibi geçirilir; bu katman güvenilir hop DEĞİLDİR (bkz. /api/v1
+  // proxy'sindeki açıklama ve TRUSTED_PROXY_COUNT sözleşmesi).
   const headers = new Headers({ "content-type": "application/json" });
   const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor !== null) headers.set("x-forwarded-for", forwardedFor);

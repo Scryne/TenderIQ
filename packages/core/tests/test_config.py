@@ -65,13 +65,40 @@ def test_production_rejects_debug(monkeypatch: pytest.MonkeyPatch) -> None:
         Settings(_env_file=None)
 
 
-def test_production_boots_with_hardened_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Sertleştirilmiş ayarlarla production açılışı sorunsuz."""
+def _harden(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Production açılışının gerektirdiği asgari ayar kümesi."""
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("AUTH_SECRET", "x" * 32)
     monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("BILLING_PROVIDER", "iyzico")
+    monkeypatch.setenv("EMAIL_PROVIDER", "resend")
+
+
+def test_production_boots_with_hardened_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sertleştirilmiş ayarlarla production açılışı sorunsuz."""
+    _harden(monkeypatch)
     settings = Settings(_env_file=None)
     assert settings.is_production
+
+
+def test_production_rejects_manual_billing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test-modu ödeme sağlayıcısı production'da açılışı engeller.
+
+    ``manual`` sağlayıcı ödeme almadan planı anında etkinleştirir; production'da
+    kalırsa herhangi bir org yöneticisi kendine kurumsal plan verebilir.
+    """
+    _harden(monkeypatch)
+    monkeypatch.setenv("BILLING_PROVIDER", "manual")
+    with pytest.raises(ValidationError, match="BILLING_PROVIDER"):
+        Settings(_env_file=None)
+
+
+def test_production_rejects_logging_email(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Dev e-posta seam'i production'da açılışı engeller (sessizce gönderim yapmaz)."""
+    _harden(monkeypatch)
+    monkeypatch.setenv("EMAIL_PROVIDER", "logging")
+    with pytest.raises(ValidationError, match="EMAIL_PROVIDER"):
+        Settings(_env_file=None)
 
 
 def test_agent_context_limit_anthropic_kullanilmaz_degisiklik() -> None:

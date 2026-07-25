@@ -2,127 +2,174 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * TenderIQ tasarım sistemi — DESIGN.md protokol çıktısı.
+/* ═══════════════════════════════════════════════════════════════════════════
+ * TenderIQ tasarım sistemi · Yön A "MÜREKKEP"
+ * DESIGN.md v1.1 §5-6 çıktısı · gerekçe: design/decisions.md
  *
- * DESIGN BRIEF
- *   Domain/persona/iş: TR kamu ihale analizi · teklif müdürü · bulguyu kaynağında
- *                      doğrulayıp onaylamak (citation-first inceleme)
- *   Archetype: A — Clean Light (§3)
- *   Accent:    #0B6E99 "derin petrol" — §14 procurement örneğinden ~10° maviye
- *              kaydırılmış; kurumsal güven, ham palet değil
- *   Tip:       Public Sans (UI) + JetBrains Mono (sayısallar, ihale no, referans)
- *   İmza:      rail-active nav — 2px accent sol ray; risk/termin kartlarında
- *              semantik renkte yankılanır (§9)
+ * TEZ — Bu ürün kanıt üretir. Öyleyse ekrandaki doygun rengin tamamı bir
+ * anlam taşımalı: uyarı, hata, onay ya da kaynak vurgusu. Marka rengi diye
+ * ayrılmış dekoratif bir mavi yok; birincil eylem rengi mürekkebin kendisi.
+ * §13.6 sinyal testi: "bu kararı herhangi bir SaaS için de verir miydim?" —
+ * hayır, jenerik B2B paleti her zaman kromatik bir aksan seçer.
  *
- * shadcn değişken sözleşmesi korunur (background/card/primary/...); DESIGN §13
- * token'ları bunların üzerine eşlenir ve ek adlarla (surface-2, ink-3, success…)
- * Tailwind utility'si olarak açılır. Bileşenlerde ham palet sınıfı (bg-blue-500)
- * kullanılmaz (§15.2).
- */
+ * KOYU TEMA aynı tezin inversiyonu: mürekkep kâğıda döner (accent #F4F4F2).
+ *
+ * KONTRAST — hesaplanmış, tahmin değil (§12, hedef metin 4.5:1 / UI 3:1):
+ *   ink-1 #16171A / beyaz .......... 17.5:1   ✓ başlık, ana metin
+ *   ink-2 #43454C / beyaz ..........  9.6:1   ✓ açıklama
+ *   ink-3 #6C6E75 / beyaz ..........  5.1:1   ✓ etiket (4.9:1 canvas üstünde)
+ *   border-strong #929397 / beyaz ..  3.1:1   ✓ input/kontrol kenarlığı (1.4.11)
+ *   success #15803D / beyaz ........  5.0:1   ✓
+ *   warning #9A6207 / beyaz ........  5.1:1   ✓
+ *   danger  #B42318 / beyaz ........  6.6:1   ✓
+ *   info    #175CD3 / beyaz ........  6.1:1   ✓
+ *   koyu: ink-2 7,7:1 · ink-3 5,0:1 (surface-2 üstünde 4,5:1) · border-strong 3,6:1 ✓
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --radius: 0.625rem; /* r-inner=rounded-md 8px · r-card=rounded-xl 14px (§6.2) */
+  color-scheme: light;
 
-  /* Yüzeyler (Archetype A) */
-  --canvas: #f7f8fa;
-  --surface: #ffffff;
-  --surface-2: #f2f3f6;
-  --surface-3: #ffffff;
-  --border-hairline: #e7e9ee;
-  --border-strong: #d8dbe2;
+  /* ── Yüzeyler · 3 seviye (§5.2) ─────────────────────────────────────── */
+  --canvas: #fafaf9; /* sayfa zemini — nötr kâğıt, krem DEĞİL (§13.1) */
+  --surface: #ffffff; /* kart, panel */
+  --surface-2: #f1f1ef; /* tablo başlığı, input zemini, segment rayı */
+  --nav-active: #f1f1ef; /* seçili gezinme öğesi — koyu temada ayrışır */
+  --overlay: #ffffff; /* modal, popover */
+  --hover: rgb(22 23 26 / 0.045); /* tek hover yıkaması — yeni yüzey açmaz */
 
-  /* Metin — tam üç ton (§1.6) */
-  --ink-1: #101319;
-  --ink-2: #4e5564;
-  --ink-3: #8a91a0;
+  /* ── Kenarlıklar · 2 seviye ──────────────────────────────────────────── */
+  --border: #e4e3e0; /* hairline ayırıcı (dekoratif) */
+  --border-strong: #929397; /* kontrol kenarlığı — WCAG 1.4.11 için 3:1 */
 
-  /* Marka + semantik (§4.1) */
-  --brand: #0b6e99;
-  --brand-weak: rgb(11 110 153 / 0.1);
-  --success: #158a4c;
-  --success-weak: #e9f7ef;
-  --warning: #b4690e;
-  --warning-weak: #fcf3e4;
-  --danger: #d6362f;
-  --danger-weak: #fceceb;
-  --info: #2360d8;
-  --info-weak: #eaf1fd;
+  /* ── Mürekkep · 3 ton + ters ─────────────────────────────────────────── */
+  --ink-1: #16171a;
+  --ink-2: #43454c;
+  --ink-3: #6c6e75;
+  --ink-on-accent: #ffffff;
 
-  /* shadcn sözleşmesi → DESIGN eşlemesi */
+  /* ── Aksan = mürekkep. Tek aksan, kromatik değil. ────────────────────── */
+  --accent: #16171a;
+  --accent-hover: #303237;
+
+  /* ── Durum · 4 renk, sabit anlam (§5.2) ──────────────────────────────── */
+  --success: #15803d;
+  --success-weak: #e9f6ed;
+  --warning: #9a6207;
+  --warning-weak: #f8f1e3;
+  --danger: #b42318;
+  --danger-weak: #fbecea;
+  --info: #175cd3;
+  --info-weak: #eaf0fc;
+
+  /* ── Kanıt vurgusu · ürünün tek dolgulu rengi ────────────────────────── *
+   * PDF'te kaynak alıntısının üstüne binen yıkama. Siyah metnin okunurluğunu
+   * bozmayacak tek yol düşük alfalı sıcak bir ton; fosforlu kalem kuralı. */
+  --evidence: rgb(154 98 7 / 0.18);
+  --evidence-strong: rgb(154 98 7 / 0.32);
+  --evidence-edge: #9a6207;
+
+  /* ── Sıralı dağılım çubukları (§8.12) · grafik kütüphanesi yok ───────── */
+  --seq-1: #16171a;
+  --seq-2: #43454c;
+  --seq-3: #6c6e75;
+  --seq-4: #929397;
+
+  /* ── shadcn sözleşmesi → Mürekkep eşlemesi ───────────────────────────── */
   --background: var(--canvas);
   --foreground: var(--ink-1);
   --card: var(--surface);
   --card-foreground: var(--ink-1);
-  --popover: var(--surface-3);
+  --popover: var(--overlay);
   --popover-foreground: var(--ink-1);
-  --primary: var(--brand);
-  --primary-foreground: #ffffff;
+  --primary: var(--accent);
+  --primary-foreground: var(--ink-on-accent);
   --secondary: var(--surface-2);
   --secondary-foreground: var(--ink-1);
   --muted: var(--surface-2);
   --muted-foreground: var(--ink-2);
-  --accent: var(--surface-2);
-  --accent-foreground: var(--ink-1);
   --destructive: var(--danger);
   --destructive-foreground: #ffffff;
-  --border: var(--border-hairline);
   --input: var(--border-strong);
-  --ring: var(--brand);
+  --ring: var(--ink-1);
+  --radius: 0.625rem;
 }
 
-/* İkincil tema — Archetype C yüzey basamakları, aynı marka ailesi (accent
- * karanlıkta bir ton açılır; §12 kontrast). Tema anahtarı henüz yok; sözleşme
- * hazır dursun diye eksiksiz tutulur. */
 .dark {
-  --canvas: #0a0b0e;
-  --surface: #121317;
-  --surface-2: #1a1c22;
-  --surface-3: #23262e;
-  --border-hairline: #24262d;
-  --border-strong: #32353e;
+  color-scheme: dark;
 
-  --ink-1: #f4f5f7;
-  --ink-2: #9ca2b0;
-  --ink-3: #646b7a;
+  --canvas: #0b0b0c; /* saf siyah değil (§5.2 koyu tema kuralı) */
+  --surface: #141517;
+  --surface-2: #1d1e21;
+  --nav-active: #2a2c31; /* surface-2 sidebar zemininde yeterince ayrışmıyor */
+  --overlay: #1d1e21;
+  --hover: rgb(244 244 242 / 0.06);
 
-  --brand: #34a3cf;
-  --brand-weak: rgb(52 163 207 / 0.14);
-  --success: #34d57b;
-  --success-weak: rgb(52 213 123 / 0.12);
-  --warning: #f5a623;
-  --warning-weak: rgb(245 166 35 / 0.12);
-  --danger: #f26b5e;
-  --danger-weak: rgb(242 107 94 / 0.12);
-  --info: #5b9bf7;
-  --info-weak: rgb(91 155 247 / 0.12);
+  --border: #26272a;
+  --border-strong: #6d6f75;
 
-  --background: var(--canvas);
-  --foreground: var(--ink-1);
-  --card: var(--surface);
-  --card-foreground: var(--ink-1);
-  --popover: var(--surface-3);
-  --popover-foreground: var(--ink-1);
-  --primary: var(--brand);
-  --primary-foreground: #08222e;
-  --secondary: var(--surface-2);
-  --secondary-foreground: var(--ink-1);
-  --muted: var(--surface-2);
-  --muted-foreground: var(--ink-2);
-  --accent: var(--surface-2);
-  --accent-foreground: var(--ink-1);
-  --destructive: var(--danger);
-  --destructive-foreground: #ffffff;
-  --border: var(--border-hairline);
-  --input: var(--border-strong);
-  --ring: var(--brand);
+  --ink-1: #f4f4f2;
+  --ink-2: #a7a9af;
+  --ink-3: #83858c; /* surface-2 üstünde 4,5:1 (önceki #7b7d84 4,44:1'de kalıyordu) */
+  --ink-on-accent: #101113;
+
+  /* İnversiyon: mürekkep kâğıda döner. Koyuda gölge değil yüzey derinlik verir. */
+  --accent: #f4f4f2;
+  --accent-hover: #ffffff;
+
+  --success: #4ade80;
+  --success-weak: rgb(74 222 128 / 0.14);
+  --warning: #e3a93e;
+  --warning-weak: rgb(227 169 62 / 0.14);
+  --danger: #f97066;
+  --danger-weak: rgb(249 112 102 / 0.14);
+  --info: #7fa9f5;
+  --info-weak: rgb(127 169 245 / 0.14);
+
+  --evidence: rgb(227 169 62 / 0.22);
+  --evidence-strong: rgb(227 169 62 / 0.38);
+  --evidence-edge: #e3a93e;
+
+  --seq-1: #f4f4f2;
+  --seq-2: #a7a9af;
+  --seq-3: #7b7d84;
+  --seq-4: #4e5057;
+
+  --ring: var(--ink-1);
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* ── Renk utility'leri: bg-surface-2, text-ink-3, border-strong … ────── */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-nav-active: var(--nav-active);
+  --color-overlay: var(--overlay);
+  --color-hover: var(--hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-on-accent: var(--ink-on-accent);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-success: var(--success);
+  --color-success-weak: var(--success-weak);
+  --color-warning: var(--warning);
+  --color-warning-weak: var(--warning-weak);
+  --color-danger: var(--danger);
+  --color-danger-weak: var(--danger-weak);
+  --color-info: var(--info);
+  --color-info-weak: var(--info-weak);
+  --color-evidence: var(--evidence);
+  --color-evidence-strong: var(--evidence-strong);
+  --color-evidence-edge: var(--evidence-edge);
+  --color-seq-1: var(--seq-1);
+  --color-seq-2: var(--seq-2);
+  --color-seq-3: var(--seq-3);
+  --color-seq-4: var(--seq-4);
 
+  /* shadcn sözleşmesi */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -135,80 +182,222 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* DESIGN §13 ek token'ları — utility adları: bg-surface-2, text-ink-3, ... */
-  --color-canvas: var(--canvas);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-surface-3: var(--surface-3);
-  --color-border-strong: var(--border-strong);
-  --color-ink-1: var(--ink-1);
-  --color-ink-2: var(--ink-2);
-  --color-ink-3: var(--ink-3);
-  --color-brand: var(--brand);
-  --color-brand-weak: var(--brand-weak);
-  --color-success: var(--success);
-  --color-success-weak: var(--success-weak);
-  --color-warning: var(--warning);
-  --color-warning-weak: var(--warning-weak);
-  --color-danger: var(--danger);
-  --color-danger-weak: var(--danger-weak);
-  --color-info: var(--info);
-  --color-info-weak: var(--info-weak);
+  /* ── Radius · iki görünür değer (6 kontrol · 10 kart) ─────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
 
-  /* Gölgeler — fısıltı düzeyi (§6.4): shadow-rest / shadow-hover / shadow-pop */
-  --shadow-rest: 0 1px 2px rgb(16 20 28 / 0.04);
-  --shadow-hover: 0 4px 12px rgb(16 20 28 / 0.07);
-  --shadow-pop: 0 12px 32px rgb(16 20 28 / 0.12);
+  /* ── Gölge · 2 seviye + yalnız modal için lg (§5.5) ───────────────────── */
+  --shadow-sm:
+    0 1px 2px 0 rgb(22 23 26 / 0.04), 0 1px 3px 0 rgb(22 23 26 / 0.06);
+  --shadow-md:
+    0 4px 12px -2px rgb(22 23 26 / 0.08), 0 2px 6px -2px rgb(22 23 26 / 0.04);
+  --shadow-lg: 0 12px 32px -8px rgb(22 23 26 / 0.14);
 
-  /* Tipografi — next/font değişkenleri layout.tsx'te bağlanır */
-  --font-sans: var(--font-public-sans), -apple-system, "Segoe UI", sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  /* ── Tipografi ölçeği · 7+2 adım, büyüdükçe letter-spacing negatife ──── */
+  --text-2xs: 11px;
+  --text-2xs--line-height: 14px;
+  --text-2xs--letter-spacing: 0.06em;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-xs--letter-spacing: 0.01em;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 14px;
+  --text-base--line-height: 22px;
+  --text-lg: 16px;
+  --text-lg--line-height: 24px;
+  --text-lg--letter-spacing: -0.005em;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-xl--letter-spacing: -0.01em;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+  --text-2xl--letter-spacing: -0.015em;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 36px;
+  --text-3xl--letter-spacing: -0.02em;
+  --text-4xl: 40px;
+  --text-4xl--line-height: 44px;
+  --text-4xl--letter-spacing: -0.025em;
+  --text-5xl: 52px;
+  --text-5xl--line-height: 54px;
+  --text-5xl--letter-spacing: -0.03em;
+
+  /* ── Aileler · layout.tsx next/font değişkenlerini bağlar ─────────────── */
+  --font-display: var(--font-instrument-sans), Segoe UI, sans-serif;
+  --font-sans: var(--font-inter-tight), Segoe UI, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* ── Hareket · §11.1 tablosu ──────────────────────────────────────────── */
+  --ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: var(--border);
   }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-background font-sans text-foreground;
-    /* Sayı içerebilecek her yerde tablo rakamları (§5.3) */
+    background-color: var(--canvas);
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 22px;
+    /* §6.5 — sayılar sütun halinde hizalanır, güncellenirken zıplamaz */
     font-variant-numeric: tabular-nums;
     font-feature-settings:
       "rlig" 1,
-      "calt" 1;
+      "calt" 1,
+      "ss01" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+
+  /* §12 — outline: none yazılan her yerde alternatif zorunlu. Tek kaynak. */
+  :focus-visible {
+    outline: 2px solid var(--ink-1);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  ::selection {
+    background: var(--evidence-strong);
+    color: var(--ink-1);
+  }
+
+  /* §11.4 — pazarlık konusu değil */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
 @layer utilities {
-  /* Overline: kenar çubuğu bölüm başlıkları, kart üstü etiketler (§5.2) */
+  /* ── Overline · bölüm başlığı, kart üstü etiket ───────────────────────── *
+   * text-transform YOK: Ek B.3 — CSS uppercase Türkçe'de "i"yi "I" yapar,
+   * "İ" olmaz. Etiket metni JSX'te elle büyük yazılır. */
   .text-overline {
     font-size: 11px;
     line-height: 14px;
     font-weight: 600;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
+    user-select: none;
   }
-  /* İmza öğesi: 2px sol ray (§9 rail-active) — renk currentColor'dan değil,
-   * --rail-color değişkeninden gelir; nav'da brand, kartlarda semantik ton. */
-  .rail-active {
+
+  /* ── İMZA ÖĞESİ · kaynak şeridi ───────────────────────────────────────── *
+   * Bulguyu dokümandaki kanıtına bağlayan 2px dikey mürekkep çizgisi.
+   * Yalnız kanıt bağı olan yerlerde kullanılır — navigasyonda, dekoratif
+   * amaçla ASLA. Anlamı seyrekliğinden gelir.
+   * --rail rengi çağrı yerinde semantiğe göre değiştirilir (risk → danger). */
+  .rail {
     position: relative;
+    padding-left: 14px;
   }
-  .rail-active::before {
+  .rail::before {
     content: "";
     position: absolute;
     left: 0;
-    top: 6px;
-    bottom: 6px;
+    top: 2px;
+    bottom: 2px;
     width: 2px;
-    border-radius: 999px;
-    background: var(--rail-color, var(--brand));
+    border-radius: 2px;
+    background: var(--rail, var(--ink-1));
+  }
+  .rail-tight::before {
+    top: 0;
+    bottom: 0;
+  }
+
+  /* Sayısal hizalama gerektiren yerel istisnalar (tarih aralığı, ID) */
+  .lining-nums {
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
+  /* Kanıt vurgusu — PDF katmanı ve alıntı bloğu aynı dili konuşur */
+  .evidence-mark {
+    background: var(--evidence);
+    box-shadow: inset 0 -1px 0 0 var(--evidence-edge);
+  }
+
+  /* §10.3 — skeleton nabzı. Shimmer değil (2019 estetiği), opaklık. */
+  @keyframes tiq-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+  .animate-skeleton {
+    animation: tiq-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* §8.16 — canlı göstergesi nabzı */
+  @keyframes tiq-live {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  .animate-live {
+    animation: tiq-live 2s ease-in-out infinite;
+  }
+
+  /* Landing girişinde tek seferlik yükseliş. Panelde YASAK (§11.3). */
+  @keyframes tiq-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .animate-rise {
+    animation: tiq-rise 0.55s var(--ease-emphasis) both;
+  }
+
+  /* Kâğıt kılavuz çizgileri — hero zemini. Gradient değil, hairline ızgara. */
+  .bg-rule {
+    background-image:
+      linear-gradient(to right, var(--border) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  /* Kaydırma çubuğu — kabuk rengiyle uyumlu, sistem mavisi değil */
+  .scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
   }
 }

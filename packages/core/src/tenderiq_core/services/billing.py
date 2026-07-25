@@ -2,8 +2,15 @@
 
 Plan değişimi tek yerden (``apply_plan_change``) uygulanır ve idempotenttir (aynı
 duruma tekrar yazmak zararsızdır). Webhook idempotency'si Redis'te olay-kimliği
-tekilleştirmesiyle sağlanır; olay iki kez gelse bile durum yalnız bir kez uygulanır
-ve zaten idempotent olduğundan çift-faturalama/çift-etki oluşmaz.
+tekilleştirmesiyle sağlanır.
+
+**İşaret sırası kritiktir:** "işlendi" damgası olay UYGULANIP COMMIT EDİLDİKTEN
+sonra yazılır (``mark_webhook_processed``). Damga önce yazılsaydı, uygulama veya
+commit başarısız olduğunda damga Redis'te kalır ve sağlayıcının retry'ı
+"duplicate" yanıtı alırdı — müşteri ödemesini yapmış ama planı hiç yükselmemiş
+olurdu, üstelik sessizce. Bu sıralamanın bedeli, eşzamanlı gelen iki kopyanın
+olayı iki kez uygulayabilmesidir; ``apply_plan_change`` idempotent olduğu için
+bu zararsızdır (aynı duruma iki kez yazmak).
 
 Kiracı bağlamı (RLS): ``apply_plan_change`` çağıranın kiracı bağlamını ayarlamış
 olmasını bekler. Webhook yolu kimliksizdir; ``apply_webhook_event`` olayın (imzalı
@@ -109,24 +116,23 @@ async def apply_webhook_event(
 ) -> str:
     """Doğrulanmış bir webhook olayını idempotent uygular.
 
-    Dönen değer: ``"duplicate"`` (daha önce işlenmiş) veya ``"applied"``. Olayda
-    kiracı kimliği yoksa hata (imzalı gövde kiracıyı taşımalı). Redis kesintisinde
-    idempotency atlanır ama durum uygulaması zaten idempotent olduğundan güvenlidir.
+    Dönen değer: ``"duplicate"`` (daha önce BAŞARIYLA işlenmiş) veya ``"applied"``.
+    ``"applied"`` dönerse çağıran, transaction'ı commit ettikten SONRA
+    ``mark_webhook_processed`` çağırmalıdır (sıralama gerekçesi modül docstring'inde).
+    Olayda kiracı kimliği yoksa hata (imzalı gövde kiracıyı taşımalı). Redis
+    kesintisinde tekilleştirme atlanır ama durum uygulaması zaten idempotenttir.
     """
     if event.tenant_id is None:
         from tenderiq_core.billing.provider import BillingError
 
         raise BillingError("Webhook olayında kiracı kimliği (tenant_id) yok.")
 
-    # Idempotency: olay daha önce işlendiyse (SET NX başarısız) tekrar uygulama.
+    # Yalnız OKUMA: damga başarılı uygulamadan sonra yazılır (bkz. docstring).
     try:
-        stored = await redis.set(
-            _dedup_key(provider, event.event_id), "1", nx=True, ex=WEBHOOK_DEDUP_TTL_SECONDS
-        )
-        if stored is None:
+        if await redis.get(_dedup_key(provider, event.event_id)) is not None:
             return "duplicate"
     except RedisError as exc:
-        # Idempotency yumuşak: uygulama idempotent olduğundan çift-işlem zararsız.
+        # Tekilleştirme yumuşak: uygulama idempotent olduğundan çift-işlem zararsız.
         logger.warning("webhook_dedup_atlandi", error=str(exc))
 
     await set_tenant_context(session, event.tenant_id)
@@ -142,3 +148,16 @@ async def apply_webhook_event(
         provider_subscription_id=event.provider_subscription_id,
     )
     return "applied"
+
+
+async def mark_webhook_processed(redis: Redis, *, provider: str, event_id: str) -> None:
+    """Olayı "işlendi" damgalar — YALNIZCA uygulama commit edildikten sonra.
+
+    Commit'ten önce çağrılırsa başarısız bir uygulama kalıcı olarak "duplicate"
+    görünür ve sağlayıcının retry'ı etkiyi hiç uygulamaz. Redis kesintisinde
+    damga atlanır: olay tekrar gelirse yeniden uygulanır (idempotent).
+    """
+    try:
+        await redis.set(_dedup_key(provider, event_id), "1", ex=WEBHOOK_DEDUP_TTL_SECONDS)
+    except RedisError as exc:
+        logger.warning("webhook_dedup_yazilamadi", error=str(exc))

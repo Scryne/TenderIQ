@@ -145,3 +145,61 @@ def test_resend_verification_204(api_client: TestClient) -> None:
         "/api/v1/auth/resend-verification", headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 204
+
+
+def test_karisik_harfli_eposta_kayit_sonrasi_normalize_edilir(api_client: TestClient) -> None:
+    """Kayıt kanonik biçimde saklar; hem yazıldığı gibi hem küçük harfle giriş çalışır.
+
+    Regresyon: ``EmailStr`` yalnız alan adını küçültür. Kayıt ham değeri saklarken
+    arama normalize değerle yapıldığında hesap "kayıp" oluyordu.
+    """
+    slug = f"case-{uuid.uuid4().hex[:8]}"
+    mixed = f"Berkay.Test@{slug}.Example.COM"
+    _register(api_client, slug=slug, email=mixed)
+
+    access_token = _login(api_client, email=mixed).json()["access_token"]
+    me = api_client.get("/api/v1/auth/me", headers={"authorization": f"Bearer {access_token}"})
+    assert me.status_code == 200, me.text
+    assert me.json()["email"] == mixed.strip().lower()
+
+    # Kullanıcı farklı harf durumuyla yazsa da giriş yapabilmeli.
+    assert _login(api_client, email=mixed.lower()).status_code == 200
+    assert _login(api_client, email=mixed.upper()).status_code == 200
+
+
+def test_ayni_eposta_farkli_harf_durumuyla_ikinci_kez_kaydolamaz(api_client: TestClient) -> None:
+    """Mükerrer hesap koruması harf durumundan bağımsız olmalı (409)."""
+    slug = f"dupe-{uuid.uuid4().hex[:8]}"
+    _register(api_client, slug=slug, email=f"Ayni@{slug}.example.com")
+
+    resp = api_client.post(
+        "/api/v1/auth/register",
+        json={
+            "org_name": f"{slug}-2",
+            "org_slug": f"{slug}-2",
+            "email": f"AYNI@{slug}.example.com",
+            "password": "sifre-12345",
+        },
+    )
+    assert resp.status_code == 409, resp.text
+
+
+def test_forgot_password_karisik_harfli_epostada_token_uretir(api_client: TestClient) -> None:
+    """D-03'ün asıl semptomu: sıfırlama sessizce hiç çalışmıyordu.
+
+    Uç kullanıcı numaralandırmayı önlemek için her durumda 204 döner; bu yüzden
+    gerçek kanıt, sıfırlama token'ının kullanıcıyı GERÇEKTEN açabilmesidir.
+    """
+    slug = f"forgot-{uuid.uuid4().hex[:8]}"
+    mixed = f"Unutan.Kullanici@{slug}.Example.COM"
+    user_id = _register(api_client, slug=slug, email=mixed)
+
+    assert api_client.post("/api/v1/auth/forgot-password", json={"email": mixed}).status_code == 204
+
+    token = _issue_token(one_time_tokens.PASSWORD_RESET, uuid.UUID(user_id))
+    reset = api_client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": token, "new_password": "yeni-sifre-9876"},
+    )
+    assert reset.status_code == 204, reset.text
+    assert _login(api_client, email=mixed, password="yeni-sifre-9876").status_code == 200

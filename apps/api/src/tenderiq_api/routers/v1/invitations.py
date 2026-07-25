@@ -27,7 +27,12 @@ from tenderiq_api.dependencies import (
     TenantSessionDep,
     require_role,
 )
-from tenderiq_api.errors import ConflictError, NotFoundError, ValidationFailedError
+from tenderiq_api.errors import (
+    ConflictError,
+    NotFoundError,
+    UnauthorizedError,
+    ValidationFailedError,
+)
 from tenderiq_api.routers.v1.auth import (
     TokenResponse,
     _issue_access_token,
@@ -241,6 +246,11 @@ async def accept_invitation(
     kullanıcı otomatik giriş yapmaz (yalnız üyelik eklenir). Geçersiz/süresi dolmuş
     /kullanılmış davet → 400.
     """
+    # Token üretimi AUTH_SECRET ister (bkz. _issue_access_token). Guard davet
+    # TÜKETİLMEDEN önce çalışır: aksi hâlde tek-kullanımlık davet harcanır ve
+    # kullanıcı giriş token'ı alamadan ortada kalırdı (login zaten kapalıdır).
+    if settings.auth_secret is None:
+        raise UnauthorizedError("Sunucu kimlik doğrulaması yapılandırılmamış (AUTH_SECRET).")
     async with session.begin():
         try:
             result = await invitation_service.accept_invitation(

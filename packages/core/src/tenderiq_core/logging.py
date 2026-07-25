@@ -1,7 +1,9 @@
 """Yapılandırılmış (JSON) loglama + korelasyon kimlikleri (structlog).
 
-Her log kaydı, aktif istekle ilişkili korelasyon kimliklerini taşır:
-``request_id``, ``tenant_id``, ``job_id``, ``trace_id`` (bkz. C.6 standartları).
+Her log kaydı, aktif bağlamda ayarlanmış korelasyon kimliklerini taşır:
+``request_id`` (API middleware'i), ``tenant_id`` (kimlik doğrulanmış istek ve
+worker task'ı) ve ``job_id`` (worker task'ı) — bkz. C.6 standartları. Bir
+kimliğin yazıcısı yoksa o alan log kaydına hiç eklenmez.
 """
 
 from __future__ import annotations
@@ -17,13 +19,11 @@ from structlog.typing import EventDict, Processor, WrappedLogger
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 tenant_id_var: ContextVar[str | None] = ContextVar("tenant_id", default=None)
 job_id_var: ContextVar[str | None] = ContextVar("job_id", default=None)
-trace_id_var: ContextVar[str | None] = ContextVar("trace_id", default=None)
 
 _CORRELATION_VARS: tuple[tuple[str, ContextVar[str | None]], ...] = (
     ("request_id", request_id_var),
     ("tenant_id", tenant_id_var),
     ("job_id", job_id_var),
-    ("trace_id", trace_id_var),
 )
 
 

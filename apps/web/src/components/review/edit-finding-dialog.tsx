@@ -304,7 +304,7 @@ function EditForm({ target, onSubmit, onClose }: {
     <>
       <div className="grid gap-4 py-2">{body}</div>
       <DialogFooter>
-        <Button variant="outline" size="sm" onClick={onClose}>
+        <Button variant="secondary" size="sm" onClick={onClose}>
           Vazgeç
         </Button>
         <Button size="sm" onClick={submit}>
@@ -326,7 +326,7 @@ export function EditFindingDialog({
 }) {
   return (
     <Dialog open={target !== null} onOpenChange={(open) => open || onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Bulguyu düzelt</DialogTitle>
           <DialogDescription>

@@ -110,8 +110,14 @@ def _client_ip(request: Request, trusted_proxy_count: int) -> str:
     """Gerçek istemci IP'si: güvenilir proxy arkasında X-Forwarded-For'dan çözülür.
 
     ``trusted_proxy_count``, XFF listesinin SONDAN kaç girdisinin güvenilir altyapı
-    (Next proxy'si / LB) tarafından eklendiğini söyler; istemcinin sahte öne-ek
-    eklemesi bu girdileri etkileyemez. 0 (varsayılan) → XFF yok sayılır.
+    tarafından **EKLENDİĞİNİ** söyler; istemcinin sahte öne-ek eklemesi bu girdileri
+    etkileyemez. 0 (varsayılan) → XFF yok sayılır, soket IP'si kullanılır.
+
+    Güvenlik sözleşmesi: >0 vermek YALNIZCA başlığa girdi yazan bir ters-proxy
+    (nginx/Caddy/CDN/LB) varken doğrudur. Yalnızca başlığı GEÇİREN bir katman
+    (ör. Next'in /api/v1 proxy'si) güvenilir hop SAYILMAZ — o kurulumda >0
+    vermek, sondaki girdiyi istemcinin belirlemesine ve IP oran sınırlamasının
+    her istekte farklı sahte IP ile atlatılmasına izin verir.
     """
     if trusted_proxy_count > 0:
         forwarded = request.headers.get("x-forwarded-for")
@@ -123,8 +129,12 @@ def _client_ip(request: Request, trusted_proxy_count: int) -> str:
 
 
 def _rate_limit_email(email: str) -> str:
-    """E-posta sayaç anahtarı için normalize edilmiş kimlik."""
-    return email.strip().lower()
+    """E-posta sayaç anahtarı — hesap kimliğiyle AYNI kanonik biçim.
+
+    Aynı kural kullanılmazsa sayaç ile hesap araması ayrışır (büyük/küçük harf
+    varyantları limiti sıfırlayabilirdi).
+    """
+    return auth_service.normalize_email(email)
 
 
 async def _enforce_auth_rate_limit(

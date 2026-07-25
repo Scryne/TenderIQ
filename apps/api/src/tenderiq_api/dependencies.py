@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tenderiq_api.errors import AppError, ErrorCode, ForbiddenError, UnauthorizedError
 from tenderiq_core.config import Settings, get_settings
 from tenderiq_core.db.tenant import set_tenant_context
+from tenderiq_core.logging import tenant_id_var
 from tenderiq_core.models import Role
 from tenderiq_core.observability import bind_sentry_tags
 from tenderiq_core.security.tokens import decode_access_token
@@ -69,6 +70,9 @@ async def get_principal(
         raise UnauthorizedError("Geçersiz veya süresi dolmuş token.") from exc
     # Hata raporları kiracı/kullanıcı korelasyonu taşır (yalnız ID — PII değil).
     bind_sentry_tags(tenant_id=principal.tenant_id, user_id=principal.user_id)
+    # Aynı korelasyon loglara da geçer: "şu müşterinin istekleri" sorgulanabilsin.
+    # Reset gerekmez — contextvar isteğin asyncio task bağlamında yaşar ve onunla ölür.
+    tenant_id_var.set(str(principal.tenant_id))
     return principal
 
 
