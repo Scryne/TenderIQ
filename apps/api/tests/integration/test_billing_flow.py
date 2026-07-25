@@ -39,15 +39,28 @@ def _register_and_login(client: TestClient, *, slug: str, email: str) -> tuple[s
 
 @pytest.fixture
 def billing_client(api_client: TestClient) -> Iterator[TestClient]:
-    """api_client + webhook sırrı (per-request SettingsDep bunu okur)."""
+    """api_client + webhook sırrı + **manual sağlayıcı** (per-request SettingsDep okur).
+
+    ``BILLING_PROVIDER`` açıkça sabitlenir: ``Settings`` ``.env`` dosyasını da okur,
+    dolayısıyla geliştirici makinesinde gerçek bir sağlayıcı (ör. iyzico)
+    seçiliyse bu testler onun yapılandırmasına düşer ve sınamak istedikleri
+    test-modu semantiğini hiç görmezler. Testler geliştiricinin yerel
+    ayarlarından bağımsız olmalıdır.
+    """
     from tenderiq_core.config import get_settings
 
+    previous_provider = os.environ.get("BILLING_PROVIDER")
     os.environ["BILLING_WEBHOOK_SECRET"] = WEBHOOK_SECRET
+    os.environ["BILLING_PROVIDER"] = "manual"
     get_settings.cache_clear()
     try:
         yield api_client
     finally:
         os.environ.pop("BILLING_WEBHOOK_SECRET", None)
+        if previous_provider is None:
+            os.environ.pop("BILLING_PROVIDER", None)
+        else:
+            os.environ["BILLING_PROVIDER"] = previous_provider
         get_settings.cache_clear()
 
 

@@ -235,6 +235,42 @@
         "title": "CheckoutResponse",
         "type": "object"
       },
+      "CloseAccountRequest": {
+        "additionalProperties": false,
+        "description": "Hesap kapatma onayı.\n\nSlug'ın elle yazılması istenir: tek tıkla geri alınamaz bir silme tetiklenmesin.",
+        "properties": {
+          "confirm_slug": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Confirm Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirm_slug"
+        ],
+        "title": "CloseAccountRequest",
+        "type": "object"
+      },
+      "CloseAccountResponse": {
+        "description": "Kapatma sonucu ve kalıcı silmenin ne zaman olacağı.",
+        "properties": {
+          "purge_after_days": {
+            "title": "Purge After Days",
+            "type": "integer"
+          },
+          "tenders_deleted": {
+            "title": "Tenders Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tenders_deleted",
+          "purge_after_days"
+        ],
+        "title": "CloseAccountResponse",
+        "type": "object"
+      },
       "ComplianceResultPatch": {
         "additionalProperties": false,
         "description": "Uygunluk değerlendirmesi düzeltme alanları (durum + gerekçe).",
@@ -345,6 +381,71 @@
           "email"
         ],
         "title": "CreateInvitationRequest",
+        "type": "object"
+      },
+      "DataExportResponse": {
+        "description": "KVKK md. 11 veri sahibi erişim hakkı — yapılandırılmış kopya.\n\nKapsam bilinçli olarak \"kişisel veri + envanter\"dir. Çıkarılmış bulguların\ntamamı (binlerce satır) burada DEĞİLDİR: onlar kişisel veri değil, kullanıcının\nyüklediği dokümandan üretilen iş çıktısıdır ve Word/Excel export'uyla zaten\nalınabilir. Bu ayrım aydınlatma metninde de aynı şekilde anlatılmalıdır.",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/ExportedAccount"
+          },
+          "active_organization_id": {
+            "format": "uuid",
+            "title": "Active Organization Id",
+            "type": "string"
+          },
+          "audit_trail": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedAuditEntry"
+            },
+            "title": "Audit Trail",
+            "type": "array"
+          },
+          "comments": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedComment"
+            },
+            "title": "Comments",
+            "type": "array"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedDocument"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedMembership"
+            },
+            "title": "Memberships",
+            "type": "array"
+          },
+          "tenders": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedTender"
+            },
+            "title": "Tenders",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "account",
+          "memberships",
+          "active_organization_id",
+          "tenders",
+          "documents",
+          "comments",
+          "audit_trail"
+        ],
+        "title": "DataExportResponse",
         "type": "object"
       },
       "DeliverableKind": {
@@ -641,6 +742,273 @@
         ],
         "title": "ExportFormat",
         "type": "string"
+      },
+      "ExportedAccount": {
+        "description": "Kullanıcının hesap verisi.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "email_verified": {
+            "title": "Email Verified",
+            "type": "boolean"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "email_verified",
+          "is_active",
+          "created_at"
+        ],
+        "title": "ExportedAccount",
+        "type": "object"
+      },
+      "ExportedAuditEntry": {
+        "description": "Kullanıcının KENDİ yaptığı işlemlerin denetim kaydı.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "resource_type": {
+            "title": "Resource Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "resource_type",
+          "resource_id",
+          "created_at"
+        ],
+        "title": "ExportedAuditEntry",
+        "type": "object"
+      },
+      "ExportedComment": {
+        "description": "Kullanıcının bir bulguya yazdığı yorum (kişisel veri: yazar + metin).",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "finding_id": {
+            "format": "uuid",
+            "title": "Finding Id",
+            "type": "string"
+          },
+          "finding_kind": {
+            "title": "Finding Kind",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "tender_id": {
+            "format": "uuid",
+            "title": "Tender Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tender_id",
+          "finding_kind",
+          "finding_id",
+          "body",
+          "created_at"
+        ],
+        "title": "ExportedComment",
+        "type": "object"
+      },
+      "ExportedDocument": {
+        "description": "Doküman ENVANTERİ — dosyanın kendisi değil.\n\nDosya içeriği bu dışa aktarmaya konmaz: yüzlerce megabaytlık PDF'leri JSON'a\ngömmek ne taşınabilir ne de yararlıdır. Kullanıcı dosyalarına inceleme\nekranından zaten erişebilir; buradaki liste \"hangi dosyalar işleniyor\"\nsorusunu cevaplar (KVKK md. 11/b).",
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tender_id": {
+            "format": "uuid",
+            "title": "Tender Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tender_id",
+          "filename",
+          "content_type",
+          "kind",
+          "status",
+          "size_bytes",
+          "page_count",
+          "created_at"
+        ],
+        "title": "ExportedDocument",
+        "type": "object"
+      },
+      "ExportedMembership": {
+        "description": "Kullanıcının bir organizasyondaki üyeliği.",
+        "properties": {
+          "joined_at": {
+            "format": "date-time",
+            "title": "Joined At",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "organization_name": {
+            "title": "Organization Name",
+            "type": "string"
+          },
+          "organization_slug": {
+            "title": "Organization Slug",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organization_id",
+          "organization_name",
+          "organization_slug",
+          "role",
+          "joined_at"
+        ],
+        "title": "ExportedMembership",
+        "type": "object"
+      },
+      "ExportedTender": {
+        "description": "İhale envanteri.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "created_at"
+        ],
+        "title": "ExportedTender",
+        "type": "object"
       },
       "FindingCommentCreate": {
         "description": "Yeni bulgu yorumu.",
@@ -1239,6 +1607,31 @@
           "is_active"
         ],
         "title": "MembershipInfo",
+        "type": "object"
+      },
+      "OrganizationResponse": {
+        "description": "Aktif organizasyon özeti.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "title": "OrganizationResponse",
         "type": "object"
       },
       "PanelDeadline": {
@@ -4202,6 +4595,166 @@
         "summary": "Update Member Role",
         "tags": [
           "members"
+        ]
+      }
+    },
+    "/api/v1/organizations/current": {
+      "get": {
+        "description": "Aktif organizasyonu döndürür.",
+        "operationId": "get_current_organization_api_v1_organizations_current_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Current Organization",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/organizations/current/close": {
+      "post": {
+        "description": "Hesabı kapatır: organizasyon ve tüm içeriği silinmek üzere işaretlenir (KVKK md. 7).\n\nYalnız **yönetici** çağırabilir ve organizasyonun slug'ını doğru yazması\ngerekir. Kapatma sonrası:\n\n- Organizasyon ve tüm ihaleler/dokümanlar anında görünmez olur.\n- Tüm üyelerin oturumları iptal edilir; bu organizasyona giriş yapılamaz.\n  (Üyenin BAŞKA bir organizasyonu varsa oraya girmeye devam eder.)\n- ``DATA_RETENTION_DAYS`` sonunda içerik ve dosyalar KALICI silinir.\n\n**Fatura kayıtları ve denetim izi silinmez:** VUK gereği saklanması zorunlu\nolduğundan organizasyon satırı anonimleştirilmiş hâlde kalır. Bu, KVKK md. 7'nin\nkanuni saklama yükümlülüğü istisnasıdır ve aydınlatma metninde beyan edilir.\n\nGeri alma ucu **bilinçli olarak yoktur**: hesap kapatma nadir ve ağır bir\nişlemdir, yanlışlıkla yapıldıysa saklama penceresi içinde destek kanalından\nelle geri alınır (`organization.deleted_at = NULL`).",
+        "operationId": "close_current_organization_api_v1_organizations_current_close_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseAccountResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close Current Organization",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/organizations/current/export": {
+      "get": {
+        "description": "Veri sahibinin kendi verisinin makine-okunur kopyasını döndürür (KVKK md. 11).\n\nKapsam **aktif organizasyondur**: kullanıcı birden çok organizasyona üyeyse\nher biri için ayrı ayrı çağırır (org değiştirip tekrar ister). Bu bilinçlidir —\nRLS kiracı bağlamı tek org'a bağlıdır ve onu delip geçmek, izolasyonun tek\ndayanağını istisnaya çevirirdi.\n\nYumuşak silinmiş kayıtlar dışa aktarmada GÖRÜNMEZ: kullanıcı onları zaten\nsilmiştir, \"işlenen veri\" değildirler.",
+        "operationId": "export_my_data_api_v1_organizations_current_export_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export My Data",
+        "tags": [
+          "organizations"
         ]
       }
     },

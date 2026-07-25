@@ -12,8 +12,10 @@
 | Mekanizma | Ne yapar | Nerede |
 |---|---|---|
 | **Yumuşak silme** | `deleted_at` işaretlenir; kayıt tüm okuma yollarından anında düşer. Nesne depolamadaki dosyaya dokunulmaz. | `tenderiq_core.db.soft_delete` (otomatik filtre), `DELETE /api/v1/tenders/{id}`, `DELETE /api/v1/documents/{id}` |
-| **Geri alma** | Saklama penceresi içinde yumuşak silmeyi iptal eder. Yalnız ihaleyle birlikte silinen dokümanları geri açar. | `POST /api/v1/tenders/{id}/restore` |
-| **Kalıcı silme (purge)** | Saklama penceresi dolunca **önce nesne depolamadaki dosyalar, sonra DB satırları** silinir. Alt tablolar FK `ON DELETE CASCADE` ile gider. | `data.purge_deleted` Celery beat işi (günde bir) |
+| **Geri alma** | Saklama penceresi içinde yumuşak silmeyi iptal eder. Yalnız ihaleyle birlikte silinen dokümanları geri açar (`deleted_with_tender`). | `POST /api/v1/tenders/{id}/restore` |
+| **Hesap kapatma (md. 7)** | Organizasyon + tüm içeriği işaretlenir, üyelerin oturumları iptal edilir, bu organizasyona giriş kapanır. | `POST /api/v1/organizations/current/close` (yönetici + slug onayı) |
+| **Veri sahibi erişimi (md. 11)** | Kişisel verinin ve kiracı envanterinin makine-okunur (JSON) kopyası. | `GET /api/v1/organizations/current/export` |
+| **Kalıcı silme (purge)** | Saklama penceresi dolunca **önce nesne depolamadaki dosyalar, sonra DB satırları** silinir. Alt tablolar FK `ON DELETE CASCADE` ile gider. Kapatılmış hesaplarda ayrıca üyelik/davet/yetkinlik profili silinir ve organizasyon anonimleştirilir. | `data.purge_deleted` Celery beat işi (günde bir) |
 
 **Kritik sıra kuralı:** nesne depolama silinemezse DB satırı **bırakılır** ve bir
 sonraki koşuda yeniden denenir. Tersi yapılsaydı `storage_key` kaybolur ve dosya
@@ -37,9 +39,11 @@ Yapılandırma: `DATA_RETENTION_DAYS` (varsayılan **30 gün**).
 | Kullanım kaydı (kota) | `usage_record` | **Faturalama gereği saklanır** — dönem kapandıktan sonra 10 yıl (VUK) | Ayrı; ihale silmesinden etkilenmez |
 | Abonelik | `subscription` | Hesap kapanana + 10 yıl (VUK) | Ayrı |
 | Denetim kaydı | `audit_log` | **En az 1 yıl** (kurumsal satış/güvenlik gereği); kalıcı silme kaydı dâhil | Ayrı; silinen kaydın kanıtıdır |
-| Kullanıcı hesabı | `user_account` | Hesap silinene dek | *(bkz. Açık uçlar)* |
-| Üyelik | `membership` | Organizasyon/kullanıcı ile | CASCADE |
-| Davet | `invitation` | Kabul/iptal/süre aşımı + 30 gün | *(bkz. Açık uçlar)* |
+| Organizasyon (mezar taşı) | `organization` | **Süresiz** — anonimleştirilmiş (ad/slug) hâlde kalır; fatura ve denetim kayıtlarının FK hedefi | Anonimleştirme (kalıcı silinmez) |
+| Kullanıcı hesabı | `user_account` | Son üyeliği kalkana dek; hesap kapatmada başka üyeliği yoksa **silinir** | Hesap kapatma süpürmesi |
+| Üyelik | `membership` | Organizasyon kapatılana dek | Hesap kapatma süpürmesi · CASCADE (kullanıcı) |
+| Davet | `invitation` | Organizasyon kapatılana dek | Hesap kapatma süpürmesi · *(süresi dolmuşların otomatik temizliği yok — bkz. Açık uçlar)* |
+| Yetkinlik profili | `capability_profile` | Organizasyon kapatılana dek | Hesap kapatma süpürmesi |
 | Oturum (refresh token) | Redis | TTL (kısa ömürlü); logout'ta anında iptal | TTL + `revoke_all_for_user` |
 | Tek kullanımlık token (doğrulama/sıfırlama) | Redis | TTL; ilk kullanımda atomik tüketim | TTL / GETDEL |
 | Oran sınırlama sayaçları | Redis | Pencere süresi (300 sn) | TTL |
@@ -53,25 +57,43 @@ zorunludur. Doküman içeriği sağlayıcıda kalıcı olarak saklanmaz; bu nede
 "silme" talebi LLM sağlayıcısına ayrıca iletilmez. Alt-işleyen listesi trust
 sayfasında yayımlanır.
 
-## 4. Açık uçlar — GA öncesi kapatılmalı
+## 4. KVKK md. 7 (silme) ile VUK (saklama) çakışması
 
-Bu maddeler **henüz uygulanmadı**; matris eksiksiz sayılmaz:
+Hesap kapatıldığında **organizasyon satırı kalıcı olarak silinmez**. Sebebi teknik
+değil hukukidir: `subscription`, `usage_record` ve `audit_log` kayıtları
+`organization.id`'ye `ON DELETE CASCADE` ile bağlıdır ve fatura/defter kayıtlarının
+VUK gereği 10 yıl saklanması zorunludur. KVKK md. 7, **kanuni saklama yükümlülüğü
+bulunan veriyi silme hakkının istisnası** sayar.
 
-1. **Hesap/organizasyon kapatma akışı yok.** Şu an ihale ve doküman silinebiliyor;
-   "organizasyonumu ve tüm verimi sil" (KVKK md. 7 tam silme) ucu yazılmadı.
-   Organizasyon silinince `tenant_id` FK'leri CASCADE ile her şeyi götürür, ancak
-   R2 nesnelerinin toplu silinmesi ve fatura kayıtlarının VUK gereği ayrı
-   tutulması ayrıca kurgulanmalı.
-2. **Veri sahibi erişim hakkı (veri dışa aktarma) ucu yok.** KVKK md. 11
-   kapsamında kullanıcı kendi verisinin kopyasını isteyebilir. Bugün yalnız
-   ihale bazlı Word/Excel export var; hesap düzeyinde dışa aktarma yok.
-3. **Davet ve hesap kayıtları için otomatik temizlik yok.** Süresi dolmuş davetler
-   silinmiyor, yalnız geçersiz sayılıyor.
-4. **Log PII maskelemesi doğrulanmadı.** J.4 maddesi; loglarda e-posta/doküman
+Uygulanan çözüm:
+
+| Ne olur | Neden |
+|---|---|
+| İhale, doküman, bulgu, chunk, embedding, yorum, dosya → **kalıcı silinir** | Kişisel veri / müşteri içeriği |
+| Üyelik, davet, yetkinlik profili → **kalıcı silinir** | Kişisel veri |
+| Başka üyeliği kalmayan kullanıcı hesabı → **kalıcı silinir** | Kişisel veri; işleme sebebi kalmadı |
+| Organizasyon adı/slug → **anonimleştirilir** (`Kapatılmış organizasyon` / `deleted-<uuid>`) | Ticari unvan kişisel veri sayılabilir |
+| `subscription`, `usage_record` → **korunur** | VUK 10 yıl |
+| `audit_log` → **korunur** (`actor_user_id` kullanıcı silinince `NULL` olur) | Kanuni/kurumsal denetim; kim olduğu anonimleşir |
+
+> Bu istisna **aydınlatma metninde açıkça beyan edilmelidir**: "hesabınızı
+> kapatsanız da fatura kayıtlarınız vergi mevzuatı gereği 10 yıl saklanır."
+
+## 5. Açık uçlar — GA öncesi kapatılmalı
+
+1. **Süresi dolmuş davetler için otomatik temizlik yok.** Geçersiz sayılıyor ama
+   satır duruyor; kapatılmayan hesaplarda birikir.
+2. **Log PII maskelemesi doğrulanmadı.** J.4 maddesi; loglarda e-posta/doküman
    içeriği sızmadığı denetlenmeli.
-5. **R2 bucket versioning + yaşam döngüsü kuralları kurulmadı** (J.3). Versioning
+3. **R2 bucket versioning + yaşam döngüsü kuralları kurulmadı** (J.3). Versioning
    açıksa `delete_object` eski sürümü bırakabilir — hard-delete ile uyumu
-   yapılandırma seviyesinde doğrulanmalı.
+   yapılandırma seviyesinde doğrulanmalı. **Bu, "sildim" beyanını doğrudan
+   etkilediği için en öncelikli açık uçtur.**
+4. **Hesap kapatmanın geri alma ucu yok** (bilinçli). Yanlışlıkla kapatılan hesap
+   saklama penceresi içinde elle (`organization.deleted_at = NULL`) geri alınır;
+   bu, destek runbook'una yazılmalıdır.
+5. **Dışa aktarma tek organizasyon kapsamlıdır.** Çok org'lu kullanıcı her biri
+   için ayrı çağırır; RLS kiracı bağlamını delmemek için bilinçlidir.
 
 ## 5. Doğrulama
 

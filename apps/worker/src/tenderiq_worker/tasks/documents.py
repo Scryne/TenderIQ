@@ -14,13 +14,15 @@ Faz gövdeleri: parsing (Sprint 1.2), indexing (Sprint 1.3), extracting
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from celery import Task
 from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy import select
 
-from tenderiq_core.config import get_settings
+from tenderiq_core.config import Settings, get_settings
+from tenderiq_core.db.soft_delete import INCLUDE_DELETED
 from tenderiq_core.logging import get_logger, job_id_var, tenant_id_var
 from tenderiq_core.models import (
     AuditAction,
@@ -40,7 +42,12 @@ from tenderiq_core.queueing import (
     TASK_PURGE_DELETED,
 )
 from tenderiq_core.services.audit import record_audit
-from tenderiq_core.services.deletion import purge_cutoff, purge_tenant_sync
+from tenderiq_core.services.deletion import (
+    collect_purgeable_organizations,
+    purge_cutoff,
+    purge_organization_sync,
+    purge_tenant_sync,
+)
 from tenderiq_core.services.quota import QuotaExceededError
 from tenderiq_core.storage import StorageNotConfiguredError
 from tenderiq_worker.celery_app import celery_app
@@ -290,6 +297,9 @@ def purge_deleted() -> int:
 
     factory = get_session_factory()
     with factory() as session:
+        # Bu liste ETKİN organizasyonlardır: yumuşak silme filtresi kapatılmış
+        # olanları eler. Kapatılanlar aşağıda AYRI bir geçişte, tümüyle farklı
+        # bir kuralla (içerik silinir, satır mezar taşı olarak kalır) işlenir.
         tenant_ids = list(session.scalars(select(Organization.id)))
 
     purged_total = 0
@@ -324,4 +334,66 @@ def purge_deleted() -> int:
             objects_failed=result.objects_failed,
         )
 
+    purged_total += _purge_closed_organizations(cutoff, _delete_object, settings)
     return purged_total
+
+
+def _purge_closed_organizations(
+    cutoff: datetime,
+    delete_object: Callable[[str], bool],
+    settings: Settings,
+) -> int:
+    """Kapatılmış organizasyonların içeriğini kalıcı siler (KVKK md. 7).
+
+    Etkin kiracı süpürmesinden AYRI tutulur çünkü kuralı farklıdır: burada
+    yalnız süresi dolmuş silmeler değil, kiracının TÜM içeriği gider ve ardından
+    organizasyon satırı anonimleştirilip bırakılır (fatura/denetim kayıtları ona
+    bağlıdır — bkz. ``services.deletion``).
+    """
+    factory = get_session_factory()
+    with factory() as session:
+        closed = collect_purgeable_organizations(session, cutoff)
+        closed_ids = [organization.id for organization in closed]
+
+    purged = 0
+    for organization_id in closed_ids:
+        with tenant_session(organization_id) as session:
+            organization = session.execute(
+                select(Organization)
+                .where(Organization.id == organization_id)
+                .execution_options(**{INCLUDE_DELETED: True})
+            ).scalar_one_or_none()
+            if organization is None:  # eşzamanlı başka bir koşu almış olabilir
+                continue
+            result = purge_organization_sync(session, organization, delete_object=delete_object)
+            if result.objects_failed:
+                logger.warning(
+                    "hesap_kapatma_ertelendi_nesne_silinemedi",
+                    tenant_id=str(organization_id),
+                    objects_failed=result.objects_failed,
+                )
+                continue
+            record_audit(
+                session,
+                tenant_id=organization_id,
+                action=AuditAction.DATA_PURGED,
+                resource_type="organization",
+                resource_id=organization_id,
+                meta={
+                    "reason": "account_closed",
+                    "tenders": result.tenders,
+                    "objects_deleted": result.objects_deleted,
+                    "memberships": result.memberships,
+                    "users_deleted": result.users_deleted,
+                    "retention_days": settings.data_retention_days,
+                },
+            )
+        purged += 1
+        logger.info(
+            "hesap_kapatma_tamamlandi",
+            tenant_id=str(organization_id),
+            tenders=result.tenders,
+            objects_deleted=result.objects_deleted,
+            users_deleted=result.users_deleted,
+        )
+    return purged

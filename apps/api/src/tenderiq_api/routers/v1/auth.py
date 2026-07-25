@@ -435,8 +435,12 @@ async def switch_org(
     """
     if settings.auth_secret is None:
         raise UnauthorizedError("Sunucu kimlik doğrulaması yapılandırılmamış (AUTH_SECRET).")
+    # Organization join'i: kapatılmış organizasyona geçiş yapılamaz (yumuşak
+    # silme filtresi eleyeceğinden üyelik "yok" sayılır).
     membership: Membership | None = await session.scalar(
-        select(Membership).where(
+        select(Membership)
+        .join(Organization, Membership.organization_id == Organization.id)
+        .where(
             Membership.user_id == principal.user_id,
             Membership.organization_id == body.organization_id,
         )

@@ -108,8 +108,16 @@ async def authenticate(
     # Çoklu-org: giriş varsayılan olarak EN ERKEN katılınan üyeliği seçer
     # (deterministik; eskiden sırasız `first()` rastgele org seçebiliyordu).
     # Kullanıcı sonra `POST /auth/switch-org` ile aktif org'u değiştirebilir.
+    #
+    # Organization join'i ZORUNLUDUR: kapatılmış (yumuşak silinmiş) bir
+    # organizasyonun üyeliği giriş için geçerli sayılmamalıdır. Join sayesinde
+    # yumuşak silme filtresi devreye girer ve kapatılan org'un üyelikleri elenir;
+    # kullanıcının başka bir org'u varsa giriş onunla sürer.
     membership: Membership | None = await session.scalar(
-        select(Membership).where(Membership.user_id == user.id).order_by(Membership.created_at)
+        select(Membership)
+        .join(Organization, Membership.organization_id == Organization.id)
+        .where(Membership.user_id == user.id)
+        .order_by(Membership.created_at)
     )
     if membership is None:
         return None

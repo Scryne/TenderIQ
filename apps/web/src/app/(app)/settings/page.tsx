@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { MailPlus, UserCog, Users } from "lucide-react";
+import { MailPlus, ShieldCheck, UserCog, Users } from "lucide-react";
 
 import { AccountSection } from "@/components/settings/account-section";
+import { DataRightsSection } from "@/components/settings/data-rights-section";
 import { InvitationsSection } from "@/components/settings/invitations-section";
 import { MembersSection } from "@/components/settings/members-section";
 import { PageHeader } from "@/components/shell/page-header";
@@ -65,6 +66,10 @@ export default function SettingsPage() {
                 Davetler
               </TabsTrigger>
             )}
+            <TabsTrigger value="data">
+              <ShieldCheck strokeWidth={1.75} />
+              Verilerim
+            </TabsTrigger>
           </TabsList>
 
           <div className="min-w-0 flex-1">
@@ -73,6 +78,9 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="members">
               <MembersSection isAdmin={isAdmin} currentUserId={me.data.id} />
+            </TabsContent>
+            <TabsContent value="data">
+              <DataRightsSection isAdmin={isAdmin} />
             </TabsContent>
             <TabsContent value="invitations">
               {isAdmin ? (

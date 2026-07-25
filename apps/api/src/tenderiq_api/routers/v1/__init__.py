@@ -14,6 +14,7 @@ from tenderiq_api.routers.v1 import (
     invitations,
     jobs,
     members,
+    organizations,
     panel,
     system,
     tenders,
@@ -31,6 +32,7 @@ api_v1_router.include_router(capability_profile.router)
 api_v1_router.include_router(invitations.router)
 api_v1_router.include_router(jobs.router)
 api_v1_router.include_router(members.router)
+api_v1_router.include_router(organizations.router)
 api_v1_router.include_router(panel.router)
 api_v1_router.include_router(system.router)
 api_v1_router.include_router(usage.router)
