@@ -12,6 +12,7 @@ export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   const isProtected =
+    pathname.startsWith("/panel") ||
     pathname.startsWith("/tenders") ||
     pathname.startsWith("/capability") ||
     pathname.startsWith("/usage") ||
@@ -34,6 +35,7 @@ export function middleware(request: NextRequest): NextResponse {
 
 export const config = {
   matcher: [
+    "/panel/:path*",
     "/tenders/:path*",
     "/capability/:path*",
     "/usage/:path*",

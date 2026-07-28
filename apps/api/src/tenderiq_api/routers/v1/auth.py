@@ -357,8 +357,16 @@ async def refresh(
 
     identity = rotated.identity
     user: User | None = await session.get(User, identity.user_id)
+    # Organization join'i login/switch-org ile AYNI sözleşmeyi kurar: kapatılmış
+    # (yumuşak silinmiş) bir organizasyonun üyeliği geçerli sayılmaz — yumuşak
+    # silme filtresi join üzerinden devreye girer. Join olmasaydı, kapatma anında
+    # oturum iptali herhangi bir nedenle eksik kalırsa (Redis kesintisi, elle
+    # `deleted_at` işaretlemesi) o refresh token'ı süresiz olarak rotasyonla
+    # yaşamaya devam ederdi.
     membership: Membership | None = await session.scalar(
-        select(Membership).where(
+        select(Membership)
+        .join(Organization, Membership.organization_id == Organization.id)
+        .where(
             Membership.user_id == identity.user_id,
             Membership.organization_id == identity.tenant_id,
         )

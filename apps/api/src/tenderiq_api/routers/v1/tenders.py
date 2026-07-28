@@ -21,6 +21,7 @@ from tenderiq_api.dependencies import (
     StorageDep,
     TenantSessionDep,
     require_role,
+    require_verified_email,
 )
 from tenderiq_api.errors import (
     ConflictError,
@@ -444,7 +445,10 @@ async def restore_tender(
     "/{tender_id}/documents",
     response_model=DocumentUploadResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_writer],
+    # E-posta doğrulaması BURADA istenir, yüklemenin sonunda değil: kullanıcı
+    # 100 MB'ı yükledikten sonra reddedilmemeli. Hattın maliyeti (OCR + LLM) bu
+    # kaydın açılmasıyla taahhüt edilir.
+    dependencies=[_writer, Depends(require_verified_email)],
 )
 async def create_document(
     tender_id: uuid.UUID,
