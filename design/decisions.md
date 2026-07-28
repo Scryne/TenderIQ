@@ -192,3 +192,61 @@ ayrıştırıldı ve başa alındı (28/02/2025 → 28/08/2025); "28/08/2025 tar
 (yüzelli) takvim günüdür" ayrıştırılamayıp ham metniyle sonda kaldı.
 
 **Çekim.** `design/preview` 375+1440: 0 konsol hatası, 0 yatay taşma.
+
+---
+
+## 2026-07-28 · /register + hukuki sayfa seti · tur 1-2
+
+**Karar.** Kayıt ekranı `AuthLayout`'u birebir yeniden kullanır. Yeni bir auth
+kompozisyonu denemedim: giriş ve kayıt yan yana görülen iki ekrandır, farklı
+ritim "iki ayrı ürün" hissi verir. Tasarım sisteminin kendisi burada tutarlılıktır.
+
+**Signature: canlı çalışma alanı kısa adı (slug).** Kayıt sırasında geri
+alınamayan tek karar bu — hesap kapatma onayında kullanıcıdan birebir yazması
+istenir ve backend Türkçe harf kabul etmez (`^[a-z0-9-]+$`). Gizli bir alan
+olarak arkada türetmek, kullanıcıyı aylar sonra tanımadığı bir kimlikle
+karşılaştırırdı. Bu yüzden unvan yazılırken altında canlı görünür ve "Değiştir"
+ile açılır. Türkçe dönüşüm `lib/slug.ts`te: `İ/I/ı → i`, `ş → s`, `ğ → g`…
+küçültmeden **önce** eşlenir, çünkü `"İ".toLowerCase()` birleşen nokta üretir ve
+`toLocaleLowerCase("tr")` `I`yı `ı`ya çevirir — ikisi de sonradan eşlemeyi bozar.
+
+**Tur 1 kritiği (1440 + 375):**
+
+**İyi:** Sol sütun ritmi giriş ekranıyla birebir tutuyor; sağdaki kanıt motifi
+kayıt anında da ürünün vaadini gösteriyor.
+
+**Kötü:**
+1. Birincil buton boş formda `disabled` — sayfanın ilk gördüğü şey ölü bir
+   buton ve neyin eksik olduğunu söylemiyor. BRIEF'in "devre dışı buton değil,
+   nedenini söyleyen metin" ilkesiyle de çelişiyor.
+2. Zorunlu alan işareti yok (§8.6). 4 alandan 3'ü zorunlu, hiçbiri işaretli değil.
+3. "Firma unvanı" altında iki ayrı yardım satırı (hint + "kısa adı kendim
+   belirlemek istiyorum") yığılmış; form dikey ritmi yalnız bu grupta bozuluyor.
+4. Ad soyad alanı isteğe bağlı ama öyle görünmüyor.
+5. Placeholder "Berkay Yılmaz" — ürünün sahibinin adı; jenerik örnek olmalı.
+
+**Uygulanan (tur 2):** 1 → `disabled` kaldırıldı; submit'te kısa ad geçersizse
+alan açılıp odaklanıyor (ölü buton yerine düzeltilecek yeri gösteriyor).
+2 → `*` + "* işaretli alanlar zorunludur". 3 → hint ile "Değiştir" aynı satırda
+(login'deki "Parolamı unuttum" kalıbı). 4 → "(isteğe bağlı)". 5 → "Ayşe Demir".
+Tur 2'de 4 viewport + koyu tema temiz: 0 konsol hatası, 0 yatay taşma.
+
+**Hukuki sayfa seti** (`/kvkk`, `/sartlar`, `/trust`, `/dpa`) ortak
+`LegalPage` kabuğunu kullanır; metin bloğu 68 karakterle sınırlı (§7.1).
+
+**Bölümler JSX çocuk değil, VERİ olarak veriliyor.** İlk sürüm
+`<LegalSection>` çocuklarıyla yazılmıştı ve içindekiler listesi yoktu; 9-12
+bölümlük hukuki metinler birbirine `#saklama` gibi çapalarla atıf yapıyor,
+yönlenme olmadan okunmuyor. İçindekiler'i elle yazmak ise başlıkla listenin
+ayrışması riskini doğururdu — hukuki bir metinde bu kabul edilemez. Bölümler
+`sections` dizisi olarak verilince liste otomatik üretiliyor, drift imkânsız.
+
+**`<Fill>` bileşeni bilinçli olarak göze batıyor** (amber zemin, mono). Bir
+hukuki metinde eksik alanın sessizce boş kalması, yanlış bilgi vermekten
+tehlikelidir: kimse fark etmez. Ayrıca sayfa başında "taslak, hukuk onayından
+geçmemiştir" uyarısı duruyor ve doldurulacaklar `grep -r "<Fill" apps/web/src`
+ile listelenebiliyor.
+
+**Bilinen borç (devam ediyor).** `design/refs/` hâlâ boş — bu ekranlarda referans
+karşılaştırması yapılamadı; mevcut auth ekranları fiilî referans olarak kullanıldı.
+Lighthouse erişilebilirlik skoru hâlâ ölçülmedi (§15 açık madde).

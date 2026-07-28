@@ -52,13 +52,13 @@ function LoginForm() {
       description="TenderIQ hesabınızla oturum açın."
       footer={
         <span>
-          Hesabınız yok mu? Kapalı beta için{" "}
-          <a
-            href="mailto:beta@tenderiq.local?subject=Kapal%C4%B1%20beta%20talebi"
+          Hesabınız yok mu?{" "}
+          <Link
+            href="/register"
             className="text-ink-2 underline decoration-border-strong underline-offset-4 hover:decoration-ink-1"
           >
-            davet isteyin
-          </a>
+            Ücretsiz hesap oluşturun
+          </Link>
           .
         </span>
       }

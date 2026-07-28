@@ -19,6 +19,7 @@ import type { ReactNode } from "react";
 
 import { BrandLockup, BrandMark } from "@/components/auth/auth-layout";
 import { EvidenceRail, SourceRef } from "@/components/evidence";
+import { LEGAL_LINKS } from "@/components/marketing/legal-shell";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -96,7 +97,7 @@ function SiteHeader() {
           >
             Giriş yap
           </Link>
-          <Link href="/login" className={cn(buttonVariants({ size: "sm" }))}>
+          <Link href="/register" className={cn(buttonVariants({ size: "sm" }))}>
             Ücretsiz başla
           </Link>
         </div>
@@ -144,7 +145,7 @@ function Hero() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/login" className={cn(buttonVariants({ size: "lg" }))}>
+            <Link href="/register" className={cn(buttonVariants({ size: "lg" }))}>
               Ücretsiz başla
               <ArrowRight strokeWidth={2} />
             </Link>
@@ -510,7 +511,7 @@ const PLANS = [
       "Word ve Excel çıktısı",
     ],
     cta: "Ücretsiz başla",
-    href: "/login",
+    href: "/register",
     highlight: false,
   },
   {
@@ -527,7 +528,7 @@ const PLANS = [
       "İnsan-döngüde onay akışı",
     ],
     cta: "Pro ile başla",
-    href: "/login",
+    href: "/register",
     highlight: true,
   },
   {
@@ -710,10 +711,10 @@ function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-8">
         <BrandLockup />
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-2">
-          {NAV_LINKS.map((link) => (
-            <a key={link.href} href={link.href} className="hover:text-ink-1">
+          {LEGAL_LINKS.map((link) => (
+            <Link key={link.href} href={link.href} className="hover:text-ink-1">
               {link.label}
-            </a>
+            </Link>
           ))}
           <Link href="/login" className="hover:text-ink-1">
             Giriş yap
