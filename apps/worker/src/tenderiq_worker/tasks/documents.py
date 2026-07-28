@@ -13,6 +13,7 @@ Faz gövdeleri: parsing (Sprint 1.2), indexing (Sprint 1.3), extracting
 
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -36,6 +37,7 @@ from tenderiq_core.models import (
     TenderStatus,
 )
 from tenderiq_core.observability import bind_sentry_tags
+from tenderiq_core.ops import JOB_PHASE_TOTAL, record_job_phase
 from tenderiq_core.queueing import (
     TASK_CLEANUP_STALE_UPLOADS,
     TASK_PROCESS_DOCUMENT,
@@ -141,12 +143,24 @@ def _advance(job_id: uuid.UUID, tenant_id: uuid.UUID, current: JobStatus) -> Job
         if target is JobStatus.REVIEW_READY:
             job.finished_at = _utcnow()
             job.error_message = None
+            # Toplam süre DB'deki started_at'ten ölçülür, bu denemenin başından
+            # değil: retry'lı bir iş kullanıcıya bir kez bekletir ve SLO'nun
+            # ("işleme < 10 dk") ölçtüğü şey o bekleyiştir.
+            _record_total_duration(job, ok=True)
             document = session.get(Document, job.document_id)
             if document is not None:
                 tender = session.get(Tender, document.tender_id)
                 if tender is not None and tender.status is TenderStatus.ANALYZING:
                     tender.status = TenderStatus.REVIEW_READY
     return target
+
+
+def _record_total_duration(job: Job, *, ok: bool) -> None:
+    """İşin uçtan uca süresini/sonucunu operasyon penceresine yazar (J.4)."""
+    if job.started_at is None or job.finished_at is None:
+        return
+    elapsed = (job.finished_at - job.started_at).total_seconds()
+    record_job_phase(JOB_PHASE_TOTAL, duration_seconds=elapsed, ok=ok)
 
 
 def _record_error(job_id: uuid.UUID, tenant_id: uuid.UUID, exc: Exception, *, final: bool) -> None:
@@ -160,6 +174,7 @@ def _record_error(job_id: uuid.UUID, tenant_id: uuid.UUID, exc: Exception, *, fi
             if final and not job.is_terminal:
                 job.transition_to(JobStatus.FAILED)
                 job.finished_at = _utcnow()
+                _record_total_duration(job, ok=False)
     except Exception:  # hata kaydı, asıl hatayı gölgelememeli
         logger.error("hata_kaydi_basarisiz", job_id=str(job_id), exc_info=True)
 
@@ -170,7 +185,15 @@ def _run_pipeline(job_id: uuid.UUID, tenant_id: uuid.UUID) -> str:
         return "already_terminal"
     while status is not JobStatus.REVIEW_READY:
         handler = _PHASE_HANDLERS[status]
-        handler(job_id, tenant_id)
+        started = time.perf_counter()
+        try:
+            handler(job_id, tenant_id)
+        except Exception:
+            # Faz sayacı deneme başınadır: "hangi faz patlıyor" sorusunun cevabı
+            # denemelerin dağılımıdır, işin nihai sonucu değil (o `total`de).
+            record_job_phase(status.value, duration_seconds=0.0, ok=False)
+            raise
+        record_job_phase(status.value, duration_seconds=time.perf_counter() - started, ok=True)
         status = _advance(job_id, tenant_id, status)
     return status.value
 

@@ -108,6 +108,13 @@ class Settings(BaseSettings):
     # GİTMEZ. Yalnız SELF-HOSTED Langfuse'da True yapılmalıdır (içerik dışarı sızmasın).
     langfuse_capture_io: bool = False
     sentry_dsn: str | None = None
+    # Operasyon metrikleri ucu (`GET /ops/metrics`, J.4). Boşsa uç 404 döner —
+    # yani kapalı bir kurulumda varlığı bile sızmaz. Doldurulunca yalnız bu
+    # token'la (Bearer) erişilir; kiracı verisi DEĞİL, toplam sayaç döndürür.
+    # Üretim: `openssl rand -hex 32`.
+    ops_metrics_token: str | None = None
+    # Ucun varsayılan pencere genişliği (dakika); istek `?window=` ile daraltabilir.
+    ops_metrics_window_minutes: int = 60
 
     # ── Kimlik ────────────────────────────────────────────────────────────────
     auth_secret: str | None = None

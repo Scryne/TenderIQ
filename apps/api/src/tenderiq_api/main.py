@@ -16,6 +16,7 @@ from tenderiq_api.errors import register_exception_handlers
 from tenderiq_api.middleware import RequestContextMiddleware
 from tenderiq_api.queueing import enqueue_process_document
 from tenderiq_api.routers.health import router as health_router
+from tenderiq_api.routers.ops import router as ops_router
 from tenderiq_api.routers.v1 import api_v1_router
 from tenderiq_core.config import Environment, get_settings
 from tenderiq_core.db import create_engine, create_session_factory
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
 
     app.include_router(health_router)
+    app.include_router(ops_router)
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
     return app
 

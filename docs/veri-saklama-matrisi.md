@@ -1,6 +1,6 @@
 # Veri Saklama Matrisi
 
-> **Durum:** taslak · **Son güncelleme:** 2026-07-25 · **Sahibi:** Berkay (Scryne)
+> **Durum:** taslak · **Son güncelleme:** 2026-07-28 · **Sahibi:** Berkay (Scryne)
 >
 > KVKK md. 7 ve md. 11 kapsamında "hangi veri, ne kadar süreyle, hangi mekanizmayla
 > silinir" sorusunun tek cevabı bu tablodur. Plan referansı: `GELISTIRME_PLANI.md`
@@ -47,7 +47,8 @@ Yapılandırma: `DATA_RETENTION_DAYS` (varsayılan **30 gün**).
 | Oturum (refresh token) | Redis | TTL (kısa ömürlü); logout'ta anında iptal | TTL + `revoke_all_for_user` |
 | Tek kullanımlık token (doğrulama/sıfırlama) | Redis | TTL; ilk kullanımda atomik tüketim | TTL / GETDEL |
 | Oran sınırlama sayaçları | Redis | Pencere süresi (300 sn) | TTL |
-| Yapılandırılmış loglar | Log altyapısı | ≥ 30 gün (J.4) | Log rotasyonu · **PII maskeleme doğrulanmalı** |
+| Yapılandırılmış loglar | Log altyapısı | ≥ 30 gün (J.4) | Log rotasyonu · PII yerine korelasyon kimliği (statik kapı: `test_log_pii.py`) |
+| Operasyon metrikleri | Redis (`ops:*`) | 25 saat (TTL) | TTL; kişisel veri değil, kurulum geneli sayaç |
 | LLM istemleri/çıktıları | Sağlayıcı | **Sıfır saklama (zero-retention)** — ADR-0007 | Sağlayıcı tarafında saklanmaz |
 
 ## 3. LLM ve alt-işleyenler
@@ -83,15 +84,22 @@ Uygulanan çözüm:
 
 1. **Süresi dolmuş davetler için otomatik temizlik yok.** Geçersiz sayılıyor ama
    satır duruyor; kapatılmayan hesaplarda birikir.
-2. **Log PII maskelemesi doğrulanmadı.** J.4 maddesi; loglarda e-posta/doküman
-   içeriği sızmadığı denetlenmeli.
+2. ~~**Log PII maskelemesi doğrulanmadı.**~~ **Kapandı (2026-07-28).** Denetim
+   statik bir kapıya bağlandı: `packages/core/tests/test_log_pii.py` tüm log
+   çağrılarını AST ile tarar, PII taşıyabilecek alan adlarını (`email=`, `body=`,
+   `text=`, `token=`…) ve f-string olay adlarını reddeder. Denetimde bulunan
+   gerçek sızıntı kapatıldı: e-posta sağlayıcı uyarısı alıcı adresini düz metin
+   logluyordu → `logging.mask_email` (`b***@example.com`). Bilinçli tek istisna
+   (dev'e özel `hesap_epostasi` kaydı) gerekçesiyle listelenmiştir. Ayrıntı:
+   `docs/slo.md` §6.
 3. **R2 bucket versioning + yaşam döngüsü kuralları kurulmadı** (J.3). Versioning
    açıksa `delete_object` eski sürümü bırakabilir — hard-delete ile uyumu
    yapılandırma seviyesinde doğrulanmalı. **Bu, "sildim" beyanını doğrudan
    etkilediği için en öncelikli açık uçtur.**
 4. **Hesap kapatmanın geri alma ucu yok** (bilinçli). Yanlışlıkla kapatılan hesap
-   saklama penceresi içinde elle (`organization.deleted_at = NULL`) geri alınır;
-   bu, destek runbook'una yazılmalıdır.
+   saklama penceresi içinde elle (`organization.deleted_at = NULL`) geri alınır.
+   **Runbook'a yazıldı (2026-07-28):** `docs/runbook.md` §6 — adım adım SQL,
+   süpürme koştuysa geri dönüşün olmadığı uyarısı ve `audit_log` teyidi dâhil.
 5. **Dışa aktarma tek organizasyon kapsamlıdır.** Çok org'lu kullanıcı her biri
    için ayrı çağırır; RLS kiracı bağlamını delmemek için bilinçlidir.
 

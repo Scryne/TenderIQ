@@ -66,3 +66,17 @@ def configure_logging(*, json_logs: bool = True, level: str = "INFO") -> None:
 def get_logger(name: str | None = None) -> structlog.typing.FilteringBoundLogger:
     """İsimlendirilmiş bir yapılandırılmış logger döndürür."""
     return cast("structlog.typing.FilteringBoundLogger", structlog.get_logger(name))
+
+
+def mask_email(value: str) -> str:
+    """E-posta adresini loglanabilir hâle getirir: ``b***@example.com``.
+
+    Loglar ≥30 gün saklanır (J.4) ve merkezî bir toplayıcıya akar; adresin
+    kendisi kişisel veridir. Alan adı korunur çünkü operasyonel soruların çoğu
+    ("kurumsal alan adına giden postalar mı düşüyor") alan adı seviyesindedir;
+    yerel kısım korunmaz çünkü asıl kimlik odur.
+    """
+    local, separator, domain = value.partition("@")
+    if not separator or not local:
+        return "***"
+    return f"{local[0]}***@{domain}"
