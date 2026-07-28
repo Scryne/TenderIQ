@@ -10,7 +10,7 @@ fonksiyona eklenir; token/bağlantı üretimi sağlayıcıdan bağımsızdır.
 from __future__ import annotations
 
 from tenderiq_core.config import Settings
-from tenderiq_core.logging import get_logger
+from tenderiq_core.logging import get_logger, mask_email
 
 logger = get_logger("tenderiq.core.email")
 
@@ -28,10 +28,13 @@ async def send_account_email(settings: Settings, *, to: str, subject: str, body:
     (bkz. ``config.Settings._enforce_production_hardening``).
     """
     if settings.email_provider != "logging":
+        # Bu dal PRODUCTION'da koşabilir (gerçek sağlayıcı seçili, adaptör yok):
+        # alıcı adresi maskelenir. Loglar ≥30 gün saklandığı için buradaki düz
+        # adres, kalıcı bir kişisel veri birikimi olurdu (J.4 / KVKK).
         logger.warning(
             "email_saglayici_baglanmadi",
             provider=settings.email_provider,
-            to=to,
+            recipient_masked=mask_email(to),
             subject=subject,
         )
         return

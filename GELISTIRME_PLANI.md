@@ -587,9 +587,9 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 `Backend/API` `DevOps`
 - [ ] `soft-delete` + zamanlanmış `hard-delete` job'ı; ilişkili tüm tablolarda (Document, Chunk, Embedding, ParsedElement) kademeli silme (§8.3) + R2 nesnelerinin silinmesi.
 - [ ] Fiyatlandırmanın canlıya alınması; production'a onaylı deploy; yedek geri-yükleme testi (§11.5).
-- [ ] **Yük/dayanıklılık testi:** eşzamanlı yükleme + işleme senaryosu (ör. 10 kiracı × 100'er sayfa); kuyruk derinliği/işleme süresi hedefleri doğrulanır (J.4 SLO'ları).
+- [ ] **Yük/dayanıklılık testi:** eşzamanlı yükleme + işleme senaryosu (ör. 10 kiracı × 100'er sayfa); kuyruk derinliği/işleme süresi hedefleri doğrulanır (J.4 SLO'ları). → Koşum takımı hazır: `scripts/load_test.py` (aynı SLO eşikleri, ihlalde çıkış kodu 1). **Staging'e karşı koşulup sonucu kaydedilmedi** — staging J.1 ile ayağa kalkınca.
 - [ ] **Güvenlik gözden geçirmesi:** OWASP ASVS-hafif öz-denetim + `security-review` taraması; mümkünse üçüncü-taraf hafif pentest (bütçeye göre).
-- [ ] **Status page + uptime izleme** canlı (J.4); olay müdahale runbook'u yazıldı.
+- [ ] **Status page + uptime izleme** canlı (J.4); olay müdahale runbook'u yazıldı. → Runbook yazıldı (`docs/runbook.md`); status page + izleyici hesabı bekliyor.
 
 > Faz 4 sonu = **kapalı beta**. Halka açık self-service yayına (GA) geçiş, **J bölümündeki kontrol listeleri** tamamlanınca yapılır.
 
@@ -759,12 +759,12 @@ Faz 0 denetiminde kapatılanlar için D bölümüne bakınız. Kalan backlog (ö
 
 ### J.4 Gözlemlenebilirlik, SLO & Operasyon
 
-- [ ] **Uptime izleme + uyarı:** dış izleyici (`/healthz`, `/readyz`, web) → e-posta/Telegram; Sentry hata uyarıları.
-- [ ] **SLO'lar (beta hedefleri):** API erişilebilirlik ≥ %99,5 · API p95 < 500 ms (LLM uçları hariç) · 100 sayfalık dijital doküman işleme < 10 dk · işleme başarı oranı ≥ %98.
-- [ ] **Metrik panosu:** kuyruk derinliği, iş süreleri, hata oranı, belge başına maliyet (Langfuse) — basit Grafana veya hosted eşdeğeri.
-- [ ] **Olay müdahale runbook'u:** en olası 5 arıza (DB dolu, kuyruk tıkandı, LLM sağlayıcı kesintisi, OCR patlaması, disk dolu) için teşhis+çözüm adımları.
-- [ ] **Status page** (hosted, ör. Instatus/BetterStack) + planlı bakım duyuru kanalı.
-- [ ] **Log saklama:** yapılandırılmış loglar merkezî yerde ≥ 30 gün; PII maskeleme doğrulanmış.
+- [ ] **Uptime izleme + uyarı:** dış izleyici (`/healthz`, `/readyz`, web) → e-posta/Telegram; Sentry hata uyarıları. → Kontrol listesi + alarm eşikleri `docs/slo.md` §3.3/§4'te tanımlı; **hosted izleyici hesabı açılmadı** (kapalı beta öncesi).
+- [x] **SLO'lar (beta hedefleri):** API erişilebilirlik ≥ %99,5 · API p95 < 500 ms (LLM uçları hariç) · 100 sayfalık dijital doküman işleme < 10 dk · işleme başarı oranı ≥ %98. → `docs/slo.md`; eşikler `tenderiq_core.ops` sabitlerinde (yük testi oradan import eder, ayrışamaz).
+- [x] **Metrik panosu:** kuyruk derinliği, iş süreleri, hata oranı, belge başına maliyet (Langfuse) — basit Grafana veya hosted eşdeğeri. → `GET /ops/metrics` (token-kapılı, kiracı-dışı): dakikalık histogram kovaları (Redis) → yüzdelik + SLO yargısı. Belge başına maliyet Langfuse'ta kalır.
+- [x] **Olay müdahale runbook'u:** en olası 5 arıza (DB dolu, kuyruk tıkandı, LLM sağlayıcı kesintisi, OCR patlaması, disk dolu) için teşhis+çözüm adımları. → `docs/runbook.md`; ayrıca API yavaşlaması, hesap kapatma geri alma ve dağıtım geri alma bölümleri.
+- [ ] **Status page** (hosted, ör. Instatus/BetterStack) + planlı bakım duyuru kanalı. → Bileşen ayrımı `docs/slo.md` §3.4'te; hesap açılmadı.
+- [x] **Log saklama:** yapılandırılmış loglar merkezî yerde ≥ 30 gün; PII maskeleme doğrulanmış. → PII kapısı statik: `packages/core/tests/test_log_pii.py` (yasaklı alan adları + f-string olay adı yasağı). Denetimde bulunan gerçek sızıntı kapatıldı (e-posta sağlayıcı uyarısı → `mask_email`). Merkezî toplayıcı J.1 dağıtımıyla bağlanacak.
 
 ### J.5 GA (Halka Açık Yayın) Kontrol Listesi
 

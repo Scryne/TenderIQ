@@ -88,17 +88,18 @@ def api_client(app_database_url: str) -> Iterator[TestClient]:
     os.environ["OBJECT_STORAGE_SECRET_ACCESS_KEY"] = "test-secret"
     get_settings.cache_clear()
 
-    # Oran sınırlama (rl:*) ve refresh token'lar (rt:* / rtfam:*) GERÇEK Redis'e
-    # yazılır ve TTL'lidir: önceki test koşularından kalan anahtarlar kayıt/giriş
-    # uçlarını 429'a düşürebilir veya token durumunu kirletebilir. Her api_client
-    # kurulumunda yalnız bu ön-ekler temizlenir (başka veri silinmez).
+    # Oran sınırlama (rl:*), refresh token'lar (rt:* / rtfam:*) ve operasyon
+    # metrikleri (ops:*) GERÇEK Redis'e yazılır ve TTL'lidir: önceki test
+    # koşularından kalan anahtarlar kayıt/giriş uçlarını 429'a düşürebilir, token
+    # durumunu kirletebilir veya SLO penceresine yabancı ölçüm sızdırabilir. Her
+    # api_client kurulumunda yalnız bu ön-ekler temizlenir (başka veri silinmez).
     import redis as redis_sync
 
     try:
         redis_client = redis_sync.Redis.from_url(get_settings().redis_url)
         stale_keys = [
             key
-            for pattern in ("rl:*", "rt:*", "rtfam:*")
+            for pattern in ("rl:*", "rt:*", "rtfam:*", "ops:*")
             for key in redis_client.scan_iter(pattern)
         ]
         if stale_keys:
