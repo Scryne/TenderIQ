@@ -118,10 +118,16 @@ class Settings(BaseSettings):
 
     # ── Kimlik ────────────────────────────────────────────────────────────────
     auth_secret: str | None = None
-    # Erişim token'ı KISA ömürlüdür (≤1 saat, J.2 madde 4): çalınsa bile pencere
-    # dardır. Oturum, her kullanımda rotasyona uğrayan refresh token ile sessizce
-    # sürdürülür (services.refresh_tokens).
-    access_token_expire_minutes: int = 60
+    # Erişim token'ı KISA ömürlüdür (J.2 madde 4): çalınsa bile pencere dardır.
+    # Oturum, her kullanımda rotasyona uğrayan refresh token ile sessizce
+    # sürdürülür (services.refresh_tokens) — kullanıcı süreyi hiç hissetmez.
+    #
+    # 15 dk, yalnız hırsızlık penceresi için değil YETKİ İPTALİ için seçildi:
+    # rol ve kiracı token'ın İÇİNDE taşınır, yani bir üyeyi org'dan çıkarmak veya
+    # yönetici yetkisini almak ancak token dolunca fiilen etkili olur. Bu süre
+    # "iptal ne kadar gecikir"in üst sınırıdır; DB'ye her istekte bakmanın
+    # (istek başına ekstra sorgu) makul alternatifidir.
+    access_token_expire_minutes: int = 15
     # Refresh token ömrü: kullanıcı bu süre boyunca yeniden giriş yapmadan
     # oturumunu sürdürebilir (tek-kullanım + rotasyon + reuse-detection; Redis).
     refresh_token_expire_days: int = 30
@@ -140,6 +146,11 @@ class Settings(BaseSettings):
     email_from: str = "no-reply@tenderiq.local"
     # E-postadaki doğrulama/sıfırlama bağlantılarının işaret ettiği web tabanı.
     app_base_url: str = "http://localhost:3000"
+    # Maliyet doğuran işlemler (doküman yükleme → OCR + LLM) e-posta SAHİPLİĞİ
+    # kanıtı ister. Kapalıyken herkes başkasının adresiyle hesap açıp ücretsiz
+    # kotayı harcayabilir; okuma yolları etkilenmez (doğrulanmamış kullanıcı
+    # davet edildiği org'da veriyi görebilir). Production'da açık olmak zorundadır.
+    require_verified_email: bool = False
     email_verify_token_ttl_hours: int = 24
     password_reset_token_ttl_hours: int = 1
     # Üye daveti bağlantısının geçerlilik süresi (Sprint 3.3-E-2). Doğrulama/sıfırlama
@@ -239,6 +250,12 @@ class Settings(BaseSettings):
                     "Production'da BILLING_PROVIDER=manual olamaz: test-modu sağlayıcı "
                     "ödeme almadan planı ANINDA etkinleştirir (herhangi bir org yöneticisi "
                     "kendine kurumsal plan verebilir). Gerçek sağlayıcıyı bağlayın."
+                )
+            if not self.require_verified_email:
+                raise ValueError(
+                    "Production'da REQUIRE_VERIFIED_EMAIL=false olamaz: doğrulanmamış "
+                    "bir e-postayla açılan hesap, doküman yükleyerek OCR/LLM maliyeti "
+                    "üretebilir ve adresin sahibi bundan habersizdir."
                 )
             if self.email_provider == "logging":
                 raise ValueError(

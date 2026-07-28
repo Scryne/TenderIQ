@@ -42,6 +42,45 @@ def _route_label(scope: Scope) -> str:
     return str(getattr(route, "path", scope.get("path", "")))
 
 
+class SecurityHeadersMiddleware:
+    """API yanıtlarına güvenlik başlıkları ekler (J.1).
+
+    API JSON döndürür, HTML değil — ama başlıklar yine de gerekir: ``nosniff``
+    olmadan tarayıcı bir JSON yanıtını içeriğine bakıp HTML sanabilir (yansıyan
+    XSS'in klasik yolu), ``X-Frame-Options`` ``/docs`` sayfasını clickjacking'e
+    karşı korur ve ``no-store`` kiracı verisinin ara belleklerde kalmasını
+    engeller.
+
+    ``Cache-Control`` yalnız yanıt kendi değerini AYARLAMADIYSA yazılır: SSE
+    akışı ve indirme yanıtları kendi önbellek sözleşmelerini taşır.
+    """
+
+    _HEADERS: tuple[tuple[bytes, bytes], ...] = (
+        (b"x-content-type-options", b"nosniff"),
+        (b"x-frame-options", b"DENY"),
+        (b"referrer-policy", b"no-referrer"),
+    )
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for name, value in self._HEADERS:
+                    headers[name.decode()] = value.decode()
+                if "cache-control" not in headers:
+                    headers["cache-control"] = "no-store"
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
 class RequestContextMiddleware:
     """Her istek için ``request_id`` üretir/yayar, log bağlamına bağlar ve süresini ölçer."""
 

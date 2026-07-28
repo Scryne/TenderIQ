@@ -10,6 +10,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from tenderiq_core.config import get_settings
+
 pytestmark = pytest.mark.integration
 
 
@@ -41,7 +43,12 @@ def test_login_kisa_access_ve_refresh_dondurur(api_client: TestClient) -> None:
     body = _login_or_skip(api_client, email="rt-login@org.com")
 
     assert body["token_type"] == "bearer"
-    assert body["expires_in"] == 3600  # 60 dk (access_token_expire_minutes)
+    # Sabit sayı yerine AYARA bağlanır: erişim token'ının ömrü bir güvenlik
+    # parametresidir (rol/üyelik iptalinin gecikme tavanı) ve değişebilir;
+    # testin sözleşmesi "kısa ve ayarla tutarlı" olmasıdır, belirli bir sayı değil.
+    expected = get_settings().access_token_expire_minutes * 60
+    assert body["expires_in"] == expected
+    assert expected <= 15 * 60, "Erişim token'ı yetki iptalini 15 dakikadan fazla geciktirmemeli."
     assert isinstance(body["access_token"], str)
     assert isinstance(body["refresh_token"], str)
 

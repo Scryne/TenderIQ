@@ -585,7 +585,7 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 - [ ] Kurumsal müşteriler için DPA taslağı.
 
 `Backend/API` `DevOps`
-- [ ] `soft-delete` + zamanlanmış `hard-delete` job'ı; ilişkili tüm tablolarda (Document, Chunk, Embedding, ParsedElement) kademeli silme (§8.3) + R2 nesnelerinin silinmesi.
+- [x] `soft-delete` + zamanlanmış `hard-delete` job'ı; ilişkili tüm tablolarda (Document, Chunk, Embedding, ParsedElement) kademeli silme (§8.3) + R2 nesnelerinin silinmesi. → `data.purge_deleted` beat işi + otomatik `deleted_at` filtresi; md. 7 hesap kapatma ve md. 11 dışa aktarma dâhil.
 - [ ] Fiyatlandırmanın canlıya alınması; production'a onaylı deploy; yedek geri-yükleme testi (§11.5).
 - [ ] **Yük/dayanıklılık testi:** eşzamanlı yükleme + işleme senaryosu (ör. 10 kiracı × 100'er sayfa); kuyruk derinliği/işleme süresi hedefleri doğrulanır (J.4 SLO'ları). → Koşum takımı hazır: `scripts/load_test.py` (aynı SLO eşikleri, ihlalde çıkış kodu 1). **Staging'e karşı koşulup sonucu kaydedilmedi** — staging J.1 ile ayağa kalkınca.
 - [ ] **Güvenlik gözden geçirmesi:** OWASP ASVS-hafif öz-denetim + `security-review` taraması; mümkünse üçüncü-taraf hafif pentest (bütçeye göre).
@@ -755,7 +755,7 @@ Faz 0 denetiminde kapatılanlar için D bölümüne bakınız. Kalan backlog (ö
 - [ ] **Aylık restore tatbikatı:** yedekten staging'e geri yükleme otomasyonu — "yedek var" değil "geri dönebiliyorum" kanıtı (§11.5).
 - [ ] **Hedefler:** RPO ≤ 24 saat (beta) → ≤ 1 saat (GA, WAL ile); RTO ≤ 4 saat.
 - [ ] **R2:** bucket versioning + yaşam döngüsü kuralları; hard-delete akışıyla uyumlu.
-- [ ] **Veri saklama matrisi (KVKK §10.4):** veri sınıfı → saklama süresi → silme mekanizması tablosu; sözleşme eklerine girer.
+- [x] **Veri saklama matrisi (KVKK §10.4):** veri sınıfı → saklama süresi → silme mekanizması tablosu; sözleşme eklerine girer. → `docs/veri-saklama-matrisi.md` (2026-07-25/28); VUK×KVKK çakışması ve silme mekanizmaları dâhil. **Hukuk onayı bekliyor** (DPA eki).
 
 ### J.4 Gözlemlenebilirlik, SLO & Operasyon
 

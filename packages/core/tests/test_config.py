@@ -72,6 +72,7 @@ def _harden(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEBUG", "false")
     monkeypatch.setenv("BILLING_PROVIDER", "iyzico")
     monkeypatch.setenv("EMAIL_PROVIDER", "resend")
+    monkeypatch.setenv("REQUIRE_VERIFIED_EMAIL", "true")
 
 
 def test_production_boots_with_hardened_settings(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -140,3 +141,20 @@ def test_agent_context_limit_ollama_genis_pencere_kismaz() -> None:
         indexing_chunk_max_chars=1800,
     )
     assert settings.effective_agent_context_limit() == 12
+
+
+def test_production_rejects_unverified_email_uploads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Doğrulanmamış e-postayla yükleme production'da açılışı engeller.
+
+    Kapalıyken bir saldırgan başkasının adresiyle hesap açıp OCR/LLM maliyeti
+    ürettirebilir; adresin sahibi yalnızca istemediği bir doğrulama e-postası alır.
+    """
+    _harden(monkeypatch)
+    monkeypatch.setenv("REQUIRE_VERIFIED_EMAIL", "false")
+    with pytest.raises(ValidationError, match="REQUIRE_VERIFIED_EMAIL"):
+        Settings(_env_file=None)
+
+
+def test_erisim_tokeni_kisa_omurlu() -> None:
+    """Rol/kiracı token'ın İÇİNDE taşınır; ömrü yetki iptalinin gecikme tavanıdır."""
+    assert Settings(_env_file=None).access_token_expire_minutes <= 15

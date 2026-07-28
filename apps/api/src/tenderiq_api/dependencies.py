@@ -16,7 +16,7 @@ from tenderiq_api.errors import AppError, ErrorCode, ForbiddenError, Unauthorize
 from tenderiq_core.config import Settings, get_settings
 from tenderiq_core.db.tenant import set_tenant_context
 from tenderiq_core.logging import tenant_id_var
-from tenderiq_core.models import Role
+from tenderiq_core.models import Role, User
 from tenderiq_core.observability import bind_sentry_tags
 from tenderiq_core.security.tokens import decode_access_token
 from tenderiq_core.storage import StorageService
@@ -97,6 +97,32 @@ def require_role(*roles: Role) -> Callable[..., Coroutine[Any, Any, Principal]]:
         return principal
 
     return _checker
+
+
+async def require_verified_email(
+    principal: Annotated[Principal, Depends(get_principal)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Principal:
+    """Maliyet doğuran işlemler için e-posta SAHİPLİĞİ kanıtı ister.
+
+    ``REQUIRE_VERIFIED_EMAIL`` kapalıysa (dev/test) hiçbir şey yapmaz. Açıkken
+    doğrulanmamış hesap yükleme yapamaz: aksi hâlde bir saldırgan başkasının
+    adresiyle hesap açıp OCR/LLM maliyeti ürettirebilir ve adresin sahibi
+    yalnızca istemediği bir doğrulama e-postası alırdı.
+
+    Kontrol token claim'inden DEĞİL veritabanından okunur: kullanıcı doğrulamayı
+    az önce tamamladıysa erişimi elindeki token'ın ömrü kadar gecikmemelidir.
+    """
+    if not settings.require_verified_email:
+        return principal
+    user = await session.get(User, principal.user_id)
+    if user is None or not user.email_verified:
+        raise ForbiddenError(
+            "Bu işlem için e-posta adresinizi doğrulamanız gerekiyor. "
+            "Doğrulama bağlantısını hesap ayarlarınızdan yeniden gönderebilirsiniz."
+        )
+    return principal
 
 
 def get_redis(request: Request) -> Redis:

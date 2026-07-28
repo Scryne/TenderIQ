@@ -13,7 +13,7 @@ from redis.asyncio import Redis
 
 from tenderiq_api import __version__
 from tenderiq_api.errors import register_exception_handlers
-from tenderiq_api.middleware import RequestContextMiddleware
+from tenderiq_api.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
 from tenderiq_api.queueing import enqueue_process_document
 from tenderiq_api.routers.health import router as health_router
 from tenderiq_api.routers.ops import router as ops_router
@@ -74,6 +74,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     register_exception_handlers(app)
 
     app.include_router(health_router)
