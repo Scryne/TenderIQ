@@ -21,7 +21,6 @@ import pytest
 from tenderiq_core.billing.iyzico import SANDBOX_BASE_URL, build_authorization
 from tenderiq_core.config import get_settings
 
-
 _settings = get_settings()
 _HAS_KEYS = bool(_settings.iyzico_api_key and _settings.iyzico_secret_key)
 
