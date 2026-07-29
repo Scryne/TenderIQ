@@ -23,6 +23,7 @@ from tenderiq_core.billing.plans import PlanTier
 from tenderiq_core.billing.provider import (
     SIGNATURE_HEADER,
     CheckoutResult,
+    ProviderSubscriptionState,
     WebhookEvent,
     WebhookVerificationError,
     _event_from_manual_payload,
@@ -45,6 +46,8 @@ class FakeBillingProvider:
     name: str = "fake"
     calls: list[RecordedCall] = field(default_factory=list)
     checkout_url: str = "https://fake-gateway.local/checkout"
+    #: Mutabakat testleri için: sağlayıcıdaki "gerçek" durumlar.
+    remote_state: dict[str, ProviderSubscriptionState] = field(default_factory=dict)
 
     async def create_checkout(
         self, *, tenant_id: uuid.UUID, target_tier: PlanTier
@@ -78,6 +81,14 @@ class FakeBillingProvider:
                 },
             )
         )
+
+    async def fetch_subscription(
+        self, *, provider_subscription_id: str
+    ) -> ProviderSubscriptionState | None:
+        self.calls.append(
+            RecordedCall("fetch_subscription", {"subscription_id": provider_subscription_id})
+        )
+        return self.remote_state.get(provider_subscription_id)
 
     def parse_webhook(self, *, headers: Mapping[str, str], raw_body: bytes) -> WebhookEvent:
         if not self.webhook_secret:

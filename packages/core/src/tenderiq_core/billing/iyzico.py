@@ -46,6 +46,7 @@ from tenderiq_core.billing.plans import PlanTier
 from tenderiq_core.billing.provider import (
     BillingError,
     CheckoutResult,
+    ProviderSubscriptionState,
     WebhookEvent,
     WebhookVerificationError,
 )
@@ -257,6 +258,31 @@ class IyzicoBillingProvider:
                 "upgradePeriod": "NOW" if immediate else "NEXT_PERIOD",
                 "useTrial": False,
             },
+        )
+
+    async def fetch_subscription(
+        self, *, provider_subscription_id: str
+    ) -> ProviderSubscriptionState | None:
+        """Sağlayıcıdaki güncel abonelik durumunu çeker (mutabakat).
+
+        > Uç yolu ve alan adları **dokümantasyondan** alındı; abonelik modülü
+        > kapalı olduğu için gerçek yanıtla doğrulanamadı (bkz.
+        > `docs/ops/billing-setup.md`).
+        """
+        data = await self._post(
+            "/v2/subscription/subscriptions/detail",
+            {"locale": "tr", "subscriptionReferenceCode": provider_subscription_id},
+        )
+        nested = data.get("data")
+        payload: dict[str, Any] = nested if isinstance(nested, dict) else data
+        raw_status = str(payload.get("subscriptionStatus", "")).upper()
+        status = _STATUS_MAP.get(raw_status)
+        if status is None:
+            # Tanınmayan durumu "aktif" saymak ödemesiz erişim demektir.
+            raise BillingError(f"Eşlenmemiş iyzico abonelik durumu: '{raw_status}'.")
+        return ProviderSubscriptionState(
+            status=status,
+            plan_tier=self._tier_for_code(str(payload.get("pricingPlanReferenceCode", ""))),
         )
 
     def parse_webhook(self, *, headers: Mapping[str, str], raw_body: bytes) -> WebhookEvent:

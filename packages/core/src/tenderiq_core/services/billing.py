@@ -20,12 +20,15 @@ gövdeden gelen, güvenilir) ``tenant_id``'sini bağlama yazar.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tenderiq_core.billing.plans import DEFAULT_PLAN_TIER, PlanTier
+from tenderiq_core.billing.provider import BillingError as BillingProviderError
 from tenderiq_core.billing.provider import BillingProvider, CheckoutResult, WebhookEvent
 from tenderiq_core.db.tenant import set_tenant_context
 from tenderiq_core.logging import get_logger
@@ -186,3 +189,117 @@ async def mark_webhook_processed(redis: Redis, *, provider: str, event_id: str) 
         await redis.set(_dedup_key(provider, event_id), "1", ex=WEBHOOK_DEDUP_TTL_SECONDS)
     except RedisError as exc:
         logger.warning("webhook_dedup_yazilamadi", error=str(exc))
+
+
+# ── Mutabakat (kritik yol) ───────────────────────────────────────────────────
+#
+# Checkout erişimi AÇMAZ (`activated=False`): yetkilendirmeyi açan tek mekanizma
+# webhook. Webhook hiç gelmezse — sağlayıcı kesintisi, yanlış yapılandırılmış
+# bildirim adresi, bizim tarafta bir dağıtım penceresi — "ödeme alındı ama
+# erişim açılmadı" hâli SESSİZCE kalıcı olur. Müşteri parasını ödemiştir ve
+# ürünü kullanamaz; bunu ancak destek talebiyle öğreniriz.
+#
+# Mutabakat bunun tek yedeğidir: sağlayıcıdaki durumu çeker, bizimkiyle
+# karşılaştırır ve **tek yönlü** düzeltir.
+
+
+@dataclass(frozen=True)
+class ReconcileReport:
+    """Bir mutabakat koşusunun sonucu."""
+
+    checked: int = 0
+    #: Erişim AÇMA yönünde sapma — otomatik onarıldı.
+    repaired: int = 0
+    #: Erişim KAPATMA yönünde sapma — otomatik yapılmadı, incelenmeli.
+    needs_review: int = 0
+    #: Sağlayıcıda bulunamayan veya durumu çözülemeyen abonelikler.
+    unresolved: int = 0
+
+    @property
+    def drift(self) -> int:
+        """Toplam sapma; sıfırdan farklıysa görünür olmalı."""
+        return self.repaired + self.needs_review + self.unresolved
+
+
+#: Erişim "açık" sayılan durumlar. Sağlayıcı bunlardan birini söylüyorsa ve biz
+#: söylemiyorsak, müşteri ödediği hizmete erişemiyor demektir.
+_ENTITLED_STATUSES = frozenset({SubscriptionStatus.ACTIVE})
+
+
+async def reconcile_subscriptions(
+    session: AsyncSession, provider: BillingProvider, *, tenant_ids: Sequence[uuid.UUID]
+) -> ReconcileReport:
+    """Sağlayıcıdaki durumla bizdeki yetkilendirmeyi karşılaştırır ve düzeltir.
+
+    **Düzeltme tek yönlü güvenlidir.** Erişim AÇMA yönündeki sapma otomatik
+    onarılır: müşteri ödemiş ama erişemiyor — bekletmenin bir savunması yok.
+    Erişim KAPATMA yönündeki sapma otomatik uygulanmaz, yalnız raporlanır:
+    yanlış kapatma müşteriye DOĞRUDAN zarar verir ve sebebi (henüz işlenmemiş
+    bir yenileme olayı, sağlayıcıdaki geçici tutarsızlık) çoğu zaman bizde
+    değildir. İnsan bakışı ucuz, yanlış kapatma pahalıdır.
+    """
+    checked = repaired = needs_review = unresolved = 0
+
+    for tenant_id in tenant_ids:
+        await set_tenant_context(session, tenant_id)
+        subscription = await quota.get_or_create_subscription(session, tenant_id)
+        if not subscription.provider_subscription_id:
+            continue  # sağlayıcıda karşılığı yok (ücretsiz plan)
+        checked += 1
+
+        try:
+            remote = await provider.fetch_subscription(
+                provider_subscription_id=subscription.provider_subscription_id
+            )
+        except BillingProviderError as exc:
+            unresolved += 1
+            logger.warning("mutabakat_durum_alinamadi", tenant_id=str(tenant_id), error=str(exc))
+            continue
+
+        if remote is None:
+            unresolved += 1
+            logger.warning("mutabakat_abonelik_bulunamadi", tenant_id=str(tenant_id))
+            continue
+
+        remote_entitled = remote.status in _ENTITLED_STATUSES
+        local_entitled = subscription.status in _ENTITLED_STATUSES
+        plan_matches = remote.plan_tier is None or remote.plan_tier == subscription.plan
+
+        if remote_entitled and (not local_entitled or not plan_matches):
+            # Erişim AÇMA yönü — otomatik onar.
+            await apply_plan_change(
+                session,
+                tenant_id=tenant_id,
+                plan=remote.plan_tier or subscription.plan,
+                status=remote.status,
+                provider=getattr(provider, "name", "unknown"),
+                provider_subscription_id=subscription.provider_subscription_id,
+            )
+            repaired += 1
+            logger.warning(
+                "mutabakat_erisim_onarildi",
+                tenant_id=str(tenant_id),
+                plan=(remote.plan_tier or subscription.plan).value,
+            )
+        elif local_entitled and not remote_entitled:
+            # Erişim KAPATMA yönü — YALNIZ raporla.
+            needs_review += 1
+            logger.warning(
+                "mutabakat_kapatma_sapmasi_incelenmeli",
+                tenant_id=str(tenant_id),
+                local_status=subscription.status.value,
+                remote_status=remote.status.value,
+            )
+
+    report = ReconcileReport(
+        checked=checked, repaired=repaired, needs_review=needs_review, unresolved=unresolved
+    )
+    logger.info(
+        "mutabakat_tamamlandi",
+        checked=report.checked,
+        repaired=report.repaired,
+        needs_review=report.needs_review,
+        unresolved=report.unresolved,
+        drift=report.drift,
+    )
+    return report
