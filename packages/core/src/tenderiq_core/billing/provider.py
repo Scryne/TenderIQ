@@ -21,6 +21,7 @@ import json
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Protocol
 
 from tenderiq_core.billing.plans import PlanTier
@@ -73,6 +74,11 @@ class WebhookEvent:
     tenant_id: uuid.UUID | None
     plan_tier: PlanTier | None
     status: SubscriptionStatus
+    #: Olayın SAĞLAYICIDA gerçekleştiği an. Webhook'lar sırasız gelebilir
+    #: (yeniden deneme, kuyruk gecikmesi); bu damga olmadan geç gelen eski bir
+    #: "iptal edildi" olayı, sonradan gelen "yeniden etkinleşti"yi EZER ve
+    #: müşterinin ödediği erişimi kapatır.
+    occurred_at: datetime | None = None
     provider_subscription_id: str | None = None
     provider_customer_id: str | None = None
 
@@ -158,9 +164,20 @@ def _event_from_manual_payload(data: object) -> WebhookEvent:
     except ValueError as exc:
         raise WebhookVerificationError(f"Webhook gövdesinde geçersiz değer: {exc}.") from exc
 
+    raw_occurred = data.get("occurred_at")
+    occurred_at: datetime | None = None
+    if raw_occurred:
+        try:
+            occurred_at = datetime.fromisoformat(str(raw_occurred))
+        except ValueError as exc:
+            raise WebhookVerificationError("occurred_at ISO-8601 olmalı.") from exc
+        if occurred_at.tzinfo is None:
+            occurred_at = occurred_at.replace(tzinfo=UTC)
+
     return WebhookEvent(
         event_id=event_id,
         event_type=event_type,
+        occurred_at=occurred_at,
         tenant_id=tenant_id,
         plan_tier=plan_tier,
         status=status,
