@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
-  Fill,
   LegalList,
   LegalPage,
   LegalTable,
+  Value,
 } from "@/components/marketing/legal-shell";
 import type { LegalSectionData } from "@/components/marketing/legal-shell";
+import { LEGAL_CONFIG, LEGAL_TERMS } from "@/config/legal.config";
 
 export const metadata: Metadata = {
   title: "Veri işleme sözleşmesi (DPA) — TenderIQ",
@@ -24,7 +25,7 @@ const SECTIONS: LegalSectionData[] = [
         <p>
           Müşteri, platforma yüklediği içerik bakımından{" "}
           <strong className="font-medium text-ink-1">veri sorumlusudur</strong>;{" "}
-          <Fill>[Şirket ticaret unvanı]</Fill> ise bu içeriği Müşteri&apos;nin talimatları
+          <Value value={LEGAL_CONFIG.company.tradeName} field="company.tradeName" /> ise bu içeriği Müşteri&apos;nin talimatları
           doğrultusunda işleyen <strong className="font-medium text-ink-1">veri işleyendir</strong>.
         </p>
         <p>
@@ -130,8 +131,11 @@ const SECTIONS: LegalSectionData[] = [
         <p>
           Müşteri, güven merkezinde listelenen alt işleyenlerin kullanımına genel izin verir. Listeye
           yeni bir alt işleyen eklenmesi hâlinde Müşteri en az{" "}
-          <Fill>[bildirim süresi]</Fill> önce bilgilendirilir ve makul gerekçeyle itiraz edebilir.
-          Veri işleyen, alt işleyenlerine bu sözleşmedekiyle{" "}
+          {LEGAL_TERMS.subProcessorNoticeDays} gün önce bilgilendirilir ve makul gerekçeyle itiraz
+          edebilir. İtiraz hâlinde taraflar makul bir çözüm arar; çözüm bulunamazsa Müşteri
+          aboneliğini <strong className="font-medium text-ink-1">cezasız olarak feshedebilir</strong>{" "}
+          ve kullanılmamış döneme düşen bedel iade edilir. Veri işleyen, alt işleyenlerine bu
+          sözleşmedekiyle{" "}
           <strong className="font-medium text-ink-1">eşdeğer yükümlülükler</strong> getirir ve
           onların fiillerinden sorumludur.
         </p>
@@ -144,10 +148,19 @@ const SECTIONS: LegalSectionData[] = [
     body: (
       <>
         <p>
-          Çözümleme sağlayıcısının yurt dışında bulunması hâlinde aktarım, KVKK md. 9 kapsamında{" "}
-          <Fill>[açık rıza / standart sözleşme / taahhütname]</Fill> mekanizmasına dayanır. Aktarılan
-          veri en aza indirilir ve sağlayıcıda saklanmaz. Yürürlükteki sağlayıcı ve bölge güven
-          merkezinde yayımlanır.
+          Çözümleme sağlayıcısının yurt dışında bulunması hâlinde aktarım, KVKK md. 9/3 uyarınca
+          taraflar arasında imzalanan ve Kurum&apos;a bildirilen{" "}
+          <strong className="font-medium text-ink-1">standart sözleşme</strong>ye dayanır. Açık rıza
+          yoluna dayanılmaz: bu yol arızi aktarımlar içindir, doküman içeriğinin her çözümlemede
+          iletilmesi ise süreklilik arz eder. Standart sözleşmenin imzalı nüshası bu ekin ayrılmaz
+          parçasıdır.
+        </p>
+        <p>
+          Aktarılan veri en aza indirilir (tüm doküman değil, yalnız ilgili parçalar) ve sağlayıcıda
+          saklanmaz. Müşteri talep ederse, çözümleme sağlayıcısı yurt içi veya AB bölgesindeki bir
+          sağlayıcıyla değiştirilebilir; bu değişiklik yapılandırmayla yapılır ve{" "}
+          <strong className="font-medium text-ink-1">aktarımı tümüyle ortadan kaldırır</strong>.
+          Yürürlükteki sağlayıcı ve bölge güven merkezinde yayımlanır.
         </p>
       </>
     ),
@@ -160,7 +173,7 @@ const SECTIONS: LegalSectionData[] = [
         <p>
           Veri işleyen, bir kişisel veri ihlalinden haberdar olduğunda Müşteri&apos;yi{" "}
           <strong className="font-medium text-ink-1">gecikmeksizin</strong> ve en geç{" "}
-          <Fill>[bildirim süresi — ör. 24 saat]</Fill> içinde bilgilendirir. Bildirim; ihlalin
+          {LEGAL_TERMS.breachNotificationHours} saat içinde bilgilendirir. Bildirim; ihlalin
           niteliğini, etkilenen veri kategorilerini, olası sonuçlarını ve alınan/alınacak önlemleri
           içerir. Müşteri&apos;nin Kurul&apos;a ve ilgili kişilere yapacağı bildirimlerde makul destek
           sağlanır.
@@ -187,10 +200,15 @@ const SECTIONS: LegalSectionData[] = [
     body: (
       <>
         <p>
-          Müşteri, bu sözleşmeye uyumu denetleme hakkına sahiptir. Denetim öncelikle belge ve
-          yazılı bilgi talebiyle yürütülür; yerinde denetim{" "}
-          <Fill>[sıklık ve koşullar]</Fill> çerçevesinde, makul süre önce bildirilerek ve
-          operasyonu aksatmayacak biçimde yapılır.
+          Müşteri, bu sözleşmeye uyumu denetleme hakkına sahiptir. Yerinde denetim{" "}
+          <strong className="font-medium text-ink-1">
+            yılda {LEGAL_TERMS.auditPerYear} kez
+          </strong>
+          , en az {LEGAL_TERMS.auditNoticeDays} gün önceden yazılı bildirimle ve operasyonu
+          aksatmayacak biçimde yapılır. Denetim, veri işleyenin sunacağı{" "}
+          <strong className="font-medium text-ink-1">bağımsız denetim raporuyla</strong> (varsa)
+          ikame edilebilir; rapor talebi karşılıyorsa yerinde denetim hakkı o dönem için
+          kullanılmış sayılır. Makul olmayan sıklıktaki taleplerin masrafı talep edene aittir.
         </p>
       </>
     ),
@@ -219,7 +237,7 @@ const SECTIONS: LegalSectionData[] = [
           Bu ek, Müşteri ile imzalanan hizmet sözleşmesinin ayrılmaz parçasıdır ve çelişki hâlinde
           kişisel verilerin korunmasına ilişkin hükümler bakımından{" "}
           <strong className="font-medium text-ink-1">öncelikle uygulanır</strong>. İmzalı nüsha talebi
-          için: <Fill>[kurumsal iletişim e-postası]</Fill>.
+          için: <Value value={LEGAL_CONFIG.company.salesEmail} field="company.salesEmail" />.
         </p>
       </>
     ),
@@ -231,7 +249,6 @@ export default function DpaPage() {
     <LegalPage
       title="Veri işleme sözleşmesi (DPA)"
       intro="Kurumsal müşteriler için hazırlanan sözleşme ekidir. TenderIQ'nun veri işleyen sıfatıyla yükümlülüklerini, uygulanan güvenlik önlemlerini ve sözleşme sonunda verinin akıbetini düzenler."
-      updated="28.07.2026"
       sections={SECTIONS}
     />
   );

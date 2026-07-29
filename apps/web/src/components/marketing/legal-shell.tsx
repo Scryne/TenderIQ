@@ -4,6 +4,11 @@ import type { ReactNode } from "react";
 
 import { BrandLockup } from "@/components/auth/auth-layout";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  LEGAL_CONFIG,
+  SUB_PROCESSORS,
+  missingLegalFields,
+} from "@/config/legal.config";
 import { cn } from "@/lib/utils";
 
 /** Hukuki sayfalar arası gezinme — her sayfanın altbilgisinde aynı sırayla. */
@@ -15,17 +20,21 @@ export const LEGAL_LINKS = [
 ] as const;
 
 /**
- * Doldurulması gereken kurumsal bilgi.
+ * Yapılandırmadan gelen bir değeri basar; değer yoksa **göze batan** bir
+ * eksik-alan işareti gösterir.
  *
- * Metinde `<Fill>` olarak görünür ve **göze batar** — bilinçli. Bir hukuki
- * metinde eksik alanın sessizce boş kalması, yanlış bilgi vermekten daha
- * tehlikelidir: kimse fark etmez. Yayına çıkmadan önce hepsi doldurulmalıdır
- * (`grep -r "<Fill" apps/web/src`).
+ * Bilinçli olarak dikkat çekicidir: bir hukuki metinde eksik alanın sessizce
+ * boş kalması, yanlış bilgi vermekten tehlikelidir çünkü kimse fark etmez.
+ * Değerler `config/legal.config.ts`ten okunur; metinlerde sabit yazılmaz.
  */
-export function Fill({ children }: { children: ReactNode }) {
+export function Value({ value, field }: { value?: string; field: string }) {
+  if (value !== undefined && value !== "") return <>{value}</>;
   return (
-    <span className="rounded-sm bg-warning-weak px-1.5 py-0.5 font-mono text-[13px] text-warning">
-      {children}
+    <span
+      title={`legal.config.ts → ${field}`}
+      className="rounded-sm bg-warning-weak px-1.5 py-0.5 font-mono text-[13px] text-warning"
+    >
+      [{field}]
     </span>
   );
 }
@@ -80,14 +89,10 @@ export type LegalSectionData = { id: string; title: string; body: ReactNode };
 export function LegalPage({
   title,
   intro,
-  updated,
-  draft = true,
   sections,
 }: {
   title: string;
   intro: string;
-  updated: string;
-  draft?: boolean;
   /**
    * Bölümler **veri olarak** verilir; içindekiler listesi buradan üretilir.
    * JSX çocuk olarak alınsaydı içindekiler elle yazılırdı ve bir hukuki
@@ -95,6 +100,9 @@ export function LegalPage({
    */
   sections: LegalSectionData[];
 }) {
+  // Taslak durumu ELLE ayarlanmaz, veriden türetilir: `draft={false}` yazılabilse
+  // bir alan eksikken de yayına alınabilir ve uyarı sessizce kaybolurdu.
+  const missing = missingLegalFields();
   return (
     <div className="flex min-h-screen flex-col bg-canvas text-ink-1">
       <LegalHeader />
@@ -105,9 +113,11 @@ export function LegalPage({
               {title}
             </h1>
             <p className="mt-4 text-base leading-relaxed text-ink-2">{intro}</p>
-            <p className="mt-4 text-xs text-ink-3">Son güncelleme: {updated}</p>
+            <p className="mt-4 text-xs text-ink-3">
+              Son güncelleme: {LEGAL_CONFIG.lastUpdated}
+            </p>
 
-            {draft && (
+            {missing.length > 0 && (
               <div
                 role="note"
                 className="mt-8 flex items-start gap-2.5 rounded-sm border border-warning/30 bg-warning-weak px-3 py-2.5"
@@ -117,10 +127,16 @@ export function LegalPage({
                   className="mt-0.5 size-4 shrink-0 text-warning"
                   strokeWidth={1.75}
                 />
-                <p className="min-w-0 flex-1 text-sm text-ink-1">
-                  Bu metin <strong className="font-medium">taslaktır</strong> ve hukuk onayından
-                  geçmemiştir. İşaretli alanlar doldurulmadan yayına alınmamalıdır.
-                </p>
+                <div className="min-w-0 flex-1 text-sm text-ink-1">
+                  <p>
+                    Bu metin <strong className="font-medium">taslaktır</strong>; işaretli alanlar
+                    doldurulmadan ve hukuk onayı alınmadan yayına alınmamalıdır.
+                  </p>
+                  <p className="mt-1 text-xs text-ink-2">
+                    Eksik alan sayısı: {missing.length} · ayrıntı için depo kökündeki{" "}
+                    <span className="font-mono">LEGAL_TODO.md</span>
+                  </p>
+                </div>
               </div>
             )}
 
@@ -171,6 +187,101 @@ export function LegalList({ items }: { items: ReactNode[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * VERBİS kayıt durumu — üç duruma göre üç farklı metin.
+ *
+ * Yükümlülük eşiği (yıllık çalışan sayısı > 50 **veya** yıllık mali bilanço
+ * toplamı > 25 milyon TL; ayrıca ana faaliyeti özel nitelikli veri işlemek
+ * olanlar eşiksiz yükümlü) şirketin mali verisine bağlıdır ve koddan
+ * bilinemez. Bu yüzden karar `legal.config.ts`teki `verbisStatus` alanına
+ * bırakılır; `belirlenmedi` iken metin durumu **saklamaz**, açıkça yazar.
+ */
+export function VerbisNotice() {
+  const status = LEGAL_CONFIG.verbisStatus;
+  if (status === "kayitli") {
+    return (
+      <p>
+        Veri sorumlusu, Veri Sorumluları Sicili&apos;ne (VERBİS){" "}
+        <strong className="font-medium text-ink-1">kayıtlıdır</strong>.
+      </p>
+    );
+  }
+  if (status === "muaf") {
+    return (
+      <p>
+        Veri sorumlusu, yıllık çalışan sayısı ve mali bilanço toplamı bakımından VERBİS kayıt
+        yükümlülüğü eşiklerinin altında kaldığından{" "}
+        <strong className="font-medium text-ink-1">kayıt yükümlülüğüne tabi değildir</strong>.
+        Eşikler aşıldığında kayıt yapılır ve bu metin güncellenir.
+      </p>
+    );
+  }
+  return (
+    <p>
+      VERBİS kayıt yükümlülüğü, yıllık çalışan sayısı ve mali bilanço toplamı eşiklerine göre
+      belirlenir;{" "}
+      <Value value={undefined} field="verbisStatus" /> — değerlendirme tamamlandığında bu bölüm
+      güncellenecektir.
+    </p>
+  );
+}
+
+/**
+ * Alt işleyen tablosu — liste `config/legal.config.ts`teki `SUB_PROCESSORS`ten
+ * gelir ve o liste **kodda gerçekten kullanılan** sağlayıcılardan türetilmiştir
+ * (boto3/R2, sentry-sdk, anthropic/openai/ollama, langfuse, `*_PROVIDER`
+ * anahtarları). Bölgeler yapılandırmadan okunur; sabit yazılmaz.
+ */
+export function SubProcessorTable() {
+  return (
+    <div className="overflow-hidden rounded-sm border border-border">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-surface-2">
+            <th
+              scope="col"
+              className="border-b border-border px-3 py-2.5 text-left text-xs font-medium text-ink-2"
+            >
+              Sağlayıcı ve amaç
+            </th>
+            <th
+              scope="col"
+              className="border-b border-border px-3 py-2.5 text-left text-xs font-medium text-ink-2"
+            >
+              Veri ve işleme bölgesi
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {SUB_PROCESSORS.map((processor) => (
+            <tr key={processor.purpose} className="border-b border-border last:border-b-0">
+              <td className="px-3 py-2.5 align-top text-ink-1">
+                <Value
+                  value={processor.name}
+                  field={processor.configuredBy ?? "alt-işleyen adı"}
+                />{" "}
+                — {processor.purpose}
+              </td>
+              <td className="px-3 py-2.5 align-top text-ink-2">
+                {processor.dataCategory}
+                {processor.regionKey !== undefined && (
+                  <>
+                    {" · "}
+                    <Value
+                      value={LEGAL_CONFIG.regions[processor.regionKey]}
+                      field={`regions.${processor.regionKey}`}
+                    />
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

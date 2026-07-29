@@ -16,6 +16,10 @@ MIN_AUTH_SECRET_LENGTH = 32  # HS256 için RFC 7518 §3.2 önerisi
 # düşük değer daha AZ chunk (daha güvenli, sessiz kırpmaya karşı) demektir.
 _OLLAMA_PROMPT_CHARS_PER_TOKEN = 3
 
+# Yurt dışına aktarım sayılmayan bölgeler (ADR-0013). "local" süreç/ağ içidir
+# (Ollama); "tr" yurt içi barındırılan bir sağlayıcıdır.
+_DOMESTIC_LLM_REGIONS = frozenset({"local", "tr"})
+
 
 class Environment(StrEnum):
     """Çalışma ortamları."""
@@ -64,6 +68,18 @@ class Settings(BaseSettings):
     # golden-set kalite kapısı yine Claude ile ölçülür) | "none" (ajanlar devre
     # dışı — extracting fazı 2.1 iskelet davranışına düşer; testler/CI).
     llm_provider: str = "anthropic"
+    # ── Veri ikametgâhı (ADR-0013) ────────────────────────────────────────────
+    # Sağlayıcının işleme bölgesi. Hukuki metinler bu beyandan beslenir
+    # (apps/web `legal.config.ts → regions.llm`), yani buradaki değer bir
+    # yapılandırma ayrıntısı değil, MÜŞTERİYE VERİLEN BEYANDIR.
+    # "local" = süreç/ağ içinde (Ollama); yurt dışı sayılmaz.
+    llm_region: str = "local"
+    # Yurt dışına aktarıma izin var mı. False iken yurt dışı bir bölgeyle açılış
+    # REDDEDİLİR: "veriniz yurt dışına çıkmaz" taahhüdü veren bir kurulumda
+    # yanlış bir LLM_PROVIDER değeri sessizce aktarım başlatamamalıdır. Aktarımın
+    # hukuki dayanağı standart sözleşmedir (ADR-0013); bu bayrak o dayanağın
+    # kurulmadığı kurulumlar için yapısal kilittir.
+    llm_allow_cross_border: bool = True
     anthropic_api_key: str | None = None
     llm_primary_model: str = "claude-opus-4-8"
     # Non-streaming güvenli tavan (SDK HTTP zaman aşımı sınırının altında).
@@ -263,6 +279,23 @@ class Settings(BaseSettings):
                     "(doğrulama/parola sıfırlama/davet akışları sessizce çalışmaz) ve "
                     "bağlantılar token'larıyla birlikte loglara yazılır."
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _enforce_data_residency(self) -> Self:
+        """Yurt dışına aktarım kapalıyken yurt dışı bölgeyle açılışı engeller (ADR-0013).
+
+        Kontrol production'a özgü DEĞİLDİR: "veri yurt dışına çıkmaz" taahhüdü
+        veren bir kurulumun staging'i de o taahhüde tabidir ve asıl sızıntı
+        riski, üretim benzeri veriyle koşan ara ortamlardadır.
+        """
+        if not self.llm_allow_cross_border and self.llm_region not in _DOMESTIC_LLM_REGIONS:
+            raise ValueError(
+                f"LLM_ALLOW_CROSS_BORDER=false iken LLM_REGION='{self.llm_region}' olamaz: "
+                "bu kurulum yurt dışına aktarım yapmayacağını beyan ediyor. Yurt içi bir "
+                f"sağlayıcı seçin ({', '.join(sorted(_DOMESTIC_LLM_REGIONS))}) veya aktarımın "
+                "hukuki dayanağını kurup (ADR-0013: standart sözleşme) bayrağı açın."
+            )
         return self
 
     @property
