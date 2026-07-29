@@ -12,7 +12,13 @@ from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from tenderiq_api.dependencies import PrincipalDep, RedisDep, SessionDep, SettingsDep
+from tenderiq_api.dependencies import (
+    EmailProviderDep,
+    PrincipalDep,
+    RedisDep,
+    SessionDep,
+    SettingsDep,
+)
 from tenderiq_api.errors import (
     ConflictError,
     ForbiddenError,
@@ -21,13 +27,14 @@ from tenderiq_api.errors import (
     ValidationFailedError,
 )
 from tenderiq_core.config import Settings
+from tenderiq_core.email import EmailProvider, send_email
+from tenderiq_core.email import templates as email_templates
 from tenderiq_core.logging import get_logger
 from tenderiq_core.models import Membership, Organization, Role, User
 from tenderiq_core.security.email_domains import is_disposable_email
 from tenderiq_core.security.passwords import hash_password
 from tenderiq_core.security.tokens import create_access_token
 from tenderiq_core.services import auth as auth_service
-from tenderiq_core.services import email as email_service
 from tenderiq_core.services import one_time_tokens, refresh_tokens
 from tenderiq_core.services.one_time_tokens import InvalidOneTimeTokenError
 from tenderiq_core.services.rate_limit import (
@@ -87,7 +94,12 @@ async def _issue_refresh_token(
 
 
 async def _send_verification_email(
-    redis: Redis, settings: Settings, *, user_id: uuid.UUID, email: str
+    redis: Redis,
+    settings: Settings,
+    provider: EmailProvider,
+    *,
+    user_id: uuid.UUID,
+    email: str,
 ) -> None:
     """E-posta doğrulama token'ı üretir ve bağlantıyı gönderir (en-iyi-çaba).
 
@@ -105,11 +117,11 @@ async def _send_verification_email(
         logger.warning("dogrulama_epostasi_uretilemedi", error=str(exc))
         return
     link = f"{settings.app_base_url}/verify-email?token={token}"
-    await email_service.send_account_email(
-        settings,
-        to=email,
-        subject="TenderIQ — E-posta adresinizi doğrulayın",
-        body=f"Hesabınızı doğrulamak için bağlantıya gidin: {link}",
+    await send_email(
+        email_templates.verify_email(to=email, link=link),
+        provider=provider,
+        settings=settings,
+        redis=redis,
     )
 
 
@@ -280,6 +292,7 @@ async def register(
     session: SessionDep,
     redis: RedisDep,
     settings: SettingsDep,
+    provider: EmailProviderDep,
 ) -> RegisterResponse:
     """Yeni bir organizasyon ve admin kullanıcı oluşturur.
 
@@ -342,7 +355,7 @@ async def register(
         # 500 yerine tutarlı 409 dönmeli.
         raise ConflictError("Bu e-posta veya organizasyon slug'ı zaten kayıtlı.") from exc
     # Doğrulama e-postası (commit SONRASI; en-iyi-çaba — kayıt Redis/e-postaya bağlı değil).
-    await _send_verification_email(redis, settings, user_id=user.id, email=user.email)
+    await _send_verification_email(redis, settings, provider, user_id=user.id, email=user.email)
     return RegisterResponse(
         status="created",
         user=UserResponse(
@@ -567,12 +580,16 @@ async def verify_email(body: VerifyEmailRequest, session: SessionDep, redis: Red
 
 @router.post("/resend-verification", status_code=status.HTTP_204_NO_CONTENT)
 async def resend_verification(
-    principal: PrincipalDep, session: SessionDep, redis: RedisDep, settings: SettingsDep
+    principal: PrincipalDep,
+    session: SessionDep,
+    redis: RedisDep,
+    settings: SettingsDep,
+    provider: EmailProviderDep,
 ) -> Response:
     """Giriş yapmış kullanıcıya yeni bir doğrulama bağlantısı gönderir (idempotent)."""
     user: User | None = await session.get(User, principal.user_id)
     if user is not None and not user.email_verified:
-        await _send_verification_email(redis, settings, user_id=user.id, email=user.email)
+        await _send_verification_email(redis, settings, provider, user_id=user.id, email=user.email)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -583,6 +600,7 @@ async def forgot_password(
     session: SessionDep,
     redis: RedisDep,
     settings: SettingsDep,
+    provider: EmailProviderDep,
 ) -> Response:
     """Parola sıfırlama bağlantısı gönderir.
 
@@ -603,11 +621,11 @@ async def forgot_password(
             logger.warning("sifirlama_epostasi_uretilemedi", error=str(exc))
         else:
             link = f"{settings.app_base_url}/reset-password?token={token}"
-            await email_service.send_account_email(
-                settings,
-                to=user.email,
-                subject="TenderIQ — Parola sıfırlama",
-                body=f"Parolanızı sıfırlamak için bağlantıya gidin: {link}",
+            await send_email(
+                email_templates.password_reset(to=user.email, link=link),
+                provider=provider,
+                settings=settings,
+                redis=redis,
             )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

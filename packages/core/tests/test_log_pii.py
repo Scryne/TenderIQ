@@ -74,10 +74,11 @@ FORBIDDEN_LOG_FIELDS = frozenset(
 #: (dosya son eki, olay adı) → gerekçe. Yalnız PRODUCTION'da erişilemeyen yollar.
 ALLOWED_EXCEPTIONS: dict[tuple[str, str], str] = {
     (
-        "services/email.py",
+        "email/provider.py",
         "hesap_epostasi",
     ): (
-        "EMAIL_PROVIDER=logging yalnız dev'dir ve production'da açılışta reddedilir "
+        "LoggingEmailProvider yalnız dev'dir (EMAIL_PROVIDER=logging) ve production'da "
+        "açılışta reddedilir "
         "(config._enforce_production_hardening). Bu dalın TEK amacı doğrulama/sıfırlama "
         "bağlantısını geliştiriciye ulaştırmaktır; gövde zaten kasten loglanır."
     ),

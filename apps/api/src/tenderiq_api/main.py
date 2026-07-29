@@ -20,6 +20,7 @@ from tenderiq_api.routers.ops import router as ops_router
 from tenderiq_api.routers.v1 import api_v1_router
 from tenderiq_core.config import Environment, get_settings
 from tenderiq_core.db import create_engine, create_session_factory
+from tenderiq_core.email import create_email_provider
 from tenderiq_core.logging import configure_logging
 from tenderiq_core.observability import init_sentry
 from tenderiq_core.storage import StorageNotConfiguredError, StorageService
@@ -39,6 +40,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.session_factory = create_session_factory(engine)
     app.state.redis = Redis.from_url(settings.redis_url)
     app.state.enqueue_document_job = enqueue_process_document
+    # Sağlayıcı uygulama ömrü boyunca tekil: testler bunu MemoryEmailProvider ile
+    # değiştirir (modül fonksiyonu monkeypatch'lemekten daha az kırılgan).
+    app.state.email_provider = create_email_provider(settings)
     try:
         app.state.storage = StorageService.from_settings(settings)
     except StorageNotConfiguredError:
