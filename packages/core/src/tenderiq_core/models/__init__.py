@@ -26,6 +26,7 @@ from tenderiq_core.models.tender import Tender, TenderStatus
 from tenderiq_core.models.timeline_event import TimelineEvent
 from tenderiq_core.models.usage_record import UsageRecord
 from tenderiq_core.models.user import User
+from tenderiq_core.models.waitlist_entry import WaitlistEntry
 
 __all__ = [
     "EMBEDDING_DIM",
@@ -60,4 +61,5 @@ __all__ = [
     "TimelineEvent",
     "UsageRecord",
     "User",
+    "WaitlistEntry",
 ]

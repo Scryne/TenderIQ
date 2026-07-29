@@ -245,7 +245,7 @@ def _register_and_login(client: TestClient, *, slug: str, email: str) -> tuple[s
     assert register.status_code == 201, register.text
     login = client.post("/api/v1/auth/login", json={"email": email, "password": "sifre-12345"})
     assert login.status_code == 200
-    return register.json()["tenant_id"], login.json()["access_token"]
+    return register.json()["user"]["tenant_id"], login.json()["access_token"]
 
 
 @pytest.fixture

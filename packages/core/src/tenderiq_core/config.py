@@ -162,6 +162,18 @@ class Settings(BaseSettings):
     email_from: str = "no-reply@tenderiq.local"
     # E-postadaki doğrulama/sıfırlama bağlantılarının işaret ettiği web tabanı.
     app_base_url: str = "http://localhost:3000"
+    # ── Kayıt modu ────────────────────────────────────────────────────────────
+    # "open": herkes hesap açabilir · "invite_only": yalnız davetle katılım
+    # (kayıt ucu 403 döner, davet akışı çalışmaya devam eder) · "waitlist":
+    # kayıt talebi listeye alınır, hesap açılmaz. Üçü de çalışır durumdadır;
+    # ürünü kapalı betaya geri almak kod değişikliği gerektirmez.
+    signup_mode: str = "open"
+    # Tek kullanımlık ("disposable") e-posta alan adlarıyla kayıt engellenir mi.
+    # Ücretsiz kota OCR+LLM maliyeti ürettiği için, atılabilir adresle sınırsız
+    # hesap açmak doğrudan para kaybıdır.
+    block_disposable_email_domains: bool = True
+    # Yerleşik listeye eklenecek alan adları (virgülle ayrılmış).
+    extra_disposable_email_domains: Annotated[list[str], NoDecode] = []
     # Maliyet doğuran işlemler (doküman yükleme → OCR + LLM) e-posta SAHİPLİĞİ
     # kanıtı ister. Kapalıyken herkes başkasının adresiyle hesap açıp ücretsiz
     # kotayı harcayabilir; okuma yolları etkilenmez (doğrulanmamış kullanıcı
@@ -235,7 +247,12 @@ class Settings(BaseSettings):
     retrieval_reranker_provider: str = "local"
     retrieval_reranker_model: str = "BAAI/bge-reranker-v2-m3"
 
-    @field_validator("cors_origins", "parsing_ocr_languages", mode="before")
+    @field_validator(
+        "cors_origins",
+        "parsing_ocr_languages",
+        "extra_disposable_email_domains",
+        mode="before",
+    )
     @classmethod
     def _split_csv_list(cls, value: object) -> object:
         """Virgülle ayrılmış env değerini (JSON değil, düz string) listeye ayrıştırır."""

@@ -29,7 +29,7 @@ def _register(client: TestClient, *, slug: str, email: str) -> tuple[str, str]:
         json={"org_name": slug, "org_slug": slug, "email": email, "password": "sifre-12345"},
     )
     assert resp.status_code == 201, resp.text
-    body = resp.json()
+    body = resp.json()["user"]
     return body["tenant_id"], body["id"]
 
 

@@ -2076,6 +2076,45 @@
         "title": "RegisterRequest",
         "type": "object"
       },
+      "RegisterResponse": {
+        "description": "Kayıt sonucu — moda göre hesap açılır ya da talep listeye alınır.\n\nTek şema iki sonucu taşır: istemci `status` alanına bakar. Ayrı uçlar\naçmak, istemcinin hangi modda olduğunu ÖNCEDEN bilmesini gerektirirdi.",
+        "properties": {
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "status": {
+            "enum": [
+              "created",
+              "waitlisted"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "RegisterResponse",
+        "type": "object"
+      },
       "RequirementKind": {
         "description": "Gereksinim tipi (§8.1 ``Requirement``).",
         "enum": [
@@ -3062,7 +3101,7 @@
     },
     "/api/v1/auth/register": {
       "post": {
-        "description": "Yeni bir organizasyon ve admin kullanıcı oluşturur.",
+        "description": "Yeni bir organizasyon ve admin kullanıcı oluşturur.\n\nDavranış ``SIGNUP_MODE``a bağlıdır: ``open`` hesabı açar, ``invite_only``\nreddeder (davet akışı çalışmaya devam eder), ``waitlist`` talebi listeye\nalır ve 202 döner.",
         "operationId": "register_api_v1_auth_register_post",
         "requestBody": {
           "content": {
@@ -3079,11 +3118,21 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserResponse"
+                  "$ref": "#/components/schemas/RegisterResponse"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponse"
+                }
+              }
+            },
+            "description": "Bekleme listesine alındı."
           },
           "422": {
             "content": {

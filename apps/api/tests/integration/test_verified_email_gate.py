@@ -61,7 +61,7 @@ def _register_and_login(client: TestClient) -> tuple[str, str]:
         json={"org_name": slug, "org_slug": slug, "email": email, "password": "sifre-12345"},
     )
     assert register.status_code == 201, register.text
-    assert register.json()["email_verified"] is False
+    assert register.json()["user"]["email_verified"] is False
     login = client.post("/api/v1/auth/login", json={"email": email, "password": "sifre-12345"})
     assert login.status_code == 200, login.text
     return email, str(login.json()["access_token"])

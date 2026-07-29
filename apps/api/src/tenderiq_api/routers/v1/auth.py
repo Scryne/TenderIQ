@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
@@ -22,6 +23,7 @@ from tenderiq_api.errors import (
 from tenderiq_core.config import Settings
 from tenderiq_core.logging import get_logger
 from tenderiq_core.models import Membership, Organization, Role, User
+from tenderiq_core.security.email_domains import is_disposable_email
 from tenderiq_core.security.passwords import hash_password
 from tenderiq_core.security.tokens import create_access_token
 from tenderiq_core.services import auth as auth_service
@@ -32,6 +34,11 @@ from tenderiq_core.services.rate_limit import (
     RateLimitExceededError,
     check_rate_limit,
     reset_rate_limit,
+)
+from tenderiq_core.services.signup import (
+    SIGNUP_INVITE_ONLY,
+    SIGNUP_WAITLIST,
+    add_to_waitlist,
 )
 
 logger = get_logger("tenderiq.api.auth")
@@ -248,16 +255,74 @@ class UserResponse(BaseModel):
     email_verified: bool
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+class RegisterResponse(BaseModel):
+    """Kayıt sonucu — moda göre hesap açılır ya da talep listeye alınır.
+
+    Tek şema iki sonucu taşır: istemci `status` alanına bakar. Ayrı uçlar
+    açmak, istemcinin hangi modda olduğunu ÖNCEDEN bilmesini gerektirirdi.
+    """
+
+    status: Literal["created", "waitlisted"]
+    user: UserResponse | None = None
+    message: str | None = None
+
+
+@router.post(
+    "/register",
+    response_model=RegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={202: {"model": RegisterResponse, "description": "Bekleme listesine alındı."}},
+)
 async def register(
     body: RegisterRequest,
     request: Request,
+    response: Response,
     session: SessionDep,
     redis: RedisDep,
     settings: SettingsDep,
-) -> UserResponse:
-    """Yeni bir organizasyon ve admin kullanıcı oluşturur."""
+) -> RegisterResponse:
+    """Yeni bir organizasyon ve admin kullanıcı oluşturur.
+
+    Davranış ``SIGNUP_MODE``a bağlıdır: ``open`` hesabı açar, ``invite_only``
+    reddeder (davet akışı çalışmaya devam eder), ``waitlist`` talebi listeye
+    alır ve 202 döner.
+    """
+    # Oran sınırı MOD KONTROLÜNDEN ÖNCE: kapalı kayıt modunda da uç, e-posta
+    # numaralandırma ve bekleme listesi doldurma için istismar edilebilir.
     await _enforce_auth_rate_limit(request, redis, settings, scope="register", email=body.email)
+
+    if settings.block_disposable_email_domains and is_disposable_email(
+        body.email, extra_domains=frozenset(settings.extra_disposable_email_domains)
+    ):
+        raise ValidationFailedError(
+            "Tek kullanımlık e-posta adresleriyle hesap açılamıyor. "
+            "Lütfen kurumsal e-posta adresinizi kullanın."
+        )
+
+    if settings.signup_mode == SIGNUP_INVITE_ONLY:
+        raise ForbiddenError(
+            "Şu anda yeni hesap açılışı davetle yapılıyor. "
+            "Ekibinizden biri sizi davet edebilir veya bizimle iletişime geçebilirsiniz."
+        )
+
+    if settings.signup_mode == SIGNUP_WAITLIST:
+        async with session.begin():
+            queued = await add_to_waitlist(
+                session,
+                email=body.email,
+                full_name=body.full_name,
+                organization_name=body.org_name,
+            )
+        response.status_code = status.HTTP_202_ACCEPTED
+        return RegisterResponse(
+            status="waitlisted",
+            message=(
+                "Talebiniz alındı; sıra size geldiğinde e-posta ile bilgilendireceğiz."
+                if queued
+                else "Bu adres zaten bekleme listemizde; sıra size geldiğinde yazacağız."
+            ),
+        )
+
     try:
         async with session.begin():
             user, membership = await auth_service.register(
@@ -278,13 +343,16 @@ async def register(
         raise ConflictError("Bu e-posta veya organizasyon slug'ı zaten kayıtlı.") from exc
     # Doğrulama e-postası (commit SONRASI; en-iyi-çaba — kayıt Redis/e-postaya bağlı değil).
     await _send_verification_email(redis, settings, user_id=user.id, email=user.email)
-    return UserResponse(
-        id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        tenant_id=membership.organization_id,
-        role=membership.role,
-        email_verified=False,  # yeni kayıt her zaman doğrulanmamış
+    return RegisterResponse(
+        status="created",
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            tenant_id=membership.organization_id,
+            role=membership.role,
+            email_verified=False,  # yeni kayıt her zaman doğrulanmamış
+        ),
     )
 
 
