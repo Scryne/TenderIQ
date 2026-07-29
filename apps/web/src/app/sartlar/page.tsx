@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
-  Fill,
   LegalList,
   LegalPage,
   LegalTable,
+  Value,
 } from "@/components/marketing/legal-shell";
 import type { LegalSectionData } from "@/components/marketing/legal-shell";
+import { LEGAL_CONFIG, LEGAL_TERMS, competentCourts } from "@/config/legal.config";
 
 export const metadata: Metadata = {
   title: "Kullanım şartları — TenderIQ",
@@ -22,7 +23,7 @@ const SECTIONS: LegalSectionData[] = [
     body: (
       <>
         <p>
-          Bu sözleşme <Fill>[Şirket ticaret unvanı]</Fill> (&quot;TenderIQ&quot;) ile hizmeti
+          Bu sözleşme <Value value={LEGAL_CONFIG.company.tradeName} field="company.tradeName" /> (&quot;TenderIQ&quot;) ile hizmeti
           kullanan tüzel veya gerçek kişi (&quot;Müşteri&quot;) arasındadır.{" "}
           <strong className="font-medium text-ink-1">Müşteri İçeriği</strong>, Müşteri&apos;nin
           platforma yüklediği şartname ve ekleri ile bunlardan üretilen çözümleme sonuçlarını ifade
@@ -71,8 +72,15 @@ const SECTIONS: LegalSectionData[] = [
           ]}
         />
         <p>
-          İptal ve iade koşulları: <Fill>[cayma hakkı süresi ve iade politikası]</Fill>. Tüketici
-          sıfatını haiz kullanıcıların mevzuattan doğan cayma hakları saklıdır.
+          <strong className="font-medium text-ink-1">
+            Cayma hakkı: {LEGAL_TERMS.withdrawalDays} gün, koşulsuz.
+          </strong>{" "}
+          Aboneliğin başlangıcından itibaren {LEGAL_TERMS.withdrawalDays} gün içinde gerekçe
+          göstermeden cayabilirsiniz; kullanılan döneme düşen bedel oransal olarak düşülerek kalan
+          tutar iade edilir. Yıllık planlarda ilk {LEGAL_TERMS.withdrawalDays} gün içindeki cayma
+          talebinde bedelin tamamı iade edilir. Bu hak, ticari müşteriler bakımından mevzuat
+          gerektirmese de sözleşmeyle tanınmıştır; tüketici sıfatını haiz kullanıcıların
+          mevzuattan doğan hakları ayrıca saklıdır.
         </p>
       </>
     ),
@@ -151,9 +159,12 @@ const SECTIONS: LegalSectionData[] = [
     body: (
       <>
         <p>
-          Hedeflenen hizmet seviyeleri aşağıdadır. Bunlar{" "}
-          <Fill>[beta / GA — taahhüt niteliği]</Fill> olup, kurumsal planlarda ayrı bir hizmet
-          seviyesi taahhüdü (SLA) sözleşmeyle düzenlenir.
+          Aşağıdaki değerler <strong className="font-medium text-ink-1">hizmet seviyesi hedefidir
+          (target)</strong>; taahhüt niteliği taşımaz ve{" "}
+          <strong className="font-medium text-ink-1">tazminat doğurmaz</strong>. Hedeflerin
+          tutturulup tutturulmadığı ölçülür ve raporlanır; sapma hâlinde giderim yükümlülüğü
+          doğmaz. Kurumsal planlarda bu hedefler, aşağıdaki ayrı bölümde tarif edilen biçimde
+          <strong className="font-medium text-ink-1"> taahhüde (SLA) dönüştürülebilir</strong>.
         </p>
         <LegalTable
           headers={["Ölçüt", "Hedef"]}
@@ -172,8 +183,33 @@ const SECTIONS: LegalSectionData[] = [
     ),
   },
   {
+    id: "kurumsal-sla",
+    title: "8. Kurumsal hizmet seviyesi taahhüdü (SLA)",
+    body: (
+      <>
+        <p>
+          Kurumsal planlarda, yukarıdaki hedefler ayrı bir sözleşme ekiyle{" "}
+          <strong className="font-medium text-ink-1">bağlayıcı taahhüde</strong> dönüştürülebilir.
+          Bu ekte tanımlanan unsurlar şunlardır:
+        </p>
+        <LegalList
+          items={[
+            "Taahhüt edilen erişilebilirlik oranı ve ölçüm yöntemi (hangi uçlar, hangi aralıkla, hangi dış izleyiciyle ölçülür).",
+            "Ölçüm dışı bırakılan haller: planlı bakım, müşteri kaynaklı kesintiler, alt işleyen kaynaklı mücbir sebepler.",
+            "Taahhüdün tutturulamaması hâlinde uygulanacak servis kredisi oranları ve talep süresi.",
+            "Destek yanıt süreleri ve olay önem sınıfları.",
+          ]}
+        />
+        <p>
+          Bu ek imzalanmadıkça, bu sözleşmedeki hizmet seviyesi değerleri hedef niteliğini korur.
+          Talep için: <Value value={LEGAL_CONFIG.company.salesEmail} field="company.salesEmail" />.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "sorumluluk",
-    title: "8. Sorumluluğun sınırlandırılması",
+    title: "9. Sorumluluğun sınırlandırılması",
     body: (
       <>
         <p>
@@ -188,7 +224,7 @@ const SECTIONS: LegalSectionData[] = [
   },
   {
     id: "fesih",
-    title: "9. Sözleşmenin sona ermesi",
+    title: "10. Sözleşmenin sona ermesi",
     body: (
       <>
         <p>
@@ -208,12 +244,12 @@ const SECTIONS: LegalSectionData[] = [
   },
   {
     id: "uygulanacak-hukuk",
-    title: "10. Uygulanacak hukuk ve yetki",
+    title: "11. Uygulanacak hukuk ve yetki",
     body: (
       <>
         <p>
           Bu sözleşmeye Türkiye Cumhuriyeti hukuku uygulanır. Uyuşmazlıklarda{" "}
-          <Fill>[yetkili mahkeme ve icra daireleri]</Fill> yetkilidir. Tüketici sıfatını haiz
+          <Value value={competentCourts()} field="company.city" /> yetkilidir. Tüketici sıfatını haiz
           kullanıcılar bakımından tüketici hakem heyetlerinin yetkisi saklıdır.
         </p>
       </>
@@ -221,7 +257,7 @@ const SECTIONS: LegalSectionData[] = [
   },
   {
     id: "degisiklik",
-    title: "11. Değişiklikler",
+    title: "12. Değişiklikler",
     body: (
       <>
         <p>
@@ -239,7 +275,6 @@ export default function TermsPage() {
     <LegalPage
       title="Kullanım şartları"
       intro="TenderIQ'yu kullanarak bu koşulları kabul etmiş olursunuz. Metin, hizmetin ne yaptığını ve ne yapmadığını açıkça yazar — özellikle yapay zekâ çıktısının hukuki niteliği konusunda."
-      updated="28.07.2026"
       sections={SECTIONS}
     />
   );

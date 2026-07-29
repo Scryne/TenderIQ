@@ -3,12 +3,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
-  Fill,
   LegalList,
   LegalPage,
-  LegalTable,
+  SubProcessorTable,
+  Value,
 } from "@/components/marketing/legal-shell";
 import type { LegalSectionData } from "@/components/marketing/legal-shell";
+import { LEGAL_CONFIG } from "@/config/legal.config";
 
 export const metadata: Metadata = {
   title: "Güven merkezi — TenderIQ",
@@ -96,57 +97,7 @@ const SECTIONS: LegalSectionData[] = [
           Hizmetin sunulması için aşağıdaki sağlayıcılardan yararlanılır. Bu liste değiştiğinde
           güncellenir; kurumsal müşterilere önceden bildirim yapılır.
         </p>
-        <LegalTable
-          headers={["Sağlayıcı ve amaç", "Veri ve konum"]}
-          rows={[
-            [
-              <>
-                <Fill>[Bulut sağlayıcı]</Fill> — uygulama ve veritabanı barındırma
-              </>,
-              <>
-                Hesap verileri ve doküman üstverisi · <Fill>[bölge]</Fill>
-              </>,
-            ],
-            [
-              <>
-                <Fill>[Nesne depolama sağlayıcısı]</Fill> — yüklenen dosyalar
-              </>,
-              <>
-                Doküman dosyaları (şifreli) · <Fill>[bölge]</Fill>
-              </>,
-            ],
-            [
-              <>
-                <Fill>[Yapay zekâ sağlayıcısı]</Fill> — çözümleme
-              </>,
-              <>
-                Doküman parçaları · sıfır saklama · <Fill>[bölge]</Fill>
-              </>,
-            ],
-            [
-              <>
-                <Fill>[E-posta sağlayıcısı]</Fill> — işlemsel e-posta
-              </>,
-              <>
-                Ad ve e-posta adresi · <Fill>[bölge]</Fill>
-              </>,
-            ],
-            [
-              <>
-                <Fill>[Ödeme sağlayıcısı]</Fill> — abonelik tahsilatı
-              </>,
-              <>
-                Fatura bilgileri · kart verisi TenderIQ&apos;ya <strong>hiç gelmez</strong>
-              </>,
-            ],
-            [
-              <>
-                <Fill>[Hata izleme]</Fill> — arıza teşhisi
-              </>,
-              <>Hata kayıtları · kişisel veri maskelenir · doküman içeriği gönderilmez</>,
-            ],
-          ]}
-        />
+        <SubProcessorTable />
       </>
     ),
   },
@@ -185,8 +136,8 @@ const SECTIONS: LegalSectionData[] = [
         <p>
           Güvenlik öz denetimi düzenli olarak tekrarlanır; bulgular ve kabul edilen riskler kayıt
           altına alınır. Bir güvenlik açığı fark ederseniz{" "}
-          <Fill>[güvenlik bildirim e-postası]</Fill> adresine bildirin — bildirimlere{" "}
-          <Fill>[yanıt süresi]</Fill> içinde dönülür.
+          <Value value={LEGAL_CONFIG.company.securityEmail} field="company.securityEmail" /> adresine bildirin — bildirimlere{" "}
+          5 iş günü içinde dönülür.
         </p>
       </>
     ),
@@ -198,8 +149,8 @@ const SECTIONS: LegalSectionData[] = [
       <>
         <p>
           Veritabanı düzenli olarak yedeklenir ve yedekler ayrı bir konumda şifreli tutulur. Hedefler:{" "}
-          <Fill>[RPO]</Fill> veri kaybı toleransı, <Fill>[RTO]</Fill> geri dönüş süresi. Geri
-          yükleme yalnız yapılandırılmakla kalmaz, <Fill>[tatbikat sıklığı]</Fill> tatbikatla
+          24 saat veri kaybı toleransı, 4 saat geri dönüş süresi. Geri
+          yükleme yalnız yapılandırılmakla kalmaz, aylık tatbikatla
           doğrulanır.
         </p>
       </>
@@ -251,7 +202,6 @@ export default function TrustPage() {
     <LegalPage
       title="Güven merkezi"
       intro="İhale dosyanız ticari sırrınızdır. Bu sayfa, o dosyanın TenderIQ içinde nereye gittiğini, kimin eline geçtiğini ve ne zaman silindiğini pazarlama diliyle değil, teknik ayrıntısıyla anlatır."
-      updated="28.07.2026"
       sections={SECTIONS}
     />
   );

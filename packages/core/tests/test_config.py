@@ -158,3 +158,31 @@ def test_production_rejects_unverified_email_uploads(monkeypatch: pytest.MonkeyP
 def test_erisim_tokeni_kisa_omurlu() -> None:
     """Rol/kiracı token'ın İÇİNDE taşınır; ömrü yetki iptalinin gecikme tavanıdır."""
     assert Settings(_env_file=None).access_token_expire_minutes <= 15
+
+
+def test_yurt_disi_aktarim_kapaliyken_yabanci_bolge_reddedilir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ "Veri yurt dışına çıkmaz" beyanı, yanlış sağlayıcıyla sessizce delinmemeli (ADR-0013)."""
+    monkeypatch.setenv("LLM_ALLOW_CROSS_BORDER", "false")
+    monkeypatch.setenv("LLM_REGION", "us-east-1")
+    with pytest.raises(ValidationError, match="LLM_ALLOW_CROSS_BORDER"):
+        Settings(_env_file=None)
+
+
+@pytest.mark.parametrize("region", ["local", "tr"])
+def test_yurt_ici_bolgeler_kapali_bayrakla_acilir(
+    region: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LLM_ALLOW_CROSS_BORDER", "false")
+    monkeypatch.setenv("LLM_REGION", region)
+
+    assert Settings(_env_file=None).llm_region == region
+
+
+def test_aktarim_acikken_yabanci_bolge_serbest(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Dayanak kurulmuşsa (standart sözleşme) kilit devreye girmez."""
+    monkeypatch.setenv("LLM_ALLOW_CROSS_BORDER", "true")
+    monkeypatch.setenv("LLM_REGION", "us-east-1")
+
+    assert Settings(_env_file=None).llm_region == "us-east-1"

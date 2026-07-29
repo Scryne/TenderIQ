@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
-  Fill,
   LegalList,
   LegalPage,
   LegalTable,
+  Value,
+  VerbisNotice,
 } from "@/components/marketing/legal-shell";
 import type { LegalSectionData } from "@/components/marketing/legal-shell";
+import { LEGAL_CONFIG } from "@/config/legal.config";
 
 export const metadata: Metadata = {
   title: "Aydınlatma metni — TenderIQ",
@@ -22,13 +24,11 @@ const SECTIONS: LegalSectionData[] = [
     body: (
       <>
         <p>
-          Veri sorumlusu <Fill>[Şirket ticaret unvanı]</Fill> olup, adresi{" "}
-          <Fill>[Şirket adresi]</Fill>, Mersis/VKN bilgisi <Fill>[VKN]</Fill>&apos;dir. Başvuru ve
-          iletişim: <Fill>[KEP adresi]</Fill> · <Fill>[iletişim e-postası]</Fill>.
+          Veri sorumlusu <Value value={LEGAL_CONFIG.company.tradeName} field="company.tradeName" /> olup, adresi{" "}
+          <Value value={LEGAL_CONFIG.company.address} field="company.address" />, Mersis/VKN bilgisi <Value value={LEGAL_CONFIG.company.taxId} field="company.taxId" />&apos;dir. Başvuru ve
+          iletişim: <Value value={LEGAL_CONFIG.company.kep} field="company.kep" /> · <Value value={LEGAL_CONFIG.company.contactEmail} field="company.contactEmail" />.
         </p>
-        <p>
-          VERBİS kayıt yükümlülüğü <Fill>[değerlendirildi / gerekli değil / kayıt no]</Fill>.
-        </p>
+        <VerbisNotice />
       </>
     ),
   },
@@ -131,14 +131,22 @@ const SECTIONS: LegalSectionData[] = [
         </p>
         <p>
           Seçili sağlayıcı yurt dışında bulunuyorsa bu bir{" "}
-          <strong className="font-medium text-ink-1">yurt dışına aktarımdır</strong> ve KVKK md. 9
-          kapsamında <Fill>[açık rıza / standart sözleşme / taahhütname — seçilen yol]</Fill>{" "}
-          mekanizmasına dayanır. Yürürlükteki sağlayıcı ve veri işleme yeri:{" "}
-          <Fill>[LLM sağlayıcısı ve bölge]</Fill>.
+          <strong className="font-medium text-ink-1">yurt dışına aktarımdır</strong>. Aktarım, KVKK
+          md. 9/3 uyarınca taraflar arasında imzalanan ve Kişisel Verileri Koruma Kurumu&apos;na
+          bildirilen <strong className="font-medium text-ink-1">standart sözleşme</strong>ye dayanır.
+          Açık rıza yoluna dayanılmaz: 7499 sayılı Kanun sonrasında açık rıza,{" "}
+          <em>arızi</em> aktarımlar için öngörülmüştür; doküman içeriğinin her çözümlemede
+          sağlayıcıya iletilmesi ise süreklilik arz eden bir aktarımdır. Yürürlükteki sağlayıcının
+          işleme yeri: <Value value={LEGAL_CONFIG.regions.llm} field="regions.llm" />.
+        </p>
+        <p>
+          Kurumsal müşteriler için verinin yurt dışına hiç çıkmadığı bir çalışma biçimi
+          desteklenir: çözümleme sağlayıcısı ve işleme bölgesi yapılandırmayla belirlenir, yurt içi
+          veya AB bölgesindeki bir sağlayıcıya geçiş kod değişikliği gerektirmez.
         </p>
         <p>
           Yüklediğiniz dosyalar nesne depolamada şifreli olarak tutulur; depolama bölgesi{" "}
-          <Fill>[veri ikametgâhı bölgesi]</Fill>&apos;dir.
+          <Value value={LEGAL_CONFIG.regions.objectStorage} field="regions.objectStorage" />&apos;dir.
         </p>
       </>
     ),
@@ -213,7 +221,7 @@ const SECTIONS: LegalSectionData[] = [
           Erişim hakkınızı (md. 11/1-a-b) platformdan doğrudan kullanabilirsiniz:{" "}
           <strong className="font-medium text-ink-1">Ayarlar → Verilerim → Verilerimi indir</strong>{" "}
           bağlantısı hesabınızın makine okunur (JSON) kopyasını üretir. Diğer talepleriniz için{" "}
-          <Fill>[başvuru e-postası / KEP]</Fill> adresine yazabilirsiniz; başvurular en geç{" "}
+          <Value value={LEGAL_CONFIG.company.privacyEmail} field="company.privacyEmail" /> adresine yazabilirsiniz; başvurular en geç{" "}
           <strong className="font-medium text-ink-1">30 gün</strong> içinde sonuçlandırılır.
         </p>
       </>
@@ -268,7 +276,6 @@ export default function KvkkPage() {
     <LegalPage
       title="Kişisel verilerin korunması hakkında aydınlatma metni"
       intro="6698 sayılı Kişisel Verilerin Korunması Kanunu'nun 10. maddesi uyarınca, TenderIQ hizmetini kullanırken hangi kişisel verilerinizin, hangi amaçla ve ne kadar süreyle işlendiğini açıklar."
-      updated="28.07.2026"
       sections={SECTIONS}
     />
   );
