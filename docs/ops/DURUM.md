@@ -12,7 +12,7 @@
 
 | # | Madde | Commit |
 |---|---|---|
-| 0 | Kalıcı bounce'ta otomatik yeniden deneme kaldırıldı | `<pending>` |
+| 0 | Kalıcı bounce'ta otomatik yeniden deneme kaldırıldı | `6d002ae` |
 
 ## Sırada (bu tur)
 
