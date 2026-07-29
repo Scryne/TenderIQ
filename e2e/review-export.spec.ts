@@ -9,7 +9,7 @@ import { expect, test } from "@playwright/test";
  * (onay/düzelt + kaynak referanslı docx/xlsx içeriği); bu spec tarayıcı katmanını kanıtlar.
  */
 
-const EMAIL = process.env.E2E_EMAIL ?? "e2e@tenderiq.local";
+const EMAIL = process.env.E2E_EMAIL ?? "e2e@tenderiq-e2e.com";
 const PASSWORD = process.env.E2E_PASSWORD ?? "e2e-password-123";
 const TENDER_TITLE = process.env.E2E_TENDER_TITLE ?? "E2E İnceleme İhalesi";
 const REQUIREMENT = "Yüklenici tüm idari maddeleri karşılamalıdır.";
@@ -20,10 +20,15 @@ test("incele → onayla → export (citation-first uçtan uca)", async ({ page }
   await page.getByLabel("E-posta").fill(EMAIL);
   await page.getByLabel("Parola").fill(PASSWORD);
   await page.getByRole("button", { name: "Giriş yap" }).click();
-  await page.waitForURL("**/tenders");
+  // Giriş `/panel`e düşer (bu spec `/panel` eklenmeden önce yazılmıştı ve
+  // `**/tenders` bekliyordu). Liste ekranına açıkça gidilir.
+  await page.waitForURL(/\/panel/);
+  await page.goto("/tenders");
 
   // 2) Tohumlanan ihaleye gir → detay URL'inden id çöz → inceleme ekranı.
-  await page.getByText(TENDER_TITLE).click();
+  // Başlık listede birden çok öğede geçiyor (kart başlığı + erişilebilir ad);
+  // bağlantı rolüyle tekilleştirilir.
+  await page.getByRole("link", { name: TENDER_TITLE }).first().click();
   await page.waitForURL(/\/tenders\/[0-9a-f-]+$/);
   await page.goto(`${page.url()}/review`);
 
