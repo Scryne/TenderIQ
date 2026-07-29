@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from tenderiq_core.billing.plans import PlanTier
+from tenderiq_core.config import Settings
 from tenderiq_core.models import SubscriptionStatus
 
 # Webhook imzasının taşındığı HTTP başlığı (manual sağlayıcı; gerçek sağlayıcılar
@@ -172,7 +173,9 @@ def _event_from_manual_payload(data: object) -> WebhookEvent:
     )
 
 
-def create_billing_provider(provider: str, *, webhook_secret: str | None) -> BillingProvider:
+def create_billing_provider(
+    provider: str, *, webhook_secret: str | None, settings: Settings | None = None
+) -> BillingProvider:
     """Yapılandırmaya göre ödeme sağlayıcısı üretir (fabrika).
 
     ``manual`` (varsayılan) test-modu sağlayıcısını döndürür. Gerçek sağlayıcılar
@@ -182,6 +185,30 @@ def create_billing_provider(provider: str, *, webhook_secret: str | None) -> Bil
     """
     if provider == "manual":
         return ManualBillingProvider(webhook_secret=webhook_secret)
+    if provider == "fake":
+        # Testler için: sözleşmeyi uygular, ağa çıkmaz (bkz. billing.fake).
+        from tenderiq_core.billing.fake import FakeBillingProvider
+
+        return FakeBillingProvider(webhook_secret=webhook_secret)
+    if provider == "iyzico":
+        from tenderiq_core.billing.iyzico import IyzicoBillingProvider
+
+        if settings is None or not settings.iyzico_api_key or not settings.iyzico_secret_key:
+            raise BillingNotConfiguredError(
+                "BILLING_PROVIDER=iyzico için IYZICO_API_KEY ve IYZICO_SECRET_KEY zorunludur."
+            )
+        return IyzicoBillingProvider(
+            api_key=settings.iyzico_api_key,
+            secret_key=settings.iyzico_secret_key,
+            webhook_secret=webhook_secret,
+            plan_reference_codes={
+                PlanTier(tier): code
+                for tier, code in settings.iyzico_plan_codes.items()
+                if tier in PlanTier.__members__.values() or tier in {t.value for t in PlanTier}
+            },
+            callback_url=settings.iyzico_callback_url,
+            sandbox=settings.iyzico_sandbox,
+        )
     raise BillingNotConfiguredError(
         f"Ödeme sağlayıcısı '{provider}' henüz bağlanmadı. Aynı BillingProvider "
         "seam'ine adaptör ve sandbox anahtarları eklenmelidir (bkz. billing/provider.py)."

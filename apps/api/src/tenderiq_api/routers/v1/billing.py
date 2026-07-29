@@ -104,7 +104,9 @@ async def create_checkout(
     """
     try:
         provider = create_billing_provider(
-            settings.billing_provider, webhook_secret=settings.billing_webhook_secret
+            settings.billing_provider,
+            webhook_secret=settings.billing_webhook_secret,
+            settings=settings,
         )
     except BillingError as exc:
         raise AppError(str(exc), code=ErrorCode.INTERNAL_ERROR, status_code=503) from exc
@@ -150,7 +152,9 @@ async def billing_webhook(
     raw_body = await request.body()
     try:
         provider = create_billing_provider(
-            settings.billing_provider, webhook_secret=settings.billing_webhook_secret
+            settings.billing_provider,
+            webhook_secret=settings.billing_webhook_secret,
+            settings=settings,
         )
         event = provider.parse_webhook(headers=request.headers, raw_body=raw_body)
     except WebhookVerificationError as exc:
