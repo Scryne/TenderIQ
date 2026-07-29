@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
 
+import { SubscriptionCard } from "@/components/billing/subscription-card";
 import { Meter } from "@/components/metric";
 import { PageHeader, SectionHeader } from "@/components/shell/page-header";
 import { CardGridSkeleton, ErrorState, InlineError } from "@/components/states";
@@ -57,26 +58,52 @@ export default function UsagePage() {
     },
   });
 
+  const subscription = useQuery({
+    queryKey: ["subscription"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/v1/billing/subscription");
+      if (error !== undefined) throw new Error("Abonelik bilgisi alınamadı.");
+      return data;
+    },
+  });
+
   const checkout = useMutation({
     mutationFn: async (plan: "free" | "pro" | "enterprise") => {
       const { data, error } = await api.POST("/api/v1/billing/checkout", { body: { plan } });
       if (error !== undefined) throw new Error("Plan değiştirilemedi. Bir kez daha deneyin.");
-      return data;
+      return { ...data, plan };
     },
     onSuccess: (result) => {
       if (result.checkout_url != null) {
         window.location.href = result.checkout_url;
         return;
       }
-      toast.success("Plan güncellendi.");
+      // Düşürme dönem sonunda uygulanır (/sartlar §3): "güncellendi" demek
+      // kullanıcıya kotasının hemen değiştiğini düşündürürdü.
+      toast.success(
+        result.effective_at == null
+          ? "Plan güncellendi."
+          : `Plan değişikliği ${formatDate(result.effective_at)} tarihinde uygulanacak.`,
+      );
       void queryClient.invalidateQueries({ queryKey: ["usage"] });
       void queryClient.invalidateQueries({ queryKey: ["billing-plans"] });
+      void queryClient.invalidateQueries({ queryKey: ["subscription"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   const isAdmin = me.data?.role === "admin";
-  const status = usage.data === undefined ? undefined : SUBSCRIPTION_STATUS[usage.data.status];
+  // Bekleyen iptal, durumun KENDİSİNİ ezer. Abonelik iptal edildiğinde teknik
+  // durum ACTIVE kalır (erişim dönem sonuna kadar sürer) — ama sayfanın tepesinde
+  // "Etkin" yazarken hemen altında "dönem sonunda sona erecek" demek, kullanıcıyı
+  // hangisine inanacağını bilmez hâlde bırakır. Rozet en görünür bilgidir;
+  // gerçeği söylemek zorundadır.
+  const status =
+    subscription.data?.cancel_at_period_end === true
+      ? { label: "Dönem sonunda bitiyor", tone: "warning" as const }
+      : usage.data === undefined
+        ? undefined
+        : SUBSCRIPTION_STATUS[usage.data.status];
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -86,7 +113,10 @@ export default function UsagePage() {
         meta={status !== undefined && <StatusPill tone={status.tone} label={status.label} />}
       />
 
-      <Card className="mb-8">
+      {/* Kartlar arası 24px, "Planlar" bölümünden önce 32px (§5.3): bölüm ayrımı
+          kart ayrımından büyük olmalı, yoksa üç blok da eşit uzaklıkta durur ve
+          hangisinin bir bütün olduğu okunmaz. */}
+      <Card className="mb-6">
         <CardHeader>
           <div className="min-w-0">
             <CardTitle>{usage.isPending ? "…" : (usage.data?.plan_name ?? "Plan")}</CardTitle>
@@ -127,11 +157,13 @@ export default function UsagePage() {
         </CardContent>
       </Card>
 
+      <SubscriptionCard isAdmin={isAdmin} />
+
       <SectionHeader
         title="Planlar"
         description={
           isAdmin
-            ? "Plan değişikliği anında geçerli olur; kota yeni limite göre yeniden hesaplanır."
+            ? "Yükseltme anında geçerli olur; düşürme, ödediğiniz dönemin sonunda uygulanır."
             : "Plan değişikliği için organizasyon yöneticisiyle görüşün."
         }
       />
@@ -215,13 +247,32 @@ export default function UsagePage() {
                   <Button variant="secondary" className="w-full" disabled>
                     Mevcut planınız
                   </Button>
+                ) : plan.tier === subscription.data?.pending_plan ? (
+                  // Sunucu bu geçişi zaten planladı; aynı butonu tekrar sunmak
+                  // "uygulanmadı mı?" sorusunu doğurur. Geri alma abonelik
+                  // kartında, kararın gösterildiği yerde duruyor.
+                  <p className="text-center text-xs text-ink-3">
+                    Dönem sonunda bu plana geçilecek
+                  </p>
                 ) : plan.tier === "enterprise" ? (
                   <Button variant="secondary" className="w-full" asChild>
                     <a href="mailto:satis@tenderiq.local?subject=Kurumsal%20plan">
                       Satışla görüşün
                     </a>
                   </Button>
-                ) : isAdmin ? (
+                ) : !isAdmin ? (
+                  <p className="text-center text-xs text-ink-3">
+                    Plan değişikliği yönetici yetkisi gerektirir
+                  </p>
+                ) : subscription.data?.cancel_at_period_end === true ? (
+                  // Sunucu bekleyen iptalin üstüne plan değişimi yazmıyor
+                  // (çakışan iki niyet). Butonu bırakıp 409 aldırmak yerine
+                  // ne yapılacağını söylüyoruz — BRIEF: "devre dışı buton değil,
+                  // nedenini söyleyen metin".
+                  <p className="text-center text-xs text-ink-3">
+                    Plan değiştirmek için önce iptali geri alın
+                  </p>
+                ) : (
                   <Button
                     variant="secondary"
                     className="w-full"
@@ -230,10 +281,6 @@ export default function UsagePage() {
                   >
                     Bu plana geç
                   </Button>
-                ) : (
-                  <p className="text-center text-xs text-ink-3">
-                    Plan değişikliği yönetici yetkisi gerektirir
-                  </p>
                 )}
               </CardContent>
             </Card>

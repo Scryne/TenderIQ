@@ -150,6 +150,29 @@ def test_webhook_gecersiz_imza_reddedilir(billing_client: TestClient) -> None:
     assert resp.status_code == 400, resp.text
 
 
+def test_webhook_bilinmeyen_kiracida_500_donmez(billing_client: TestClient) -> None:
+    """İmzalı ama tanınmayan bir kiracı KALICI olarak reddedilmeli, çökmemeli.
+
+    `scripts/replay_billing_webhook.py` bunu canlı uçta yakaladı: abonelik
+    INSERT'i yabancı anahtar kısıtına takılıyor, ``get_or_create_subscription``
+    bunu eşzamanlılık yarışı sanıp yeniden okuyor, bulamayınca ``assert``
+    patlıyordu → HTTP 500. Sağlayıcı 500'ü GEÇİCİ hata sayar ve asla başarılı
+    olamayacak bir olayı saatlerce yeniden dener.
+    """
+    raw, headers = _sign(
+        {
+            "event_id": f"evt_{uuid.uuid4()}",
+            "event_type": "subscription.activated",
+            "tenant_id": str(uuid.uuid4()),  # hiç var olmayan kiracı
+            "plan": "pro",
+            "status": "active",
+        }
+    )
+    resp = billing_client.post("/api/v1/billing/webhook", content=raw, headers=headers)
+    assert resp.status_code == 400, resp.text
+    assert resp.json()["error"]["code"] == "validation_error"
+
+
 # ── Kiracı izolasyonu (Tur 3 / A6) ───────────────────────────────────────────
 # Ödeme ve kota tabloları paranın ve hakkın kaydıdır: buradaki bir sızıntı
 # yalnız gizlilik değil, YETKİLENDİRME sorunudur (başkasının planını görmek ya

@@ -39,6 +39,7 @@ from tenderiq_core.models import (
 from tenderiq_core.observability import bind_sentry_tags
 from tenderiq_core.ops import JOB_PHASE_TOTAL, record_job_phase
 from tenderiq_core.queueing import (
+    TASK_APPLY_DUE_SUBSCRIPTION_CHANGES,
     TASK_CLEANUP_STALE_UPLOADS,
     TASK_PROCESS_DOCUMENT,
     TASK_PURGE_DELETED,
@@ -463,6 +464,48 @@ def reconcile_subscriptions() -> int:
                     async_session, provider, tenant_ids=tenant_ids
                 )
             return report.drift
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+@celery_app.task(name=TASK_APPLY_DUE_SUBSCRIPTION_CHANGES)
+def apply_due_subscription_changes() -> int:
+    """Dönem sonu gelmiş iptalleri ve düşürmeleri uygular.
+
+    `/sartlar` §3 "iptal, içinde bulunulan dönemin sonunda geçerli olur" ve
+    "düşürmeler dönem sonunda uygulanır" der. Normalde bunu sağlayıcının dönem
+    sonu olayı tetikler (ADR-0014: yetkilendirmenin kaynağı webhook'tur); bu
+    görev onun **yedeğidir**. Olay hiç gelmezse iptal etmiş müşteri ücretsiz
+    plana hiç düşmez ve ödemediği kotayı kullanmaya devam eder.
+
+    Mutabakattan farkı: sağlayıcıya HİÇ ÇIKMAZ. Yalnızca kullanıcının kendi
+    talep ettiği ve vakti gelmiş değişiklikleri uygular; sağlayıcı kesintisinde
+    yanlış kapatma üretemez. Bu yüzden sağlayıcı yapılandırılmamış olsa bile
+    koşar.
+
+    Dönen değer: uygulanan değişiklik sayısı.
+    """
+    import asyncio
+
+    from tenderiq_core.db import create_engine, create_session_factory
+    from tenderiq_core.services import billing as billing_service
+
+    settings = get_settings()
+    factory = get_session_factory()
+    with factory() as session:
+        tenant_ids = list(session.scalars(select(Organization.id)))
+
+    async def _run() -> int:
+        engine = create_engine(settings)
+        async_factory = create_session_factory(engine)
+        try:
+            async with async_factory() as async_session, async_session.begin():
+                report = await billing_service.apply_due_subscription_changes(
+                    async_session, tenant_ids=tenant_ids
+                )
+            return report.applied
         finally:
             await engine.dispose()
 

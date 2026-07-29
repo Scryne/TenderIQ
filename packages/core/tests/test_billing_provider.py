@@ -101,28 +101,56 @@ def _event(event_type: str, plan: PlanTier | None, status: SubscriptionStatus) -
     )
 
 
-def test_resolve_target_iptal_free_yapar() -> None:
-    plan, status = _resolve_target(
+def test_resolve_target_iptal_erisimi_hemen_kesmez() -> None:
+    """`/sartlar` §3: iptal, içinde bulunulan dönemin SONUNDA geçerli olur.
+
+    Olay geldiği anda planı FREE'ye çekmek, müşterinin ödediği dönemi geri almak
+    olurdu. Plan korunur, durum ACTIVE kalır; yalnız bitiş işaretlenir.
+    """
+    target = _resolve_target(
         _event("subscription.canceled", PlanTier.PRO, SubscriptionStatus.CANCELED), PlanTier.PRO
     )
-    assert plan is PlanTier.FREE
-    assert status is SubscriptionStatus.CANCELED
+    assert target.plan is PlanTier.PRO
+    assert target.status is SubscriptionStatus.ACTIVE
+    assert target.cancel_at_period_end is True
+
+
+def test_resolve_target_donem_bitisi_erisimi_keser() -> None:
+    target = _resolve_target(
+        _event("subscription.expired", PlanTier.PRO, SubscriptionStatus.CANCELED), PlanTier.PRO
+    )
+    assert target.plan is PlanTier.FREE
+    assert target.status is SubscriptionStatus.CANCELED
+    assert target.cancel_at_period_end is False
 
 
 def test_resolve_target_past_due_plani_korur() -> None:
-    plan, status = _resolve_target(
+    target = _resolve_target(
         _event("subscription.past_due", None, SubscriptionStatus.PAST_DUE), PlanTier.PRO
     )
-    assert plan is PlanTier.PRO  # plan korunur; yalnız durum düşer
-    assert status is SubscriptionStatus.PAST_DUE
+    assert target.plan is PlanTier.PRO  # plan korunur; yalnız durum düşer
+    assert target.status is SubscriptionStatus.PAST_DUE
+    assert target.cancel_at_period_end is None  # bayrağa dokunulmaz
 
 
 def test_resolve_target_etkinlestir_plani_uygular() -> None:
-    plan, status = _resolve_target(
+    target = _resolve_target(
         _event("subscription.activated", PlanTier.PRO, SubscriptionStatus.ACTIVE), PlanTier.FREE
     )
-    assert plan is PlanTier.PRO
-    assert status is SubscriptionStatus.ACTIVE
+    assert target.plan is PlanTier.PRO
+    assert target.status is SubscriptionStatus.ACTIVE
+
+
+def test_resolve_target_aktif_olayi_bekleyen_iptali_temizlemez() -> None:
+    """Sağlayıcının "hâlâ aktif" demesi, kullanıcının iptalini geri almaz.
+
+    Sağlayıcı iptali henüz işlememiş olabilir; bayrağı burada temizlemek iptal
+    etmiş müşteriyi sessizce aboneliğe geri döndürür ve bir dönem daha tahsil eder.
+    """
+    target = _resolve_target(
+        _event("subscription.activated", PlanTier.PRO, SubscriptionStatus.ACTIVE), PlanTier.PRO
+    )
+    assert target.cancel_at_period_end is None
 
 
 # ── iyzico adaptörü (Tur 4) ──────────────────────────────────────────────────

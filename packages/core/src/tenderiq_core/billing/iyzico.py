@@ -38,6 +38,7 @@ import random
 import string
 import uuid
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -50,6 +51,7 @@ from tenderiq_core.billing.provider import (
     WebhookEvent,
     WebhookVerificationError,
 )
+from tenderiq_core.billing.signature import get_scheme
 from tenderiq_core.logging import get_logger
 from tenderiq_core.models import SubscriptionStatus
 
@@ -58,8 +60,11 @@ logger = get_logger("tenderiq.core.billing.iyzico")
 SANDBOX_BASE_URL = "https://sandbox-api.iyzipay.com"
 PRODUCTION_BASE_URL = "https://api.iyzipay.com"
 
+#: iyzico'nun imza biçimi — tanım ``billing/signature.py``dedir (doğrulanmadı).
+IYZICO_SCHEME = get_scheme("iyzico")
+
 #: iyzico webhook imzasının taşındığı başlık.
-IYZICO_SIGNATURE_HEADER = "x-iyz-signature-v3"
+IYZICO_SIGNATURE_HEADER = IYZICO_SCHEME.header
 
 _TIMEOUT_SECONDS = 20.0
 _RANDOM_KEY_LENGTH = 24
@@ -77,6 +82,32 @@ _STATUS_MAP: dict[str, SubscriptionStatus] = {
     "CANCELED": SubscriptionStatus.CANCELED,
     "EXPIRED": SubscriptionStatus.CANCELED,
 }
+
+
+def _parse_iyzico_datetime(raw: object) -> datetime | None:
+    """iyzico'nun tarih alanını UTC ``datetime``e çevirir; çözülemezse ``None``.
+
+    > Alan adı ve **biçimi dokümantasyondan**; abonelik modülü kapalı olduğu için
+    > gerçek bir olayla doğrulanmadı. Bu yüzden hem epoch-milisaniye hem de
+    > ISO-benzeri metin kabul edilir.
+
+    Çözülemeyen değer hata değil ``None`` üretir: bu damga bir **kolaylıktır**
+    (kullanıcıya gösterilen tarih), yetkilendirme kararı değil. Tanınmayan bir
+    biçim yüzünden webhook'u reddetmek, ödemesi geçmiş bir müşterinin erişimini
+    açmamak demek olurdu; damga yoksa dönem sonu kota takviminden türetilir
+    (``services.billing``).
+    """
+    if raw in (None, "", 0):
+        return None
+    if isinstance(raw, int | float):
+        return datetime.fromtimestamp(float(raw) / 1000.0, tz=UTC)
+    text = str(raw).strip().replace(" ", "T", 1)
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        logger.warning("iyzico_tarih_cozulemedi", field="subscriptionNextChargeDate")
+        return None
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
 
 
 def _random_key() -> str:
@@ -104,10 +135,8 @@ def build_authorization(
 
 
 def verify_webhook_signature(*, secret_key: str, raw_body: bytes, provided: str) -> None:
-    """Webhook imzasını sabit zamanlı doğrular."""
-    expected = base64.b64encode(
-        hmac.new(secret_key.encode("utf-8"), raw_body, hashlib.sha256).digest()
-    ).decode("utf-8")
+    """Webhook imzasını sabit zamanlı doğrular (biçim: ``billing/signature.py``)."""
+    expected = IYZICO_SCHEME.compute(secret=secret_key, raw_body=raw_body)
     if not hmac.compare_digest(provided, expected):
         raise WebhookVerificationError("iyzico webhook imzası geçersiz.")
 
@@ -228,9 +257,30 @@ class IyzicoBillingProvider:
         )
 
     async def cancel_subscription(self, *, provider_subscription_id: str) -> None:
-        """Aboneliği iptal eder; erişim dönem sonuna kadar sürer (ADR-0014)."""
+        """Tekrarlayan tahsilatı durdurur; erişim dönem sonuna kadar sürer (ADR-0014).
+
+        Çağrı ANINDA yapılır, dönem sonuna ertelenmez. Gerekçe yön asimetrisi:
+        iptal eden müşteriden bir kez daha para çekmek geri alınması pahalı bir
+        hatadır (iade + güven kaybı), erken durdurmanın bize maliyeti ise sıfırdır
+        — erişimi zaten kendi aynamızdan, sağlayıcıdan bağımsız sürdürüyoruz.
+        """
         await self._post(
             "/v2/subscription/subscriptions/cancel",
+            {"locale": "tr", "subscriptionReferenceCode": provider_subscription_id},
+        )
+
+    async def resume_subscription(self, *, provider_subscription_id: str) -> None:
+        """İptali geri alır — tekrarlayan tahsilatı yeniden başlatır.
+
+        > Uç yolu ve gövde **dokümantasyondan**; abonelik modülü kapalı olduğu
+        > için gerçek yanıtla doğrulanmadı (bkz. `docs/ops/billing-setup.md`).
+
+        İptal ile geri alma arasında bir dönem sonu geçtiyse sağlayıcı bunu
+        reddeder; çağıran (``services.billing``) o hâle zaten girmez — geri alma
+        yalnız ``cancel_at_period_end`` bayrağı hâlâ duruyorken sunulur.
+        """
+        await self._post(
+            "/v2/subscription/subscriptions/activate",
             {"locale": "tr", "subscriptionReferenceCode": provider_subscription_id},
         )
 
@@ -323,6 +373,7 @@ class IyzicoBillingProvider:
             tenant_id=tenant_id,
             plan_tier=self._tier_for_code(str(data.get("pricingPlanReferenceCode", ""))),
             status=status,
+            current_period_end=_parse_iyzico_datetime(data.get("subscriptionNextChargeDate")),
             provider_subscription_id=(
                 str(data["subscriptionReferenceCode"])
                 if data.get("subscriptionReferenceCode")

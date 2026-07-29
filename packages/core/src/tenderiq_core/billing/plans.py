@@ -65,7 +65,21 @@ PLANS: dict[PlanTier, Plan] = {
 # Ödeme yapılmamış yeni kiracının varsayılan kademesi.
 DEFAULT_PLAN_TIER = PlanTier.FREE
 
+#: Kademeler ARTAN sırada. Yükseltme/düşürme ayrımı buradan çıkar ve fiyata
+#: bakılarak yapılmaz: kurumsal planın listedeki fiyatı 0'dır (satışla belirlenir),
+#: yani fiyat karşılaştırması kurumsalı "düşürme" sayardı.
+PLAN_ORDER: tuple[PlanTier, ...] = (PlanTier.FREE, PlanTier.PRO, PlanTier.ENTERPRISE)
+
 
 def get_plan(tier: PlanTier) -> Plan:
     """Bir kademe için plan tanımını döndürür."""
     return PLANS[tier]
+
+
+def is_upgrade(current: PlanTier, target: PlanTier) -> bool:
+    """Hedef kademe mevcut kademeden YUKARIDA mı.
+
+    ``/sartlar`` §3'ün koddaki karşılığının girdisi: yükseltme anında etkili,
+    düşürme dönem sonunda. Eşitlik yükseltme değildir.
+    """
+    return PLAN_ORDER.index(target) > PLAN_ORDER.index(current)

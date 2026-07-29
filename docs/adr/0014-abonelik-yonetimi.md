@@ -78,6 +78,38 @@ tutarlıdır.
   müşteri için sipariş + "ödeme bekliyor" + yönetici onayıyla manuel aktivasyon
   yolu, sağlayıcıdan bağımsız olarak kalır.
 
+## Koşul: bu karar hangi durumda yeniden açılır
+
+**Tetikleyici.** Bu ADR, iyzico'nun abonelik ürününün bize **açılabilir**
+olduğunu varsayıyor. 2026-07-29 itibarıyla açık değil: `/v2/subscription/*`
+uçlarının hepsi, gövdeden bağımsız olarak `422 errorCode:100001` dönüyor;
+aynı anahtarlarla `/payment/bin/check` 200 veriyor — yani kimlik ve imza doğru,
+eksik olan merchant hesabındaki abonelik modülü (bkz. `docs/ops/billing-setup.md`).
+Bu bir hesap/başvuru işlemidir ve sonucu bizim elimizde değildir. **Modül
+etkinleştirilemezse — başvuru reddedilirse, süresiz beklerse ya da ticari
+koşulları kabul edilemez çıkarsa — Yol A uygulanamaz ve bu karar yeniden
+açılmalıdır.** Karar burada verilmiyor; yalnızca tetikleyici ve alternatifler
+kayda geçiriliyor, çünkü tetikleyici geldiğinde bu analiz sıfırdan yapılırsa
+zaman baskısı altında yapılacaktır.
+
+**Alternatifler ve çöpe gidecek iş.** İki yol var. Birincisi **Yol B'ye geçmek**:
+saklı kartla (tokenizasyon) tahsilatı kendi tarafımızda kurmak — dönem takibi,
+yenileme zamanlaması, başarısız tahsilatta yeniden deneme merdiveni ve kart
+güncelleme akışı bize geçer; yani bu ADR'nin "yazmayacağız" dediği her şey.
+İkincisi **alternatif sağlayıcı** (PayTR, Stripe/Türkiye çözümü, ya da kurumsal
+müşteri için havale/EFT + yönetici onaylı manuel aktivasyon). Her iki yolda da
+çöpe giden iş `billing/iyzico.py` ile sınırlıdır: adaptörün abonelik istek/yanıt
+şeması, plan referans kodu eşlemesi ve webhook gövde ayrıştırması. Bunların
+zaten **doğrulanmamış varsayımlar** olduğunu not etmek gerekir — modül kapalı
+olduğu için hiçbiri gerçek bir yanıta karşı sınanamadı, dolayısıyla kaybedilen
+şey doğrulanmış çalışan kod değil, yazılmış tahmin. Buna karşılık **korunan iş
+çok daha büyüktür**: `BillingProvider` seam'i, `Subscription` aynası (iptal ve
+planlanmış plan değişimi alanları dâhil), kota katmanı, webhook idempotency ve
+sırasız-olay koruması, mutabakat görevi, dönem sonu görevi, iptal/geri alma
+uçları ve arayüzü — hepsi sağlayıcıdan bağımsızdır ve olduğu gibi kalır.
+Havale/EFT yolu ise zaten bu ADR'de korunmuş durumda, yani en kötü senaryoda
+bile tahsilatsız kalmıyoruz.
+
 ## Geri dönüş maliyeti
 
 **Orta.** Yol B'ye geçmek, `BillingProvider` implementasyonunu değiştirmek +

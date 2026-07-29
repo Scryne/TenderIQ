@@ -13,6 +13,7 @@ from tenderiq_core.logging import configure_logging
 from tenderiq_core.observability import init_sentry
 from tenderiq_core.queueing import (
     QUEUE_DEFAULT,
+    TASK_APPLY_DUE_SUBSCRIPTION_CHANGES,
     TASK_CLEANUP_STALE_UPLOADS,
     TASK_PURGE_DELETED,
     TASK_RECONCILE_SUBSCRIPTIONS,
@@ -67,6 +68,14 @@ def create_celery_app() -> Celery:
             # webhook'un etkisini en fazla bir saatle sınırlar.
             "reconcile-subscriptions": {
                 "task": TASK_RECONCILE_SUBSCRIPTIONS,
+                "schedule": 3600.0,
+            },
+            # Dönem sonu iptalleri/düşürmeleri. Saatlik: gecikmenin bedeli,
+            # iptal etmiş bir kiracının ücretsiz plana düşmeden geçirdiği süredir
+            # — bir saatle sınırlamak yeterli. Daha sık koşmak yalnız boş tarama
+            # üretir (dönem sonları ay ölçeğinde seyrek).
+            "apply-due-subscription-changes": {
+                "task": TASK_APPLY_DUE_SUBSCRIPTION_CHANGES,
                 "schedule": 3600.0,
             },
         },

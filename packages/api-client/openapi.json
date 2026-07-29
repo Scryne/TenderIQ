@@ -201,7 +201,7 @@
         "type": "object"
       },
       "CheckoutResponse": {
-        "description": "Checkout sonucu: anında etkinleşti mi, yoksa ağ geçidine mi yönlendirilecek.",
+        "description": "Checkout/plan değişimi sonucu.\n\n``activated`` plan ANINDA açıldı mı (yükseltme ya da test-modu). ``checkout_url``\ndoluysa kullanıcı ağ geçidine yönlendirilir. ``effective_at`` doluysa değişim\nhenüz uygulanmadı ve o tarihte uygulanacaktır (düşürme, `/sartlar` §3).",
         "properties": {
           "activated": {
             "title": "Activated",
@@ -217,6 +217,18 @@
               }
             ],
             "title": "Checkout Url"
+          },
+          "effective_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective At"
           },
           "plan": {
             "$ref": "#/components/schemas/PlanTier"
@@ -2417,6 +2429,104 @@
         "title": "RoleUpdate",
         "type": "object"
       },
+      "SubscriptionResponse": {
+        "description": "Kiracının abonelik durumu — iptal/geri alma arayüzünün tek kaynağı.",
+        "properties": {
+          "can_cancel": {
+            "title": "Can Cancel",
+            "type": "boolean"
+          },
+          "can_resume": {
+            "title": "Can Resume",
+            "type": "boolean"
+          },
+          "cancel_at_period_end": {
+            "title": "Cancel At Period End",
+            "type": "boolean"
+          },
+          "current_period_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Period End"
+          },
+          "next_charge_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Charge At"
+          },
+          "pending_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanTier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_plan_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Plan Name"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanTier"
+          },
+          "plan_name": {
+            "title": "Plan Name",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SubscriptionStatus"
+          }
+        },
+        "required": [
+          "plan",
+          "plan_name",
+          "status",
+          "provider",
+          "cancel_at_period_end",
+          "current_period_end",
+          "next_charge_at",
+          "pending_plan",
+          "pending_plan_name",
+          "can_cancel",
+          "can_resume"
+        ],
+        "title": "SubscriptionResponse",
+        "type": "object"
+      },
       "SubscriptionStatus": {
         "description": "Abonelik durumu.",
         "enum": [
@@ -2836,7 +2946,7 @@
         "type": "object"
       },
       "WebhookResponse": {
-        "description": "Webhook işleme sonucu.",
+        "description": "Webhook işleme sonucu.\n\n``applied`` uygulandı · ``duplicate`` daha önce işlenmiş (idempotency) ·\n``stale`` sırasız gelmiş ESKİ olay, yok sayıldı. Üçü de 200'dür: sağlayıcı\niçin \"aldım, işim bitti\" demektir ve yeniden deneme gerektirmez.",
         "properties": {
           "status": {
             "title": "Status",
@@ -3343,7 +3453,7 @@
     },
     "/api/v1/billing/checkout": {
       "post": {
-        "description": "Bir plana geçiş/yükseltme başlatır (admin).\n\nTest-modu (manual) sağlayıcıda plan anında etkinleşir ve denetime yazılır; gerçek\nsağlayıcıda ``checkout_url`` döner (etkinleşme webhook'la gelir).",
+        "description": "Bir plana geçiş başlatır (admin).\n\nKiracının sağlayıcıda aboneliği yoksa yeni satın alma başlar (test-modunda\nplan anında etkinleşir; gerçek sağlayıcıda ``checkout_url`` döner ve\netkinleşme webhook'la gelir). Aboneliği VARSA `/sartlar` §3 uygulanır:\nyükseltme anında, düşürme dönem sonunda.",
         "operationId": "create_checkout_api_v1_billing_checkout_post",
         "parameters": [
           {
@@ -3450,6 +3560,156 @@
           }
         },
         "summary": "List Plans",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/billing/subscription": {
+      "get": {
+        "description": "Kiracının abonelik durumunu döndürür (her rol görebilir).\n\nGörüntüleme yönetici yetkisi istemez: hangi planda olduğunu, ne zaman\nyenileneceğini ve iptal edilip edilmediğini bilmek ekibin tamamını ilgilendirir.\nDeğiştirme uçları ayrıca yöneticiyle sınırlıdır.",
+        "operationId": "get_subscription_api_v1_billing_subscription_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Subscription",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/billing/subscription/cancel": {
+      "post": {
+        "description": "Aboneliği dönem sonunda bitecek şekilde iptal eder (admin).\n\nErişim ödenmiş dönemin sonuna kadar sürer (`/sartlar` §3); yanıttaki\n``current_period_end`` kullanıcıya gösterilecek tarihtir. İşlem tek adımdır\nve geri alınabilir — 14 gün koşulsuz cayma hakkı ayrıca işler.",
+        "operationId": "cancel_subscription_api_v1_billing_subscription_cancel_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Subscription",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/billing/subscription/resume": {
+      "post": {
+        "description": "İptali geri alır — dönem sonu henüz geçmemişse (admin).",
+        "operationId": "resume_subscription_api_v1_billing_subscription_resume_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Subscription",
         "tags": [
           "billing"
         ]
