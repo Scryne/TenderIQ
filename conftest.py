@@ -91,6 +91,11 @@ def api_client(app_database_url: str) -> Iterator[TestClient]:
     # çıkar — yavaşlar, kota harcar ve ağ kesintisinde kırmızıya döner.
     # (Aynı gerekçe BILLING_PROVIDER için de geçerli; bkz. billing_client.)
     os.environ["EMAIL_PROVIDER"] = "memory"
+    # Ödeme sağlayıcısı da SABİTLENİR (aynı gerekçe): gerçek bir sağlayıcı
+    # seçiliyken testler ağ geçidine çıkmaya çalışırdı. `billing_client` bunu
+    # "manual"e çevirerek test-modu semantiğini sınar; varsayılan "fake"
+    # gerçek sağlayıcı semantiğini (plan webhook'la açılır) taklit eder.
+    os.environ.setdefault("BILLING_PROVIDER", "fake")
     get_settings.cache_clear()
 
     # Oran sınırlama (rl:*), refresh token'lar (rt:* / rtfam:*) ve operasyon

@@ -201,6 +201,17 @@ class Settings(BaseSettings):
     # Webhook imza doğrulama sırrı (HMAC-SHA256, ham gövde üzerinde). Gerçek
     # sağlayıcıda sağlayıcının webhook sırrı; "manual" sağlayıcı da bununla imzalar.
     billing_webhook_secret: str | None = None
+    # ── iyzico (ADR-0014: abonelik sağlayıcı tarafında) ──────────────────────
+    iyzico_api_key: str | None = None
+    iyzico_secret_key: str | None = None
+    # Sandbox mı canlı mı. Production'da False olmalıdır; True bırakılırsa
+    # gerçek para HİÇ tahsil edilmez ve bu ancak ay sonunda fark edilir.
+    iyzico_sandbox: bool = True
+    # Ödeme sonrası kullanıcının döneceği adres.
+    iyzico_callback_url: str = "http://localhost:3000/usage"
+    # Plan kademesi → iyzico ödeme planı referans kodu ("pro=abc,enterprise=def").
+    # Kademe adını sağlayıcıya doğrudan göndermeyiz; eşleme yapılandırmadan gelir.
+    iyzico_plan_codes: Annotated[dict[str, str], NoDecode] = {}
 
     # ── Yükleme sınırları (Sprint 1.1 güvenlik) ──────────────────────────────
     upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB; ileride plan kotasına bağlanır
@@ -252,6 +263,21 @@ class Settings(BaseSettings):
     # (reranker atlanır, RRF sırası korunur — hafif ortamlar/testler için).
     retrieval_reranker_provider: str = "local"
     retrieval_reranker_model: str = "BAAI/bge-reranker-v2-m3"
+
+    @field_validator("iyzico_plan_codes", mode="before")
+    @classmethod
+    def _split_plan_codes(cls, value: object) -> object:
+        """``pro=abc,enterprise=def`` biçimini sözlüğe çevirir."""
+        if not isinstance(value, str):
+            return value
+        codes: dict[str, str] = {}
+        for pair in value.split(","):
+            if "=" not in pair:
+                continue
+            tier, _, code = pair.partition("=")
+            if tier.strip() and code.strip():
+                codes[tier.strip()] = code.strip()
+        return codes
 
     @field_validator(
         "cors_origins",
