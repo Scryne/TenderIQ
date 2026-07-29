@@ -1,0 +1,11 @@
+{
+  "http_status": 200,
+  "body": {
+    "binNumber": "554960",
+    "status": "failure",
+    "errorCode": "1000",
+    "errorMessage": "Geçersiz imza",
+    "locale": "tr",
+    "conversationId": "t"
+  }
+}

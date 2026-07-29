@@ -17,9 +17,15 @@ yıkar ve Türkiye'de kart şeması kuralları gereği yenilemeyi kırılgan kı
 **Kart verisi bu sürece hiç girmez.** PAN/CVV iyzico'nun formunda kalır; biz
 yalnız token ve abonelik kimliği görürüz.
 
-> **Durum:** İmza şeması ve istek/yanıt eşlemesi yazıldı; **gerçek sandbox'a
-> karşı koşulmadı** (merchant hesabı kullanıcıda — bkz. `docs/ops/DURUM.md`).
-> Sözleşme testleri sahte HTTP taşımasıyla çalışır.
+> **Sandbox doğrulaması (2026-07-29).** İmza şeması **gerçeğe karşı doğrulandı**:
+> yanlış sırla 401 `errorCode:8`, payload'sız imzayla yine 401 → yani imza
+> `randomKey + uriPath + payload` üzerinden hesaplanıyor ve payload dâhil.
+> `/payment/bin/check` aynı anahtarlarla 200 döndü.
+>
+> **Ancak `/v2/subscription/*` uçlarının HİÇBİRİ çalışmıyor:** gövde ne olursa
+> olsun `422 errorCode:100001`. Merchant hesabında abonelik modülü etkin
+> değil (hesap işlemi — bkz. `docs/ops/billing-setup.md`). Bu yüzden abonelik
+> istek/yanıt ŞEMASI hâlâ dokümantasyondan yazılmış varsayımdır.
 """
 
 from __future__ import annotations
@@ -56,6 +62,10 @@ IYZICO_SIGNATURE_HEADER = "x-iyz-signature-v3"
 
 _TIMEOUT_SECONDS = 20.0
 _RANDOM_KEY_LENGTH = 24
+
+#: iyzico'nun jenerik hata kodu. Tek başına neredeyse hiçbir şey söylemez;
+#: bağlamla (hangi uç) birleştirildiğinde anlam kazanır.
+_GENERIC_ERROR_CODE = "100001"
 
 #: Sağlayıcı abonelik durumu → bizim yetkilendirme durumumuz.
 #: Eşlenmeyen bir durum sessizce "aktif" sayılmaz; olay yok sayılır.
@@ -156,11 +166,28 @@ class IyzicoBillingProvider:
         data: Any = response.json()
         if not isinstance(data, dict):
             raise BillingError("iyzico beklenmeyen bir yanıt gövdesi döndürdü.")
+        # BAŞARI KONTROLÜ HTTP DURUMUNA GÜVENMEZ — sandbox'a karşı doğrulandı:
+        # geçersiz imzada `/payment/bin/check` **HTTP 200** döndürüp gövdede
+        # `status:"failure", errorCode:"1000", "Geçersiz imza"` diyor; aynı hata
+        # `/v2/subscription/*` uçlarında HTTP 401 ile geliyor. Yalnız HTTP
+        # durumuna bakan bir adaptör, geçersiz imzalı yanıtı BAŞARI sayardı.
         if data.get("status") != "success":
+            error_code = str(data.get("errorCode", ""))
+            hint = ""
+            if error_code == _GENERIC_ERROR_CODE and uri_path.startswith("/v2/subscription"):
+                # Sandbox'ta doğrulandı: abonelik uçları, gövde ne olursa olsun
+                # (hatta boş listeleme isteğinde bile) bu kodu döndürüyor;
+                # `/payment/bin/check` ise aynı anahtarlarla 200 veriyor. Yani
+                # sorun istekte değil, hesapta abonelik modülünün kapalı
+                # olmasında. Bu ipucu olmadan hata "gövde yanlış" sanılır.
+                hint = (
+                    " — abonelik (Abonelik/Subscription) modülü merchant hesabında "
+                    "etkin olmayabilir; bkz. docs/ops/billing-setup.md"
+                )
             # Yanıt gövdesinde anahtar YOKTUR (yalnız hata kodu/mesajı); yine de
             # tamamı loglanmaz — sağlayıcı ileride alan eklerse sızıntı olurdu.
             raise BillingError(
-                f"iyzico isteği reddetti: {data.get('errorCode')} {data.get('errorMessage')}"
+                f"iyzico isteği reddetti: {error_code} {data.get('errorMessage')}{hint}"
             )
         return data
 
