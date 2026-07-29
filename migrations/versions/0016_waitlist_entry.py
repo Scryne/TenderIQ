@@ -48,9 +48,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_waitlist_entry")),
         sa.UniqueConstraint("email", name=op.f("uq_waitlist_entry_email")),
     )
-    op.create_index(
-        op.f("ix_waitlist_entry_email"), "waitlist_entry", ["email"], unique=False
-    )
+    op.create_index(op.f("ix_waitlist_entry_email"), "waitlist_entry", ["email"], unique=False)
 
 
 def downgrade() -> None:

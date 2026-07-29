@@ -20,6 +20,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 
 from tenderiq_api.dependencies import (
+    EmailProviderDep,
     PrincipalDep,
     RedisDep,
     SessionDep,
@@ -39,9 +40,16 @@ from tenderiq_api.routers.v1.auth import (
     _issue_refresh_token,
 )
 from tenderiq_core.db.tenant import set_tenant_context
+from tenderiq_core.email import send_email
+from tenderiq_core.email import templates as email_templates
 from tenderiq_core.logging import get_logger
-from tenderiq_core.models import AuditAction, Invitation, InvitationStatus, Role
-from tenderiq_core.services import email as email_service
+from tenderiq_core.models import (
+    AuditAction,
+    Invitation,
+    InvitationStatus,
+    Organization,
+    Role,
+)
 from tenderiq_core.services import invitations as invitation_service
 from tenderiq_core.services.audit import record_audit
 
@@ -127,6 +135,7 @@ async def create_invitation(
     session: TenantSessionDep,
     principal: PrincipalDep,
     settings: SettingsDep,
+    provider: EmailProviderDep,
 ) -> InvitationResponse:
     """Aktif organizasyona bir üye davet eder (admin). E-posta zaten üyeyse 409.
 
@@ -155,12 +164,16 @@ async def create_invitation(
         meta={"email": invitation.email, "role": invitation.role.value},
     )
     # Davet bağlantısı (commit henüz TenantSessionDep sonunda; e-posta best-effort).
+    # Organizasyon adı şablonda geçer: "hangi çalışma alanına" sorusu davetin
+    # kabul edilip edilmemesini belirler.
+    organization = await session.get(Organization, principal.tenant_id)
+    organization_name = organization.name if organization is not None else "çalışma alanı"
     link = f"{settings.app_base_url}/accept-invitation?token={token}"
-    await email_service.send_account_email(
-        settings,
-        to=invitation.email,
-        subject="TenderIQ — Bir organizasyona davet edildiniz",
-        body=f"Daveti kabul etmek için bağlantıya gidin: {link}",
+    await send_email(
+        email_templates.invitation(to=invitation.email, link=link, organization=organization_name),
+        provider=provider,
+        settings=settings,
+        session=session,
     )
     return _invitation_response(invitation)
 

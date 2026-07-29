@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tenderiq_api.errors import AppError, ErrorCode, ForbiddenError, UnauthorizedError
 from tenderiq_core.config import Settings, get_settings
 from tenderiq_core.db.tenant import set_tenant_context
+from tenderiq_core.email import EmailProvider
 from tenderiq_core.logging import tenant_id_var
 from tenderiq_core.models import Role, User
 from tenderiq_core.observability import bind_sentry_tags
@@ -125,6 +126,12 @@ async def require_verified_email(
     return principal
 
 
+def get_email_provider(request: Request) -> EmailProvider:
+    """Yapılandırılmış e-posta sağlayıcısı (lifespan'de kurulur)."""
+    provider: EmailProvider = request.app.state.email_provider
+    return provider
+
+
 def get_redis(request: Request) -> Redis:
     """Uygulamanın paylaşılan async Redis istemcisini döndürür (oran sınırlama)."""
     redis: Redis = request.app.state.redis
@@ -162,4 +169,5 @@ PrincipalDep = Annotated[Principal, Depends(get_principal)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 StorageDep = Annotated[StorageService, Depends(get_storage)]
 RedisDep = Annotated[Redis, Depends(get_redis)]
+EmailProviderDep = Annotated[EmailProvider, Depends(get_email_provider)]
 EnqueueDep = Annotated[DocumentJobEnqueuer, Depends(get_document_job_enqueuer)]

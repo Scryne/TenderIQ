@@ -6,6 +6,7 @@ from tenderiq_core.models.chunk import Chunk
 from tenderiq_core.models.compliance_result import ComplianceResult
 from tenderiq_core.models.deliverable import Deliverable
 from tenderiq_core.models.document import Document, DocumentKind, DocumentStatus
+from tenderiq_core.models.email_suppression import EmailSuppression, SuppressionReason
 from tenderiq_core.models.embedding import EMBEDDING_DIM, Embedding
 from tenderiq_core.models.finding_comment import FindingComment
 from tenderiq_core.models.invitation import Invitation, InvitationStatus
@@ -41,6 +42,7 @@ __all__ = [
     "Document",
     "DocumentKind",
     "DocumentStatus",
+    "EmailSuppression",
     "Embedding",
     "FindingComment",
     "InvalidJobTransitionError",
@@ -56,6 +58,7 @@ __all__ = [
     "Role",
     "Subscription",
     "SubscriptionStatus",
+    "SuppressionReason",
     "Tender",
     "TenderStatus",
     "TimelineEvent",

@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from tenderiq_core.email import EmailMessage, MemoryEmailProvider
 from tenderiq_core.models import Invitation, Membership, Role
 
 pytestmark = pytest.mark.integration
@@ -61,19 +62,19 @@ def _add_membership(url: str, *, user_id: str, org_id: str, role: Role) -> None:
 
 
 @pytest.fixture
-def captured_emails(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
-    """``send_account_email``'i yakalar; gönderilen e-postaları biriktirir."""
-    sent: list[dict[str, str]] = []
+def captured_emails(api_client: TestClient) -> list[EmailMessage]:
+    """Gönderilen e-postaları yakalar.
 
-    async def _fake(settings: object, *, to: str, subject: str, body: str) -> None:
-        sent.append({"to": to, "subject": subject, "body": body})
-
-    monkeypatch.setattr("tenderiq_core.services.email.send_account_email", _fake)
-    return sent
+    Modül fonksiyonunu monkeypatch'lemek yerine uygulamanın SAĞLAYICISI bellek
+    sağlayıcısıyla değiştirilir: seam'in kendisi test edilir, iç çağrı değil.
+    """
+    provider = MemoryEmailProvider()
+    api_client.app.state.email_provider = provider
+    return provider.sent
 
 
 def _invite(
-    client: TestClient, sent: list[dict[str, str]], *, admin_token: str, email: str, role: str
+    client: TestClient, sent: list[EmailMessage], *, admin_token: str, email: str, role: str
 ) -> str:
     """Davet oluşturur ve yakalanan e-postadan ham token'ı döndürür."""
     resp = client.post(
@@ -82,14 +83,14 @@ def _invite(
         headers=_auth(admin_token),
     )
     assert resp.status_code == 201, resp.text
-    invite_mail = next(m for m in sent if "accept-invitation" in m["body"])
-    match = _TOKEN_RE.search(invite_mail["body"])
-    assert match is not None, invite_mail["body"]
+    invite_mail = next(m for m in sent if "accept-invitation" in m.text)
+    match = _TOKEN_RE.search(invite_mail.text)
+    assert match is not None, invite_mail.text
     return match.group(1)
 
 
 def test_davet_olustur_listele_kabul_yeni_kullanici(
-    api_client: TestClient, captured_emails: list[dict[str, str]]
+    api_client: TestClient, captured_emails: list[EmailMessage]
 ) -> None:
     org_a, _admin_id = _register(api_client, slug="inv-a", email="admin@inv-a.com")
     admin_token = _login(api_client, email="admin@inv-a.com")
@@ -140,7 +141,7 @@ def test_davet_olustur_listele_kabul_yeni_kullanici(
 
 
 def test_davet_kabul_mevcut_kullanici_otomatik_giris_yapmaz(
-    api_client: TestClient, app_database_url: str, captured_emails: list[dict[str, str]]
+    api_client: TestClient, app_database_url: str, captured_emails: list[EmailMessage]
 ) -> None:
     org_a, _ = _register(api_client, slug="inv-ex-a", email="admin@ex-a.com")
     _org_b, _user_b = _register(api_client, slug="inv-ex-b", email="uye@ex-b.com")
@@ -168,7 +169,7 @@ def test_davet_kabul_mevcut_kullanici_otomatik_giris_yapmaz(
 
 
 def test_davet_iptal_edilince_kabul_edilemez(
-    api_client: TestClient, captured_emails: list[dict[str, str]]
+    api_client: TestClient, captured_emails: list[EmailMessage]
 ) -> None:
     _org, _ = _register(api_client, slug="inv-rev", email="admin@rev.com")
     admin_token = _login(api_client, email="admin@rev.com")
@@ -192,7 +193,7 @@ def test_davet_iptal_edilince_kabul_edilemez(
 
 
 def test_davet_suresi_dolmus_kabul_400(
-    api_client: TestClient, app_database_url: str, captured_emails: list[dict[str, str]]
+    api_client: TestClient, app_database_url: str, captured_emails: list[EmailMessage]
 ) -> None:
     _org, _ = _register(api_client, slug="inv-exp", email="admin@exp.com")
     admin_token = _login(api_client, email="admin@exp.com")
@@ -218,7 +219,7 @@ def test_davet_suresi_dolmus_kabul_400(
     assert api_client.get(f"/api/v1/invitations/lookup?token={token}").status_code == 400
 
 
-def test_davet_zaten_uye_409(api_client: TestClient, captured_emails: list[dict[str, str]]) -> None:
+def test_davet_zaten_uye_409(api_client: TestClient, captured_emails: list[EmailMessage]) -> None:
     _org, _ = _register(api_client, slug="inv-dup", email="admin@dup.com")
     admin_token = _login(api_client, email="admin@dup.com")
     # Admin kendi e-postasını davet eder → zaten üye → 409.
@@ -232,7 +233,7 @@ def test_davet_zaten_uye_409(api_client: TestClient, captured_emails: list[dict[
 
 
 def test_davet_rbac_member_403(
-    api_client: TestClient, app_database_url: str, captured_emails: list[dict[str, str]]
+    api_client: TestClient, app_database_url: str, captured_emails: list[EmailMessage]
 ) -> None:
     org_a, _ = _register(api_client, slug="inv-rbac-a", email="admin@rbac.com")
     _org_b, user_b = _register(api_client, slug="inv-rbac-b", email="member@rbac.com")

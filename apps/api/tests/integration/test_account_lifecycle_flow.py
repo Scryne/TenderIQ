@@ -22,6 +22,7 @@ from sqlalchemy import func, select
 
 import tenderiq_worker.db as worker_db
 from tenderiq_core.db.soft_delete import INCLUDE_DELETED
+from tenderiq_core.email import EmailMessage, MemoryEmailProvider
 from tenderiq_core.models import (
     AuditLog,
     Document,
@@ -44,19 +45,19 @@ _TOKEN_RE = re.compile(r"accept-invitation\?token=([A-Za-z0-9_-]+)")
 
 
 @pytest.fixture
-def captured_emails(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
-    """``send_account_email``'i yakalar — ham davet token'ı yalnız e-postayla gider."""
-    sent: list[dict[str, str]] = []
+def captured_emails(api_client: TestClient) -> list[EmailMessage]:
+    """Gönderilen e-postaları yakalar.
 
-    async def _fake(settings: object, *, to: str, subject: str, body: str) -> None:
-        sent.append({"to": to, "subject": subject, "body": body})
-
-    monkeypatch.setattr("tenderiq_core.services.email.send_account_email", _fake)
-    return sent
+    Modül fonksiyonunu monkeypatch'lemek yerine uygulamanın SAĞLAYICISI bellek
+    sağlayıcısıyla değiştirilir: seam'in kendisi test edilir, iç çağrı değil.
+    """
+    provider = MemoryEmailProvider()
+    api_client.app.state.email_provider = provider
+    return provider.sent
 
 
 def _invite_token(
-    client: TestClient, sent: list[dict[str, str]], *, admin_token: str, email: str, role: str
+    client: TestClient, sent: list[EmailMessage], *, admin_token: str, email: str, role: str
 ) -> str:
     response = client.post(
         "/api/v1/invitations",
@@ -64,9 +65,9 @@ def _invite_token(
         headers=_auth(admin_token),
     )
     assert response.status_code == 201, response.text
-    mail = next(m for m in sent if "accept-invitation" in m["body"])
-    match = _TOKEN_RE.search(mail["body"])
-    assert match is not None, mail["body"]
+    mail = next(m for m in sent if "accept-invitation" in m.text)
+    match = _TOKEN_RE.search(mail.text)
+    assert match is not None, mail.text
     return match.group(1)
 
 
@@ -144,7 +145,7 @@ def test_kapatma_slug_onayi_ister(env: AccountEnv) -> None:
 
 
 def test_kapatma_yalniz_yoneticiye_acik(
-    env: AccountEnv, api_client: TestClient, captured_emails: list[dict[str, str]]
+    env: AccountEnv, api_client: TestClient, captured_emails: list[EmailMessage]
 ) -> None:
     """Üye rolü hesabı kapatamaz — tek kişinin tüm kiracıyı silmesi engellenir."""
     suffix = uuid.uuid4().hex[:8]
@@ -202,7 +203,7 @@ def test_kapatma_icerigi_gizler_ve_girisi_engeller(env: AccountEnv) -> None:
 
 
 def test_kapatma_kullanicinin_diger_organizasyonunu_etkilemez(
-    env: AccountEnv, api_client: TestClient, captured_emails: list[dict[str, str]]
+    env: AccountEnv, api_client: TestClient, captured_emails: list[EmailMessage]
 ) -> None:
     """Bir org kapanınca kullanıcı diğer org'una girmeye devam etmeli."""
     suffix = uuid.uuid4().hex[:8]

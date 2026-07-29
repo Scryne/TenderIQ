@@ -158,7 +158,13 @@ class Settings(BaseSettings):
     # "logging" (dev/varsayılan: e-posta gerçekten gönderilmez, gövde+bağlantı
     # loglanır) | gerçek sağlayıcı (Resend/Postmark/SES — anahtarla, prod). Bağlantı
     # ve tek-kullanımlık token'lar sağlayıcıdan bağımsız çalışır (seam).
+    # "logging" (dev: göndermez, gövdeyi loglar) | "memory" (testler) |
+    # "resend" (gerçek gönderim). Production'da "logging" yasaktır.
     email_provider: str = "logging"
+    resend_api_key: str | None = None
+    # Resend webhook imza sırrı (bounce/complaint). Boşsa webhook ucu 404 döner —
+    # yapılandırılmamış bir kurulumda ucun varlığı bile sızmaz.
+    resend_webhook_secret: str | None = None
     email_from: str = "no-reply@tenderiq.local"
     # E-postadaki doğrulama/sıfırlama bağlantılarının işaret ettiği web tabanı.
     app_base_url: str = "http://localhost:3000"

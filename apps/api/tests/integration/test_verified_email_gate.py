@@ -20,6 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tenderiq_core.config import get_settings
+from tenderiq_core.email import EmailMessage, MemoryEmailProvider
 
 pytestmark = pytest.mark.integration
 
@@ -27,15 +28,15 @@ _VERIFY_TOKEN_RE = re.compile(r"verify-email\?token=([A-Za-z0-9_-]+)")
 
 
 @pytest.fixture
-def captured_emails(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
-    """Doğrulama bağlantısı yalnız e-postayla gider; testte yakalanır."""
-    sent: list[dict[str, str]] = []
+def captured_emails(api_client: TestClient) -> list[EmailMessage]:
+    """Gönderilen e-postaları yakalar.
 
-    async def _fake(settings: object, *, to: str, subject: str, body: str) -> None:
-        sent.append({"to": to, "subject": subject, "body": body})
-
-    monkeypatch.setattr("tenderiq_core.services.email.send_account_email", _fake)
-    return sent
+    Modül fonksiyonunu monkeypatch'lemek yerine uygulamanın SAĞLAYICISI bellek
+    sağlayıcısıyla değiştirilir: seam'in kendisi test edilir, iç çağrı değil.
+    """
+    provider = MemoryEmailProvider()
+    api_client.app.state.email_provider = provider
+    return provider.sent
 
 
 @pytest.fixture
@@ -82,7 +83,7 @@ def _create_document(client: TestClient, token: str, tender_id: str) -> object:
 
 
 def test_dogrulanmamis_hesap_dokuman_yukleyemez(
-    gated_client: TestClient, captured_emails: list[dict[str, str]]
+    gated_client: TestClient, captured_emails: list[EmailMessage]
 ) -> None:
     _, token = _register_and_login(gated_client)
     tender_id = _create_tender(gated_client, token)
@@ -106,7 +107,7 @@ def test_dogrulanmamis_hesap_okuma_yollarini_kullanabilir(gated_client: TestClie
 
 
 def test_dogrulama_sonrasi_yukleme_acilir(
-    gated_client: TestClient, captured_emails: list[dict[str, str]]
+    gated_client: TestClient, captured_emails: list[EmailMessage]
 ) -> None:
     """Doğrulama DB'den okunur: kullanıcı elindeki token'ın dolmasını beklemez."""
     _, token = _register_and_login(gated_client)
@@ -116,9 +117,9 @@ def test_dogrulama_sonrasi_yukleme_acilir(
     # Yeniden gönderme kimlikli uçtur: adres numaralandırmayı engeller.
     resend = gated_client.post("/api/v1/auth/resend-verification", headers=_auth(token))
     assert resend.status_code == 204, resend.text
-    mail = next(m for m in captured_emails if "verify-email" in m["body"])
-    match = _VERIFY_TOKEN_RE.search(mail["body"])
-    assert match is not None, mail["body"]
+    mail = next(m for m in captured_emails if "verify-email" in m.text)
+    match = _VERIFY_TOKEN_RE.search(mail.text)
+    assert match is not None, mail.text
     verify = gated_client.post("/api/v1/auth/verify-email", json={"token": match.group(1)})
     assert verify.status_code == 204, verify.text
 
