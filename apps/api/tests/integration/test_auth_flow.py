@@ -21,7 +21,7 @@ def test_register_login_me(api_client: TestClient) -> None:
         },
     )
     assert register.status_code == 201, register.text
-    user = register.json()
+    user = register.json()["user"]
     assert user["email"] == "admin@acme.com"
     assert user["role"] == "admin"
     tenant_id = user["tenant_id"]

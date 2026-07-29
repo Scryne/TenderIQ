@@ -17,15 +17,9 @@ const MIN_PASSWORD_LENGTH = 8;
 
 type ApiError = { error?: { code?: string; message?: string } };
 
-/**
- * Kayıt ekranı — DESIGN.md §9.6 (giriş ekranıyla AYNI iskelet).
- *
- * Bu ekranın tek işi: firmayı ürüne sokmak. Ama kayıt sırasında geri
- * alınamayan **tek** karar var — organizasyon kısa adı (slug). Hesap kapatma
- * onayında kullanıcıdan birebir yazması istenir ve backend Türkçe harf kabul
- * etmez. Bu yüzden slug gizli bir alan değil, **ekranın imza öğesi**: firma
- * adından canlı türetilir, kullanıcı görür ve isterse düzeltir.
- */
+/** `POST /auth/register` zarfı — moda göre hesap açılır ya da sıraya alınır. */
+type RegisterResult = { status: "created" | "waitlisted"; message?: string | null };
+
 /** Zorunlu alan yıldızı — ekran okuyucuya da duyurulur (§12). */
 function Required() {
   return (
@@ -35,6 +29,15 @@ function Required() {
   );
 }
 
+/**
+ * Kayıt ekranı — DESIGN.md §9.6 (giriş ekranıyla AYNI iskelet).
+ *
+ * Bu ekranın tek işi: firmayı ürüne sokmak. Ama kayıt sırasında geri
+ * alınamayan **tek** karar var — organizasyon kısa adı (slug). Hesap kapatma
+ * onayında kullanıcıdan birebir yazması istenir ve backend Türkçe harf kabul
+ * etmez. Bu yüzden slug gizli bir alan değil, **ekranın imza öğesi**: firma
+ * adından canlı türetilir, kullanıcı görür ve isterse düzeltir.
+ */
 function RegisterForm() {
   const router = useRouter();
   const [orgName, setOrgName] = useState("");
@@ -43,6 +46,7 @@ function RegisterForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [waitlisted, setWaitlisted] = useState<string | null>(null);
 
   // Kullanıcı slug'a dokunmadıysa firma adını izler; dokunduysa kendi değeri
   // korunur (yazdığı şeyi ad değişince altından çekmek en sinir bozucu form
@@ -54,7 +58,7 @@ function RegisterForm() {
   const slugReady = isValidSlug(slug);
 
   const register = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ signedIn: boolean; waitlistMessage?: string }> => {
       const response = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -77,7 +81,14 @@ function RegisterForm() {
           // değiştireceğini bilmeli.
           throw new Error(message ?? "Bu e-posta veya kısa ad zaten kayıtlı.");
         }
+        // 403 = kayıtlar davete kapalı (SIGNUP_MODE=invite_only). Sunucunun
+        // metni durumu zaten açıklıyor; istemci onu ezmemeli.
         throw new Error(message ?? "Hesap oluşturulamadı. Biraz sonra yeniden deneyin.");
+      }
+
+      const result = (await response.json()) as RegisterResult;
+      if (result.status === "waitlisted") {
+        return { signedIn: false, waitlistMessage: result.message ?? "Talebiniz alındı." };
       }
 
       // Kayıt token döndürmez; kullanıcıyı giriş ekranına atmak yerine aynı
@@ -87,13 +98,51 @@ function RegisterForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-      return session.ok;
+      return { signedIn: session.ok };
     },
-    onSuccess: (signedIn) => {
+    onSuccess: ({ signedIn, waitlistMessage }) => {
+      if (waitlistMessage !== undefined) {
+        setWaitlisted(waitlistMessage);
+        return;
+      }
       router.push(signedIn ? "/panel" : "/login");
       router.refresh();
     },
   });
+
+  // Bekleme listesi modunda hesap açılmaz; form yerine sonuç gösterilir.
+  if (waitlisted !== null) {
+    return (
+      <AuthLayout
+        title="Sıraya alındınız"
+        description={waitlisted}
+        footer={
+          <span>
+            Hesabınız var mı?{" "}
+            <Link
+              href="/login"
+              className="text-ink-2 underline decoration-border-strong underline-offset-4 hover:decoration-ink-1"
+            >
+              Giriş yapın
+            </Link>
+            .
+          </span>
+        }
+      >
+        <p className="text-sm leading-6 text-ink-2">
+          Sıra size geldiğinde <strong className="font-medium text-ink-1">{email.trim()}</strong>{" "}
+          adresine davet bağlantısı göndereceğiz. Bu arada{" "}
+          <Link
+            href="/trust"
+            className="underline decoration-border-strong underline-offset-4 hover:decoration-ink-1"
+          >
+            verinizi nasıl işlediğimize
+          </Link>{" "}
+          göz atabilirsiniz.
+        </p>
+      </AuthLayout>
+    );
+  }
 
   return (
     <AuthLayout

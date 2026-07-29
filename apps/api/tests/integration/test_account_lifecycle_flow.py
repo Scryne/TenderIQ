@@ -80,7 +80,7 @@ def _register(client: TestClient, *, slug: str, email: str) -> str:
         json={"org_name": slug, "org_slug": slug, "email": email, "password": "sifre-12345"},
     )
     assert response.status_code == 201, response.text
-    return str(response.json()["tenant_id"])
+    return str(response.json()["user"]["tenant_id"])
 
 
 def _login(client: TestClient, email: str) -> str:

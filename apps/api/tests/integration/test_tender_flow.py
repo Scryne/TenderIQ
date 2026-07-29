@@ -23,7 +23,7 @@ def _register_and_login(client: TestClient, *, slug: str, email: str) -> tuple[s
         json={"org_name": slug, "org_slug": slug, "email": email, "password": "sifre-12345"},
     )
     assert register.status_code == 201, register.text
-    tenant_id: str = register.json()["tenant_id"]
+    tenant_id: str = register.json()["user"]["tenant_id"]
     login = client.post("/api/v1/auth/login", json={"email": email, "password": "sifre-12345"})
     assert login.status_code == 200
     token: str = login.json()["access_token"]
