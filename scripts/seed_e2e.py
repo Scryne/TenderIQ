@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from tenderiq_core.db import (
@@ -29,6 +29,7 @@ from tenderiq_core.db import (
 from tenderiq_core.findings import (
     GroundingResolution,
     RequirementKind,
+    ReviewStatus,
     RiskCategory,
     RiskSeverity,
 )
@@ -50,7 +51,10 @@ from tenderiq_core.parsing.types import ElementKind, ParseSource
 from tenderiq_core.security.passwords import hash_password
 
 # E2E ile paylaşılan sabitler (apps/web/e2e/review-export.spec.ts ile eşleşir).
-E2E_EMAIL = "e2e@tenderiq.local"
+# `.local` özel-kullanım TLD'sidir: `EmailStr` onu REDDEDER ve bu hesapla
+# API'den giriş yapılamaz (E2E sessizce kırılır). Gerçek biçimli bir alan adı
+# kullanılır; adres yine hiçbir yere gönderilmez (EMAIL_PROVIDER=memory).
+E2E_EMAIL = "e2e@tenderiq-e2e.com"
 E2E_PASSWORD = "e2e-password-123"  # noqa: S105  (yalnız yerel E2E tohum parolası)
 E2E_ORG_NAME = "E2E Test Org"
 E2E_ORG_SLUG = "tiq-e2e"
@@ -86,6 +90,16 @@ def _seed_identity(factory: sessionmaker[Session]) -> tuple[uuid.UUID, uuid.UUID
         return org.id, user.id
 
 
+def _reset_review_state(session: Session, tender_id: uuid.UUID) -> None:
+    """Tohumlanan bulguları incelenmemiş hâle döndürür (E2E tekrar koşabilsin)."""
+    for model in (Requirement, RiskFlag):
+        session.execute(
+            update(model)
+            .where(model.tender_id == tender_id)
+            .values(review_status=ReviewStatus.PENDING, reviewed_by=None, reviewed_at=None)
+        )
+
+
 def _seed_findings(
     factory: sessionmaker[Session], tenant_id: uuid.UUID, user_id: uuid.UUID
 ) -> uuid.UUID:
@@ -96,7 +110,16 @@ def _seed_findings(
         if tender is not None:
             existing = session.scalar(select(Requirement).where(Requirement.tender_id == tender.id))
             if existing is not None:
-                return tender.id  # zaten tohumlanmış
+                # Zaten tohumlanmış — ama inceleme DURUMU sıfırlanır.
+                #
+                # E2E "bulguyu onayla"yı tıklıyor ve onay kalıcı: onay butonu
+                # yalnız incelenmemiş bulguda görünür. Sıfırlanmazsa tohum
+                # betiği ikinci koşuda hiçbir şey yapmaz, buton hiç çıkmaz ve
+                # test "öğe bulunamadı" ile düşer — yani veri kalıntısı yüzünden
+                # kırılan, sebebi görünmeyen bir test. Tohum "istenen duruma
+                # getirir", "yoksa oluşturur" değil.
+                _reset_review_state(session, tender.id)
+                return tender.id
         else:
             tender = Tender(
                 tenant_id=tenant_id,

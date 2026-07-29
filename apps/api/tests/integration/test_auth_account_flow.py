@@ -55,7 +55,12 @@ def _register(client: TestClient, *, slug: str, email: str) -> str:
         json={"org_name": slug, "org_slug": slug, "email": email, "password": "sifre-12345"},
     )
     assert resp.status_code == 201, resp.text
-    body = resp.json()
+    # Yanıt bir ZARFTIR: `{status, user, email_delivery}`. Zarf, bekleme listesi
+    # modunu (`status="waitlisted"`, hesap YOK) aynı şemayla taşıyabilmek için
+    # var — istemci hangi modda olduğunu önceden bilmek zorunda kalmıyor.
+    # Bu yardımcı zarftan önce yazılmıştı ve düz bir kullanıcı nesnesi
+    # bekliyordu; diğer 17 entegrasyon dosyası ile frontend zaten zarfı okuyor.
+    body = resp.json()["user"]
     assert body["email_verified"] is False  # yeni kayıt doğrulanmamış
     user_id: str = body["id"]
     return user_id

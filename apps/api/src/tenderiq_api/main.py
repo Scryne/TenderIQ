@@ -17,6 +17,7 @@ from tenderiq_api.middleware import RequestContextMiddleware, SecurityHeadersMid
 from tenderiq_api.queueing import enqueue_process_document
 from tenderiq_api.routers.health import router as health_router
 from tenderiq_api.routers.ops import router as ops_router
+from tenderiq_api.routers.test_inbox import router as test_inbox_router
 from tenderiq_api.routers.v1 import api_v1_router
 from tenderiq_core.config import Environment, get_settings
 from tenderiq_core.db import create_engine, create_session_factory
@@ -83,6 +84,9 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(ops_router)
+    # E2E gelen kutusu. Yalnız EMAIL_PROVIDER=memory + production dışında
+    # yanıt verir; aksi hâlde 404 (bkz. routers/test_inbox.py).
+    app.include_router(test_inbox_router)
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
     return app
 

@@ -340,6 +340,12 @@ class Settings(BaseSettings):
                     "(doğrulama/parola sıfırlama/davet akışları sessizce çalışmaz) ve "
                     "bağlantılar token'larıyla birlikte loglara yazılır."
                 )
+            if self.email_provider == "memory":
+                raise ValueError(
+                    "Production'da EMAIL_PROVIDER=memory olamaz: mesajlar süreç belleğinde "
+                    "birikir ve HİÇ gönderilmez. `logging`den daha sinsidir — log'a bile "
+                    "düşmez, yani kimse fark etmez. Ayrıca test gelen-kutusu ucunu açar."
+                )
         return self
 
     @model_validator(mode="after")
