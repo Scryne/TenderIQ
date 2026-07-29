@@ -580,15 +580,15 @@ Bulunan tüm bulgular aynı gün düzeltildi ve testle kanıtlandı (19 birim + 
 - [ ] Geri bildirim döngüsü: golden-set'i gerçek örneklerle genişlet; çıkarım kalitesi + UX iyileştirmeleri (kullanıcı düzeltmeleri geri-besleme verisi olur, §4.3).
 
 `Güvenlik` `Uyumluluk`
-- [ ] **Güven merkezi (trust page)**: verinin nasıl işlendiği, zero-retention, alt-işleyen listesi (§10.3) (skill: `trust-page-content`).
-- [ ] **KVKK paketi** (§10.4): aydınlatma metni, açık rıza akışları, veri sahibi hakları, **kalıcı silme (hard delete) akışı** (skill'ler: `kvkk-compliance-checklist`, `soft-delete-kvkk-erasure`).
-- [ ] Kurumsal müşteriler için DPA taslağı.
+- [x] **Güven merkezi (trust page)**: verinin nasıl işlendiği, zero-retention, alt-işleyen listesi (§10.3). → `/trust`; alt-işleyen listesi KODDAN türetildi (`legal.config.ts → SUB_PROCESSORS`). **Taslak**: kurumsal alanlar + bölgeler `LEGAL_TODO.md`de.
+- [x] **KVKK paketi** (§10.4): aydınlatma metni, açık rıza akışları, veri sahibi hakları, **kalıcı silme (hard delete) akışı**. → `/kvkk` (çerez politikası dâhil) + md. 11 dışa aktarma + md. 7 kapatma. **Açık rıza kutusu bilinçli olarak YOK** — aktarım standart sözleşmeye dayanıyor (ADR-0013).
+- [x] Kurumsal müşteriler için DPA taslağı. → `/dpa`; ihlal bildirimi 24 sa, alt işleyen 30 gün + cezasız fesih, denetim yılda 1 (bağımsız raporla ikame edilebilir).
 
 `Backend/API` `DevOps`
 - [x] `soft-delete` + zamanlanmış `hard-delete` job'ı; ilişkili tüm tablolarda (Document, Chunk, Embedding, ParsedElement) kademeli silme (§8.3) + R2 nesnelerinin silinmesi. → `data.purge_deleted` beat işi + otomatik `deleted_at` filtresi; md. 7 hesap kapatma ve md. 11 dışa aktarma dâhil.
 - [ ] Fiyatlandırmanın canlıya alınması; production'a onaylı deploy; yedek geri-yükleme testi (§11.5).
 - [ ] **Yük/dayanıklılık testi:** eşzamanlı yükleme + işleme senaryosu (ör. 10 kiracı × 100'er sayfa); kuyruk derinliği/işleme süresi hedefleri doğrulanır (J.4 SLO'ları). → Koşum takımı hazır: `scripts/load_test.py` (aynı SLO eşikleri, ihlalde çıkış kodu 1). **Staging'e karşı koşulup sonucu kaydedilmedi** — staging J.1 ile ayağa kalkınca.
-- [ ] **Güvenlik gözden geçirmesi:** OWASP ASVS-hafif öz-denetim + `security-review` taraması; mümkünse üçüncü-taraf hafif pentest (bütçeye göre).
+- [x] **Güvenlik gözden geçirmesi:** OWASP ASVS-hafif öz-denetim + `security-review` taraması; mümkünse üçüncü-taraf hafif pentest (bütçeye göre). → `docs/guvenlik-denetimi.md` turu #1: 6 bulgu kapatıldı (Excel formül enjeksiyonu YÜKSEK dâhil), her biri regresyon testli. **Üçüncü-taraf pentest yapılmadı.**
 - [ ] **Status page + uptime izleme** canlı (J.4); olay müdahale runbook'u yazıldı. → Runbook yazıldı (`docs/runbook.md`); status page + izleyici hesabı bekliyor.
 
 > Faz 4 sonu = **kapalı beta**. Halka açık self-service yayına (GA) geçiş, **J bölümündeki kontrol listeleri** tamamlanınca yapılır.

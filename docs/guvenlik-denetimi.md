@@ -149,3 +149,27 @@ sızıntısı yok — yalnızca kırık deneyim).
 - GA öncesi (J.5 kontrol listesi kapanırken) **zorunlu**.
 - Kimlik, yetkilendirme, dosya yükleme veya ödeme yüzeylerinde bir değişiklik
   olduğunda o yüzey için kısmi tur.
+
+---
+
+## Ek: canlı yığın doğrulaması (2026-07-29)
+
+Denetimin kapattığı kapılar, testlerin yanında **gerçek yığına karşı** da
+koşturuldu (Postgres + Redis konteynerleri, uvicorn, Next dev sunucusu):
+
+| Adım | Beklenen | Sonuç |
+|---|---|---|
+| Doğrulanmamış hesapla doküman kaydı | 403 | ✅ 403 |
+| `POST /auth/verify-email` | 204 | ✅ 204 |
+| **Aynı** erişim token'ıyla doküman kaydı | 201 | ✅ 201 |
+| `GET /api/v1/panel` | 200 | ✅ 200 |
+| Atılabilir adresle kayıt | 400 | ✅ 400 |
+| Web proxy üzerinden kayıt | 201 | ✅ 201 |
+| `POST /api/session` → oturum cookie'leri | `HttpOnly; SameSite=lax` | ✅ |
+
+Üçüncü satır, kapının tasarım gerekçesini doğrular: doğrulama durumu token
+claim'inden değil **veritabanından** okunduğu için, kullanıcı doğrulamayı
+tamamladıktan sonra elindeki token'ın dolmasını beklemez.
+
+Migration `0016_waitlist_entry` gerçek bir veritabanına temiz uygulandı ve
+`next build` üretim derlemesi hatasız tamamlandı.
