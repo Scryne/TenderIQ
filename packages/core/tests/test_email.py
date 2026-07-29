@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import httpx
@@ -181,10 +182,64 @@ async def test_raise_on_error_ile_hata_yukselir() -> None:
         )
 
 
-def test_guvenlik_kritik_turler_bastirmayi_asar() -> None:
-    """Bounce kaydı yüzünden kullanıcıyı hesabından kilitlemek daha ağır bir zarardır."""
-    from tenderiq_core.email import SUPPRESSION_BYPASS_KINDS
+# ── Bastırma: kural türe değil, gönderimin KAYNAĞINA bağlı ──────────────────
 
-    assert EmailKind.PASSWORD_RESET in SUPPRESSION_BYPASS_KINDS
-    assert EmailKind.VERIFY_EMAIL in SUPPRESSION_BYPASS_KINDS
-    assert EmailKind.PAYMENT_SUCCEEDED not in SUPPRESSION_BYPASS_KINDS
+
+class _SuppressingSession:
+    """`is_suppressed` için yeterli sahte oturum — adres daima bastırılmış."""
+
+    async def scalar(self, *_args: Any, **_kwargs: Any) -> Any:
+        return uuid.uuid4()
+
+
+async def test_otomatik_gonderim_bastirilmis_adrese_denenmez() -> None:
+    """Kalıcı bounce alan adrese sistem KENDİLİĞİNDEN yeniden denemez.
+
+    Teslim edilemeyeceği kesin bilinen mesajı tekrarlamak gönderen alan adının
+    itibarını düşürür ve kullanıcıya hiçbir fayda sağlamaz.
+    """
+    provider = MemoryEmailProvider()
+    session: Any = _SuppressingSession()
+
+    outcome = await send_email(
+        tpl.verify_email(to="bounce@x.com", link="https://x"),
+        provider=provider,
+        settings=SETTINGS,
+        session=session,
+    )
+
+    assert outcome is EmailOutcome.SUPPRESSED
+    assert provider.sent == []
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        tpl.verify_email(to="bounce@x.com", link="https://x"),
+        tpl.password_reset(to="bounce@x.com", link="https://x"),
+    ],
+)
+async def test_elle_tetiklenen_tekrar_deneme_bastirmayi_asar(message: Any) -> None:
+    """Kullanıcı "yeniden gönder" dediyse denenir — adresini düzeltmiş olabilir."""
+    provider = MemoryEmailProvider()
+    session: Any = _SuppressingSession()
+
+    outcome = await send_email(
+        message,
+        provider=provider,
+        settings=SETTINGS,
+        session=session,
+        manual_retry=True,
+    )
+
+    assert outcome is EmailOutcome.SENT
+    assert len(provider.sent) == 1
+
+
+async def test_tur_bazli_kor_atlama_kaldirildi() -> None:
+    """Regresyon: doğrulama/sıfırlama artık TÜRÜ sayesinde değil, elle
+    tetiklendiği için atlar. Aksi hâlde kayıt akışı her seferinde ölü adrese
+    gönderir ve itibar kaybı sessizce birikirdi."""
+    import tenderiq_core.email as email_package
+
+    assert not hasattr(email_package, "SUPPRESSION_BYPASS_KINDS")

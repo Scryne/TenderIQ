@@ -11,6 +11,7 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tenderiq_api.dependencies import (
     EmailProviderDep,
@@ -27,7 +28,7 @@ from tenderiq_api.errors import (
     ValidationFailedError,
 )
 from tenderiq_core.config import Settings
-from tenderiq_core.email import EmailProvider, send_email
+from tenderiq_core.email import EmailOutcome, EmailProvider, send_email
 from tenderiq_core.email import templates as email_templates
 from tenderiq_core.logging import get_logger
 from tenderiq_core.models import Membership, Organization, Role, User
@@ -97,10 +98,12 @@ async def _send_verification_email(
     redis: Redis,
     settings: Settings,
     provider: EmailProvider,
+    session: AsyncSession,
     *,
     user_id: uuid.UUID,
     email: str,
-) -> None:
+    manual_retry: bool = False,
+) -> EmailOutcome:
     """E-posta doğrulama token'ı üretir ve bağlantıyı gönderir (en-iyi-çaba).
 
     Redis kesintisinde sessizce geçer (kayıt/istek yine tamamlanır; kullanıcı
@@ -115,13 +118,15 @@ async def _send_verification_email(
         )
     except RedisError as exc:
         logger.warning("dogrulama_epostasi_uretilemedi", error=str(exc))
-        return
+        return EmailOutcome.FAILED
     link = f"{settings.app_base_url}/verify-email?token={token}"
-    await send_email(
+    return await send_email(
         email_templates.verify_email(to=email, link=link),
         provider=provider,
         settings=settings,
+        session=session,
         redis=redis,
+        manual_retry=manual_retry,
     )
 
 
@@ -277,6 +282,10 @@ class RegisterResponse(BaseModel):
     status: Literal["created", "waitlisted"]
     user: UserResponse | None = None
     message: str | None = None
+    #: Doğrulama e-postasının akıbeti. ``suppressed`` ise adres kalıcı bounce
+    #: almıştır ve OTOMATİK yeniden denenmez — arayüz kullanıcıya adresini
+    #: güncellemesi gerektiğini söylemelidir.
+    email_delivery: Literal["sent", "suppressed", "duplicate", "failed"] | None = None
 
 
 @router.post(
@@ -355,9 +364,12 @@ async def register(
         # 500 yerine tutarlı 409 dönmeli.
         raise ConflictError("Bu e-posta veya organizasyon slug'ı zaten kayıtlı.") from exc
     # Doğrulama e-postası (commit SONRASI; en-iyi-çaba — kayıt Redis/e-postaya bağlı değil).
-    await _send_verification_email(redis, settings, provider, user_id=user.id, email=user.email)
+    delivery = await _send_verification_email(
+        redis, settings, provider, session, user_id=user.id, email=user.email
+    )
     return RegisterResponse(
         status="created",
+        email_delivery=delivery.value,
         user=UserResponse(
             id=user.id,
             email=user.email,
@@ -589,7 +601,16 @@ async def resend_verification(
     """Giriş yapmış kullanıcıya yeni bir doğrulama bağlantısı gönderir (idempotent)."""
     user: User | None = await session.get(User, principal.user_id)
     if user is not None and not user.email_verified:
-        await _send_verification_email(redis, settings, provider, user_id=user.id, email=user.email)
+        # Kullanıcı açıkça "yeniden gönder" dedi: bastırma listesi aşılır.
+        await _send_verification_email(
+            redis,
+            settings,
+            provider,
+            session,
+            user_id=user.id,
+            email=user.email,
+            manual_retry=True,
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -625,7 +646,9 @@ async def forgot_password(
                 email_templates.password_reset(to=user.email, link=link),
                 provider=provider,
                 settings=settings,
+                session=session,
                 redis=redis,
+                manual_retry=True,
             )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

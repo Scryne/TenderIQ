@@ -7,10 +7,11 @@ import { useMemo, useState } from "react";
 
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { InlineError } from "@/components/states";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isValidSlug, slugify } from "@/lib/slug";
+import { cn } from "@/lib/utils";
 
 /** Backend sözleşmesi: `password: Field(min_length=8, max_length=128)`. */
 const MIN_PASSWORD_LENGTH = 8;
@@ -18,7 +19,11 @@ const MIN_PASSWORD_LENGTH = 8;
 type ApiError = { error?: { code?: string; message?: string } };
 
 /** `POST /auth/register` zarfı — moda göre hesap açılır ya da sıraya alınır. */
-type RegisterResult = { status: "created" | "waitlisted"; message?: string | null };
+type RegisterResult = {
+  status: "created" | "waitlisted";
+  message?: string | null;
+  email_delivery?: "sent" | "suppressed" | "duplicate" | "failed" | null;
+};
 
 /** Zorunlu alan yıldızı — ekran okuyucuya da duyurulur (§12). */
 function Required() {
@@ -47,6 +52,9 @@ function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [waitlisted, setWaitlisted] = useState<string | null>(null);
+  // Adres kalıcı bounce almışsa doğrulama e-postası OTOMATİK denenmez; kullanıcı
+  // bunu sessizce "e-posta gelmedi" olarak yaşamamalı.
+  const [undeliverable, setUndeliverable] = useState(false);
 
   // Kullanıcı slug'a dokunmadıysa firma adını izler; dokunduysa kendi değeri
   // korunur (yazdığı şeyi ad değişince altından çekmek en sinir bozucu form
@@ -58,7 +66,11 @@ function RegisterForm() {
   const slugReady = isValidSlug(slug);
 
   const register = useMutation({
-    mutationFn: async (): Promise<{ signedIn: boolean; waitlistMessage?: string }> => {
+    mutationFn: async (): Promise<{
+      signedIn: boolean;
+      waitlistMessage?: string;
+      undeliverable?: boolean;
+    }> => {
       const response = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -98,17 +110,47 @@ function RegisterForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-      return { signedIn: session.ok };
+      return { signedIn: session.ok, undeliverable: result.email_delivery === "suppressed" };
     },
-    onSuccess: ({ signedIn, waitlistMessage }) => {
+    onSuccess: ({ signedIn, waitlistMessage, undeliverable: blocked }) => {
       if (waitlistMessage !== undefined) {
         setWaitlisted(waitlistMessage);
+        return;
+      }
+      if (blocked === true) {
+        // Hesap açıldı ama doğrulama e-postası gönderilemez. Panele atmak,
+        // kullanıcıyı "neden doğrulama gelmedi" sorusuyla baş başa bırakırdı.
+        setUndeliverable(true);
         return;
       }
       router.push(signedIn ? "/panel" : "/login");
       router.refresh();
     },
   });
+
+  if (undeliverable) {
+    return (
+      <AuthLayout
+        title="Bu adrese e-posta ulaşmıyor"
+        description="Hesabınız oluşturuldu, ancak doğrulama e-postası bu adrese teslim edilemiyor."
+      >
+        <div className="flex flex-col gap-4 text-sm leading-6 text-ink-2">
+          <p>
+            <strong className="font-medium text-ink-1">{email.trim()}</strong> adresine yapılan
+            önceki gönderimler kalıcı olarak geri döndü. Bu yüzden yeni denemeler otomatik
+            yapılmıyor.
+          </p>
+          <p>
+            Adresi yazarken bir yazım hatası olmuş olabilir. Giriş yapıp hesap ayarlarınızdan
+            e-posta adresinizi güncelleyin; yeni adres için doğrulama hemen gönderilir.
+          </p>
+          <Link href="/login" className={cn(buttonVariants(), "self-start")}>
+            Giriş yap
+          </Link>
+        </div>
+      </AuthLayout>
+    );
+  }
 
   // Bekleme listesi modunda hesap açılmaz; form yerine sonuç gösterilir.
   if (waitlisted !== null) {

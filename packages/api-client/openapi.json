@@ -2079,6 +2079,23 @@
       "RegisterResponse": {
         "description": "Kayıt sonucu — moda göre hesap açılır ya da talep listeye alınır.\n\nTek şema iki sonucu taşır: istemci `status` alanına bakar. Ayrı uçlar\naçmak, istemcinin hangi modda olduğunu ÖNCEDEN bilmesini gerektirirdi.",
         "properties": {
+          "email_delivery": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sent",
+                  "suppressed",
+                  "duplicate",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Delivery"
+          },
           "message": {
             "anyOf": [
               {
