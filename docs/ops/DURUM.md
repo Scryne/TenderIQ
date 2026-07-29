@@ -4,52 +4,40 @@
 > sırada ne olduğu ve hangi süreçlerin ayakta bırakıldığı buradan okunur.
 > Her madde bitiminde güncellenir.
 
-**Son güncelleme:** 2026-07-29 · **Aktif tur:** Tur 5 — webhook + canlı sandbox
-> Tur 5'te madde 0 ve madde 1'in imza/sıra kısmı bitti. **Canlı sandbox'a hiç
-> çağrı yapılmadı** ve mutabakat görevi (kritik yol) başlanmadı.
+**Son güncelleme:** 2026-07-29 · **Aktif tur:** Tur 6 — canlı doğrulama + mutabakat
+> Tur 6'nın iki maddesi de bitti. Sıradaki iş: **iptal/plan değişimi uçları
+> (yayın engeli)**.
 
 ---
 
-## Tur 5 — biten
+## Tur 6 — biten
 
 | # | Madde | Commit |
 |---|---|---|
-| 0 | Anahtar hijyeni denetimi + `BILLING_ENV` kapısı + `live_sandbox` işareti | `6e86049` |
-| 1a | Sırasız webhook teslimine karşı olay zaman damgası | `f5539d9` |
+| 1 | Canlı sandbox doğrulaması (imza doğrulandı, abonelik modülü kapalı çıktı) | `1ec038b` |
+| 1 | live_sandbox testinde import sırası | `fff1e1f` |
+| 2 | Abonelik mutabakat görevi (kritik yol) | `3d5d92a` |
 
-## Tur 5 — SIRADA (yarım kalanlar)
+### Tur 6'nın en önemli bulgusu
 
-**Madde 1'in kalanı — webhook sertleştirme**
-- Ölü mektup kuyruğu (tablo + model + migration) ve **yönetici için yeniden
-  işleme ucu**. Şu an doğrulaması geçen ama uygulanamayan olay kayboluyor.
-- İmza/idempotency/eski-olay koruması TAMAM; yalnız DLQ eksik.
+`/payment/bin/check` aynı anahtarlarla **200 success** dönüyor → kimlik, imza
+şeması ve taban adres DOĞRU. Ama `/v2/subscription/*` uçlarının hiçbiri
+çalışmıyor (`422 errorCode:100001`, gövdeden bağımsız) → **merchant hesabında
+abonelik modülü etkin değil.** Bu bir hesap işlemi; adımlar
+`docs/ops/billing-setup.md`de. Modül açılınca
+`test_abonelik_modulunun_durumu_raporlanir` KIRILACAK — kasıtlı; şemayı gerçeğe
+göre doğrulama zamanının geldiğini söyler.
 
-**Madde 2 — mutabakat görevi (KRİTİK YOL, başlanmadı)**
-Checkout `activated=False` bıraktığı için erişimi açan **tek** mekanizma webhook.
-Webhook hiç gelmezse "ödeme alındı ama erişim açılmadı" hâli sessizce sürer.
-Yapılacak: sağlayıcıdaki abonelik durumunu periyodik çekip bizdeki
-yetkilendirmeyi düzelten iş + sapmayı metrik/log olarak raporlama.
+## ÖNCELİK SIRASI (sıradaki turlar)
 
-**Madde 3 — olay başına e-posta bildirimi (başlanmadı)**
-Tur 2'nin servisinden: abonelik başladı · yenilendi · tahsilat başarısız ·
-askıya alındı · iptal edildi. Şablonlar `email/templates.py`de HAZIR
-(`payment_succeeded`, `payment_failed`, `subscription_canceled`), yalnız
-webhook işleyicisine bağlanmaları gerekiyor.
-
-**Madde 4 — kiracı izolasyonu (başlanmadı)**
-Bu turda yeni kiracı-özel TABLO eklenmedi (yalnız `subscription.last_event_at`
-kolonu); DLQ tablosu eklendiğinde RLS + sızıntı testi gerekecek.
-
-**Madde 5 — canlı sandbox doğrulaması (BAŞLANMADI)**
-Sandbox anahtarları `.env`de mevcut ama **hiçbir gerçek çağrı yapılmadı**.
-Yapılacak: checkout başlatma → 3DS test kartı → dönen yanıt; dokümandan yazılan
-imza şeması/uç yolları/alan adları ile gerçek yanıt arasındaki farkları raporla
-ve adaptörü düzelt; gerçek gövdeleri (temizlenmiş) sabit test verisi yap;
-`scripts/replay_billing_webhook.py` ile imzalı tekrar oynatma.
-
-**Yayın engeli (işaretlendi):** iptal ve plan değişimi seam'de var ama API
-ucuna BAĞLANMADI. `/sartlar` 14 gün koşulsuz cayma taahhüt ediyor; kullanıcının
-kendi iptal edebildiği yol olmadan GA yok.
+1. **İptal + plan değişimi uçları — YAYIN ENGELİ.** Seam'de var, API'ye
+   bağlanmadı. `/sartlar` 14 gün koşulsuz cayma taahhüt ediyor; kullanıcının
+   kendi iptal edebildiği yol olmadan GA yok.
+2. **DLQ + yönetici yeniden işleme ucu.** Doğrulaması geçip uygulanamayan olay
+   şu an kayboluyor.
+3. **Olay başına e-posta bildirimi.** Şablonlar `email/templates.py`de hazır;
+   webhook işleyicisine bağlanacak.
+4. **Kiracı izolasyonu** — DLQ tablosu eklendiğinde RLS + sızıntı testi.
 
 ## Sonraki turlara ertelenenler (bilerek)
 
@@ -74,9 +62,13 @@ Yerel veritabanı migration'ı: `0018_subscription_last_event`.
 
 - Hukuki metinler **taslak**; `LEGAL_TODO.md`de 12 zorunlu alan bekliyor.
 - Resend'e **gerçek gönderim yapılmadı** (alan adı doğrulanmamış; hesap kullanıcıda).
-- iyzico adaptörü **gerçek sandbox'a karşı hâlâ koşulmadı** (anahtarlar .env'de
-  mevcut ama Tur 5'te sıra gelmedi). İmza şeması, uç yolları ve alan adları
-  DOKÜMANTASYONDAN yazıldı — gerçek yanıtla doğrulanana kadar hepsi varsayım.
+- iyzico **imza şeması gerçeğe karşı doğrulandı**; abonelik istek/yanıt ŞEMASI
+  hâlâ varsayım (modül kapalı, doğrulanamıyor).
+- **Webhook olay gövdesi ve imza biçimi doğrulanmadı** — gerçek bir olay
+  alınamadığı için `IYZICO_SIGNATURE_HEADER` ve imza hesabı dokümandan alındı.
+  `scripts/replay_billing_webhook.py` **yazılmadı** (Tur 6'da sıra gelmedi).
+- Başarı kontrolü HTTP durumuna GÜVENMEZ (sandbox'ta doğrulandı: geçersiz imza
+  `/payment/bin/check`te HTTP 200 + gövdede "Geçersiz imza" ile geliyor).
 - `BILLING_ENV=live` ikinci onay bayrağı ister; üretim tabanına çağrı hâlâ
   durma koşulu.
 - Testler dış servise çıkmamalı: `conftest`te `EMAIL_PROVIDER=memory` ve
