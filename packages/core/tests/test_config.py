@@ -73,6 +73,8 @@ def _harden(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BILLING_PROVIDER", "iyzico")
     monkeypatch.setenv("EMAIL_PROVIDER", "resend")
     monkeypatch.setenv("REQUIRE_VERIFIED_EMAIL", "true")
+    monkeypatch.setenv("BILLING_ENV", "live")
+    monkeypatch.setenv("BILLING_LIVE_CONFIRMED", "true")
 
 
 def test_production_boots_with_hardened_settings(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -186,3 +188,38 @@ def test_aktarim_acikken_yabanci_bolge_serbest(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("LLM_REGION", "us-east-1")
 
     assert Settings(_env_file=None).llm_region == "us-east-1"
+
+
+# ── Ödeme ortamı kapısı (Tur 5) ──────────────────────────────────────────────
+
+
+def test_live_ortami_ikinci_onay_ister(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tek bir env değişkeninin yanlış kopyalanması gerçek para hareketi açmamalı."""
+    monkeypatch.setenv("BILLING_ENV", "live")
+    monkeypatch.delenv("BILLING_LIVE_CONFIRMED", raising=False)
+
+    with pytest.raises(ValidationError, match="BILLING_LIVE_CONFIRMED"):
+        Settings(_env_file=None)
+
+
+def test_production_sandboxta_kalamaz(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sessiz tuzağın diğer yönü: gerçek para HİÇ tahsil edilmez."""
+    _harden(monkeypatch)
+    monkeypatch.setenv("BILLING_ENV", "sandbox")
+
+    with pytest.raises(ValidationError, match="BILLING_ENV"):
+        Settings(_env_file=None)
+
+
+def test_gecersiz_ortam_adi_reddedilir(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BILLING_ENV", "staging")
+
+    with pytest.raises(ValidationError, match="BILLING_ENV"):
+        Settings(_env_file=None)
+
+
+def test_varsayilan_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("BILLING_ENV", raising=False)
+    monkeypatch.delenv("BILLING_LIVE_CONFIRMED", raising=False)
+
+    assert Settings(_env_file=None).billing_is_live is False

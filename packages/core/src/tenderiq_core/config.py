@@ -20,6 +20,9 @@ _OLLAMA_PROMPT_CHARS_PER_TOKEN = 3
 # (Ollama); "tr" yurt içi barındırılan bir sağlayıcıdır.
 _DOMESTIC_LLM_REGIONS = frozenset({"local", "tr"})
 
+# Ödeme ortamları (ADR-0014 uygulaması).
+_BILLING_ENVS = frozenset({"sandbox", "live"})
+
 
 class Environment(StrEnum):
     """Çalışma ortamları."""
@@ -204,9 +207,18 @@ class Settings(BaseSettings):
     # ── iyzico (ADR-0014: abonelik sağlayıcı tarafında) ──────────────────────
     iyzico_api_key: str | None = None
     iyzico_secret_key: str | None = None
-    # Sandbox mı canlı mı. Production'da False olmalıdır; True bırakılırsa
-    # gerçek para HİÇ tahsil edilmez ve bu ancak ay sonunda fark edilir.
-    iyzico_sandbox: bool = True
+    # ── Ödeme ortamı ─────────────────────────────────────────────────────────
+    # "sandbox" (varsayılan) | "live". Taban adres BURADAN türetilir; adaptör
+    # kendi başına üretim tabanını seçemez.
+    #
+    # İki yönlü tuzak var, ikisi de sessiz: (1) production'da sandbox kalırsa
+    # gerçek para HİÇ tahsil edilmez ve bu ancak ay sonunda fark edilir;
+    # (2) geliştirme/staging'de live'a kayılırsa GERÇEK KART çekilir. Bu yüzden
+    # "live" tek başına yetmez, ayrıca açık onay bayrağı ister.
+    billing_env: str = "sandbox"
+    # "live" seçildiğinde ayrıca true olmalıdır. Tek bir env değişkeninin yanlış
+    # kopyalanması gerçek para hareketine yol açmasın diye ikinci kapı.
+    billing_live_confirmed: bool = False
     # Ödeme sonrası kullanıcının döneceği adres.
     iyzico_callback_url: str = "http://localhost:3000/usage"
     # Plan kademesi → iyzico ödeme planı referans kodu ("pro=abc,enterprise=def").
@@ -329,6 +341,30 @@ class Settings(BaseSettings):
                     "bağlantılar token'larıyla birlikte loglara yazılır."
                 )
         return self
+
+    @model_validator(mode="after")
+    def _enforce_billing_env(self) -> Self:
+        """Ödeme ortamının iki yönlü sessiz tuzağını açılışta kapatır."""
+        if self.billing_env not in _BILLING_ENVS:
+            raise ValueError(
+                f"BILLING_ENV '{self.billing_env}' geçersiz; {sorted(_BILLING_ENVS)} olmalı."
+            )
+        if self.billing_env == "live" and not self.billing_live_confirmed:
+            raise ValueError(
+                "BILLING_ENV=live için BILLING_LIVE_CONFIRMED=true zorunludur: canlı ödeme "
+                "ortamı tek bir env değişkeninin yanlış kopyalanmasıyla açılmamalıdır."
+            )
+        if self.environment is Environment.PRODUCTION and self.billing_env != "live":
+            raise ValueError(
+                "Production'da BILLING_ENV=sandbox olamaz: gerçek para HİÇ tahsil edilmez "
+                "ve bu ancak ay sonunda fark edilir."
+            )
+        return self
+
+    @property
+    def billing_is_live(self) -> bool:
+        """Canlı ödeme ortamı mı (adaptörler taban adresi buradan seçer)."""
+        return self.billing_env == "live"
 
     @model_validator(mode="after")
     def _enforce_data_residency(self) -> Self:

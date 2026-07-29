@@ -207,7 +207,7 @@ def create_billing_provider(
                 if tier in PlanTier.__members__.values() or tier in {t.value for t in PlanTier}
             },
             callback_url=settings.iyzico_callback_url,
-            sandbox=settings.iyzico_sandbox,
+            sandbox=not settings.billing_is_live,
         )
     raise BillingNotConfiguredError(
         f"Ödeme sağlayıcısı '{provider}' henüz bağlanmadı. Aynı BillingProvider "

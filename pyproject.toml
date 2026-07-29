@@ -108,10 +108,14 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["packages", "apps", "evals"]
-addopts = "-q --strict-markers --import-mode=importlib -m 'not integration'"
+addopts = "-q --strict-markers --import-mode=importlib -m 'not integration and not live_sandbox'"
 # Tek bir test asılı kalırsa (ör. kapanmayan SSE akışı) koşuyu saatlerce bloke etmesin.
 timeout = 300
 timeout_method = "thread"
 markers = [
     "integration: gerçek servis (Docker/testcontainers) gerektiren testler",
+    # Gerçek sağlayıcı SANDBOX'ına ağ çağrısı yapar. Varsayılan koşumdan
+    # hariçtir ve anahtar yoksa atlanır: hiçbir otomatik test dış servise
+    # çıkmamalı (yavaşlar, kota harcar, ağ kesintisinde kırmızıya döner).
+    "live_sandbox: gerçek sağlayıcı sandbox'ına çıkan elle doğrulama testleri",
 ]

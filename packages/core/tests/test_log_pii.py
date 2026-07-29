@@ -52,6 +52,8 @@ FORBIDDEN_LOG_FIELDS = frozenset(
         "cvv",
         "expiry",
         "iban",
+        "iyzico_api_key",
+        "iyzico_secret_key",
         "kart",
         "pan",
         "alinti",
