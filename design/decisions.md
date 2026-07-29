@@ -250,3 +250,69 @@ ile listelenebiliyor.
 **Bilinen borç (devam ediyor).** `design/refs/` hâlâ boş — bu ekranlarda referans
 karşılaştırması yapılamadı; mevcut auth ekranları fiilî referans olarak kullanıldı.
 Lighthouse erişilebilirlik skoru hâlâ ölçülmedi (§15 açık madde).
+
+---
+
+## 2026-07-29 · /usage — abonelik iptali ve plan değişimi · tur 1-2
+
+**Bağlam.** `/sartlar` §3 üç şey taahhüt ediyor (yükseltme anında, düşürme dönem
+sonunda, iptal dönem sonunda) ve 14 gün koşulsuz cayma hakkı veriyor. Kullanıcının
+kendi iptal edebildiği bir yol olmadan bu taahhüt tutulamıyordu — yayın engeli.
+
+**Karar: iptal ayrı bir "tehlikeli bölge" kartına konmadı.** `/settings`teki hesap
+kapatma `danger` kenarlıklı ayrı bir kartta duruyor (§9.7) ve ilk refleks iptali de
+oraya koymaktı. Yapmadım: hesap kapatma geri alınamaz ve veri siler; abonelik iptali
+dönem sonuna kadar tek tıkla geri alınır ve hiçbir şey silmez. İkisini aynı görsel
+dille anlatmak, iptali olduğundan korkutucu gösterir — yani kullanıcıyı caydırır.
+Bu, `/sartlar`ın verdiği hakkı arayüzle geri almak olurdu. Buton `secondary`,
+kart nötr, onay kutusunda kırmızı yok.
+
+**Karanlık desen sayımı (bilinçli olarak sıfır):** tutma teklifi yok, "gerçekten
+emin misiniz" suçlaması yok, yazı yazdırma yok (hesap kapatmada var — orada
+gerekli), gizli buton yok. Onay kutusundaki görsel birincil eylem iptalin kendisi.
+Geri alma butonu, iptalin duyurulduğu uyarının hemen altında.
+
+**Signature: "erişiminiz şu tarihe kadar sürüyor".** Bu ekranın akılda kalan tek
+öğesi olması gereken şey, iptalden sonra kullanıcının aklındaki tek soru: *ne
+zaman kesilecek?* Bu yüzden tarih iki kez, iki farklı yerde ve iki farklı anlamda
+yazılıyor — uyarı bloğunda ("erişim bitişi") ve iptal edilmemişken veri satırında
+("sıradaki tahsilat"). Aynı alandan gelirler ama biri diğerinin yerine geçemez:
+iptal etmiş kullanıcıya "sıradaki tahsilat" göstermek yanlış bilgi olurdu, o yüzden
+API `next_charge_at`i o durumda `null` döndürüyor.
+
+**Tur 1 kritiği (1440 + 375, aktif ve iptal durumları):**
+
+**İyi:** Abonelik kartı kota kartının ritmini birebir tutuyor (padding, radius,
+kenarlık) — sayfaya yeni bir görsel dil sokmuyor. Uyarı bloğu `account-section` ve
+`legal-shell`deki mevcut uyarı anatomisiyle aynı; ikinci bir uyarı görünümü
+üretmedim.
+
+**Kötü:**
+1. **Sayfa başlığındaki durum rozeti iptal edilmiş abonelikte hâlâ "● Etkin"
+   (yeşil).** Hemen altında "dönem sonunda sona erecek" yazıyor — ekranın en
+   görünür öğesi, hemen altındaki cümleyle çelişiyor. Teknik olarak doğru
+   (durum ACTIVE kalıyor, erişim sürüyor) ama kullanıcı için yanlış.
+2. Kart açıklaması ile altındaki veri satırı (`Sıradaki tahsilat`) sıfır boşlukla
+   yapışık (`CardContent pt-0`); üçü tek bir paragraf gibi okunuyor (§13.3).
+3. Kota kartı ↔ abonelik kartı arası ile abonelik kartı ↔ "Planlar" bölümü arası
+   eşit (32px). Bölüm ayrımı kart ayrımından büyük olmalı (§5.3), yoksa üç blok
+   da eşit uzaklıkta durur ve hangisinin bir bütün olduğu okunmaz.
+
+**Uygulanan (tur 2):** 1 → rozet `cancel_at_period_end`i okuyup "Dönem sonunda
+bitiyor" (warning) diyor; durum alanını eziyor. 2 → `pt-4`. 3 → kartlar `mb-6`,
+bölüm öncesi `mb-8`.
+
+**Tur 2 çekimi.** 375 · 768 · 1440 · 1920 + koyu tema; dört durum (aktif, iptal
+edilmiş, bekleyen düşürme, onay kutusu). Yatay taşma yok, konsolda yalnız
+projede zaten var olan Next.js `scroll-behavior` uyarısı.
+
+**`scripts/shoot.mjs` genişletildi.** Kimlik gerektiren ekranlar girişsiz
+çekilirse yalnız `/login`in görüntüsü alınıyor ve §14 döngüsü sessizce hiçbir şey
+doğrulamamış oluyordu. `SHOOT_EMAIL`/`SHOOT_PASSWORD` verildiğinde her viewport
+kendi bağlamında giriş yapıyor (çerezler bağlamlar arasında paylaşılmaz).
+
+**Bilinen borç.** `design/refs/` hâlâ boş; karşılaştırma yine mevcut ekranlara
+karşı yapıldı. "Ücretsiz" plan kartında başlık ve fiyat alanı aynı kelimeyi iki
+kez yazıyor (`formatPrice` 0 TL için "Ücretsiz" döndürüyor) — bu turun kapsamı
+dışında, plan kartı kopyası ayrı bir karar. Lighthouse erişilebilirlik skoru
+hâlâ ölçülmedi (§15 açık madde).

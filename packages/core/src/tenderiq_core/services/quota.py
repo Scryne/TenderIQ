@@ -72,6 +72,16 @@ async def get_or_create_subscription(session: AsyncSession, tenant_id: uuid.UUID
     erişimde iki INSERT yarışırsa unique kısıt devreye girer; çakışma bir
     savepoint (``begin_nested``) içinde yutulur ve mevcut satır yeniden okunur —
     böylece dıştaki transaction (ve kiracı bağlamı) bozulmaz.
+
+    **Her ``IntegrityError`` yarış demek değildir.** Var olmayan bir kiracı için
+    çağrıldığında yabancı anahtar kısıtı patlar; bunu da "yarış" sayıp yeniden
+    okumak boş sonuç verir. Eskiden burada bir ``assert`` vardı ve o hâlde
+    ``AssertionError`` fırlatıyordu — imzalı ama tanınmayan bir kiracı taşıyan
+    webhook, ucu HTTP 500'e düşürüyordu (bkz. `scripts/replay_billing_webhook.py`
+    "bilinmeyen-kiraci" senaryosu). Sağlayıcı 500'ü geçici hata sayıp yeniden
+    dener; asla başarılı olamayacak bir olay için yeniden deneme fırtınası çıkar.
+    Satır gerçekten yoksa özgün hata yukarı verilir ve çağıran kalıcı bir
+    reddetmeye çevirebilir.
     """
     sub = await session.scalar(select(Subscription).where(Subscription.tenant_id == tenant_id))
     if sub is not None:
@@ -90,7 +100,8 @@ async def get_or_create_subscription(session: AsyncSession, tenant_id: uuid.UUID
         existing = await session.scalar(
             select(Subscription).where(Subscription.tenant_id == tenant_id)
         )
-        assert existing is not None  # noqa: S101 - unique çakışması ⇒ satır kesin var
+        if existing is None:
+            raise
         return existing
     return new_sub
 

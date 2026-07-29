@@ -68,6 +68,11 @@ class FakeBillingProvider:
             RecordedCall("cancel_subscription", {"subscription_id": provider_subscription_id})
         )
 
+    async def resume_subscription(self, *, provider_subscription_id: str) -> None:
+        self.calls.append(
+            RecordedCall("resume_subscription", {"subscription_id": provider_subscription_id})
+        )
+
     async def change_plan(
         self, *, provider_subscription_id: str, target_tier: PlanTier, immediate: bool
     ) -> None:

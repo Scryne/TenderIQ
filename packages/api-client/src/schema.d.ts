@@ -149,6 +149,10 @@ export interface paths {
         /**
          * Register
          * @description Yeni bir organizasyon ve admin kullanıcı oluşturur.
+         *
+         *     Davranış ``SIGNUP_MODE``a bağlıdır: ``open`` hesabı açar, ``invite_only``
+         *     reddeder (davet akışı çalışmaya devam eder), ``waitlist`` talebi listeye
+         *     alır ve 202 döner.
          */
         post: operations["register_api_v1_auth_register_post"];
         delete?: never;
@@ -256,10 +260,12 @@ export interface paths {
         put?: never;
         /**
          * Create Checkout
-         * @description Bir plana geçiş/yükseltme başlatır (admin).
+         * @description Bir plana geçiş başlatır (admin).
          *
-         *     Test-modu (manual) sağlayıcıda plan anında etkinleşir ve denetime yazılır; gerçek
-         *     sağlayıcıda ``checkout_url`` döner (etkinleşme webhook'la gelir).
+         *     Kiracının sağlayıcıda aboneliği yoksa yeni satın alma başlar (test-modunda
+         *     plan anında etkinleşir; gerçek sağlayıcıda ``checkout_url`` döner ve
+         *     etkinleşme webhook'la gelir). Aboneliği VARSA `/sartlar` §3 uygulanır:
+         *     yükseltme anında, düşürme dönem sonunda.
          */
         post: operations["create_checkout_api_v1_billing_checkout_post"];
         delete?: never;
@@ -282,6 +288,74 @@ export interface paths {
         get: operations["list_plans_api_v1_billing_plans_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Subscription
+         * @description Kiracının abonelik durumunu döndürür (her rol görebilir).
+         *
+         *     Görüntüleme yönetici yetkisi istemez: hangi planda olduğunu, ne zaman
+         *     yenileneceğini ve iptal edilip edilmediğini bilmek ekibin tamamını ilgilendirir.
+         *     Değiştirme uçları ayrıca yöneticiyle sınırlıdır.
+         */
+        get: operations["get_subscription_api_v1_billing_subscription_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/subscription/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Subscription
+         * @description Aboneliği dönem sonunda bitecek şekilde iptal eder (admin).
+         *
+         *     Erişim ödenmiş dönemin sonuna kadar sürer (`/sartlar` §3); yanıttaki
+         *     ``current_period_end`` kullanıcıya gösterilecek tarihtir. İşlem tek adımdır
+         *     ve geri alınabilir — 14 gün koşulsuz cayma hakkı ayrıca işler.
+         */
+        post: operations["cancel_subscription_api_v1_billing_subscription_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/subscription/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume Subscription
+         * @description İptali geri alır — dönem sonu henüz geçmemişse (admin).
+         */
+        post: operations["resume_subscription_api_v1_billing_subscription_resume_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1304,13 +1378,19 @@ export interface components {
         };
         /**
          * CheckoutResponse
-         * @description Checkout sonucu: anında etkinleşti mi, yoksa ağ geçidine mi yönlendirilecek.
+         * @description Checkout/plan değişimi sonucu.
+         *
+         *     ``activated`` plan ANINDA açıldı mı (yükseltme ya da test-modu). ``checkout_url``
+         *     doluysa kullanıcı ağ geçidine yönlendirilir. ``effective_at`` doluysa değişim
+         *     henüz uygulanmadı ve o tarihte uygulanacaktır (düşürme, `/sartlar` §3).
          */
         CheckoutResponse: {
             /** Activated */
             activated: boolean;
             /** Checkout Url */
             checkout_url: string | null;
+            /** Effective At */
+            effective_at?: string | null;
             plan: components["schemas"]["PlanTier"];
             /** Provider */
             provider: string;
@@ -2199,6 +2279,25 @@ export interface components {
             password: string;
         };
         /**
+         * RegisterResponse
+         * @description Kayıt sonucu — moda göre hesap açılır ya da talep listeye alınır.
+         *
+         *     Tek şema iki sonucu taşır: istemci `status` alanına bakar. Ayrı uçlar
+         *     açmak, istemcinin hangi modda olduğunu ÖNCEDEN bilmesini gerektirirdi.
+         */
+        RegisterResponse: {
+            /** Email Delivery */
+            email_delivery?: ("sent" | "suppressed" | "duplicate" | "failed") | null;
+            /** Message */
+            message?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "waitlisted";
+            user?: components["schemas"]["UserResponse"] | null;
+        };
+        /**
          * RequirementKind
          * @description Gereksinim tipi (§8.1 ``Requirement``).
          * @enum {string}
@@ -2323,6 +2422,31 @@ export interface components {
          */
         RoleUpdate: {
             role: components["schemas"]["Role"];
+        };
+        /**
+         * SubscriptionResponse
+         * @description Kiracının abonelik durumu — iptal/geri alma arayüzünün tek kaynağı.
+         */
+        SubscriptionResponse: {
+            /** Can Cancel */
+            can_cancel: boolean;
+            /** Can Resume */
+            can_resume: boolean;
+            /** Cancel At Period End */
+            cancel_at_period_end: boolean;
+            /** Current Period End */
+            current_period_end: string | null;
+            /** Next Charge At */
+            next_charge_at: string | null;
+            pending_plan: components["schemas"]["PlanTier"] | null;
+            /** Pending Plan Name */
+            pending_plan_name: string | null;
+            plan: components["schemas"]["PlanTier"];
+            /** Plan Name */
+            plan_name: string;
+            /** Provider */
+            provider: string | null;
+            status: components["schemas"]["SubscriptionStatus"];
         };
         /**
          * SubscriptionStatus
@@ -2525,6 +2649,10 @@ export interface components {
         /**
          * WebhookResponse
          * @description Webhook işleme sonucu.
+         *
+         *     ``applied`` uygulandı · ``duplicate`` daha önce işlenmiş (idempotency) ·
+         *     ``stale`` sırasız gelmiş ESKİ olay, yok sayıldı. Üçü de 200'dür: sağlayıcı
+         *     için "aldım, işim bitti" demektir ve yeniden deneme gerektirmez.
          */
         WebhookResponse: {
             /** Status */
@@ -2748,7 +2876,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserResponse"];
+                    "application/json": components["schemas"]["RegisterResponse"];
+                };
+            };
+            /** @description Bekleme listesine alındı. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2941,6 +3078,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_subscription_api_v1_billing_subscription_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_subscription_api_v1_billing_subscription_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_subscription_api_v1_billing_subscription_resume_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionResponse"];
                 };
             };
             /** @description Validation Error */

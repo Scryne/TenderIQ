@@ -49,6 +49,27 @@ const onlyFlag = flags.find((f) => f.startsWith("--only="));
 const only = onlyFlag?.slice("--only=".length).split(",");
 const baseUrl = process.env.SHOOT_BASE_URL ?? "http://localhost:3000";
 
+// Kimlik gerektiren ekranlar (/usage, /tenders, /settings…) girişsiz çekilirse
+// yalnızca /login'in ekran görüntüsü alınır ve §14 döngüsü sessizce hiçbir şey
+// doğrulamamış olur. Oturum her viewport için yeniden açılır: her viewport
+// kendi tarayıcı bağlamıdır ve çerezler paylaşılmaz.
+//
+//   SHOOT_EMAIL=e2e@tenderiq.local SHOOT_PASSWORD=... node scripts/shoot.mjs usage abonelik
+//
+// Tohum: `pnpm e2e:seed` (scripts/seed_e2e.py).
+const loginEmail = process.env.SHOOT_EMAIL;
+const loginPassword = process.env.SHOOT_PASSWORD;
+
+async function signIn(page, problems) {
+  await page.goto(`${baseUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
+  await page.fill("#email", loginEmail);
+  await page.fill("#password", loginPassword);
+  await Promise.all([
+    page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 }),
+    page.click('button[type="submit"]'),
+  ]).catch((e) => problems.push(`[login] ${e.message}`));
+}
+
 /** Playwright apps/web'in bağımlılığı; kökten çözülemezse oradan resolve edilir. */
 async function loadChromium() {
   try {
@@ -98,6 +119,10 @@ for (const [name, [width, height]] of targets) {
     }
   });
   page.on("pageerror", (error) => problems.push(`[pageerror] ${error.message}`));
+
+  if (loginEmail !== undefined && loginPassword !== undefined) {
+    await signIn(page, problems);
+  }
 
   const url = `${baseUrl}${route}`;
   const response = await page.goto(url, { waitUntil: "networkidle", timeout: 45_000 }).catch((e) => {
