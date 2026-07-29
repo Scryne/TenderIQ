@@ -214,3 +214,80 @@ def test_kullanim_kaydi_kiracilar_arasi_toplanmaz(billing_client: TestClient) ->
     usage_b = billing_client.get("/api/v1/usage", headers=_auth(token_b)).json()
 
     assert usage_a["documents"]["used"] == usage_b["documents"]["used"] == 0
+
+
+# ── Sırasız webhook teslimi (Tur 5 / madde 1) ────────────────────────────────
+
+
+def _iso(offset_seconds: int) -> str:
+    from datetime import UTC, datetime, timedelta
+
+    return (datetime.now(UTC) + timedelta(seconds=offset_seconds)).isoformat()
+
+
+def test_gec_gelen_eski_olay_yeni_durumu_ezmez(billing_client: TestClient) -> None:
+    """Webhook'lar sıra garantisi vermez.
+
+    Damga olmadan, geç gelen bir "iptal edildi" olayı sonradan gelmiş
+    "yeniden etkinleşti"yi ezer ve müşterinin ÖDEDİĞİ erişimi kapatırdı —
+    sessizce, ancak müşteri şikâyet edince fark edilecek biçimde.
+    """
+    tenant_id, token = _register_and_login(billing_client, slug="bill-sira", email="sira@org.com")
+
+    # Yeni olay: pro'ya geçiş.
+    raw_new, headers_new = _sign(
+        {
+            "event_id": f"evt-yeni-{uuid.uuid4()}",
+            "event_type": "subscription.activated",
+            "tenant_id": tenant_id,
+            "plan": "pro",
+            "status": "active",
+            "occurred_at": _iso(0),
+        }
+    )
+    assert (
+        billing_client.post("/api/v1/billing/webhook", content=raw_new, headers=headers_new).json()[
+            "status"
+        ]
+        == "applied"
+    )
+
+    # ESKİ olay sonradan geliyor (sağlayıcı yeniden denemesi).
+    raw_old, headers_old = _sign(
+        {
+            "event_id": f"evt-eski-{uuid.uuid4()}",
+            "event_type": "subscription.canceled",
+            "tenant_id": tenant_id,
+            "plan": "free",
+            "status": "canceled",
+            "occurred_at": _iso(-60),
+        }
+    )
+    late = billing_client.post("/api/v1/billing/webhook", content=raw_old, headers=headers_old)
+
+    assert late.json()["status"] == "stale"
+    assert billing_client.get("/api/v1/usage", headers=_auth(token)).json()["plan"] == "pro"
+
+
+def test_damgasiz_olay_yok_sayilmaz(billing_client: TestClient) -> None:
+    """Koruma ancak KARŞILAŞTIRILABİLİR iki damga varken devreye girmeli.
+
+    Aksi hâlde damga taşımayan sağlayıcı gövdeleri sessizce işlenmez olurdu.
+    """
+    tenant_id, token = _register_and_login(
+        billing_client, slug="bill-damgasiz", email="damgasiz@org.com"
+    )
+    raw, headers = _sign(
+        {
+            "event_id": f"evt-damgasiz-{uuid.uuid4()}",
+            "event_type": "subscription.activated",
+            "tenant_id": tenant_id,
+            "plan": "pro",
+            "status": "active",
+        }
+    )
+
+    response = billing_client.post("/api/v1/billing/webhook", content=raw, headers=headers)
+
+    assert response.json()["status"] == "applied"
+    assert billing_client.get("/api/v1/usage", headers=_auth(token)).json()["plan"] == "pro"

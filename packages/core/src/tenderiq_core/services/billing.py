@@ -116,7 +116,8 @@ async def apply_webhook_event(
 ) -> str:
     """Doğrulanmış bir webhook olayını idempotent uygular.
 
-    Dönen değer: ``"duplicate"`` (daha önce BAŞARIYLA işlenmiş) veya ``"applied"``.
+    Dönen değer: ``"duplicate"`` (daha önce BAŞARIYLA işlenmiş), ``"stale"``
+    (sırasız gelmiş ESKİ olay — yok sayıldı) veya ``"applied"``.
     ``"applied"`` dönerse çağıran, transaction'ı commit ettikten SONRA
     ``mark_webhook_processed`` çağırmalıdır (sıralama gerekçesi modül docstring'inde).
     Olayda kiracı kimliği yoksa hata (imzalı gövde kiracıyı taşımalı). Redis
@@ -137,6 +138,28 @@ async def apply_webhook_event(
 
     await set_tenant_context(session, event.tenant_id)
     subscription = await quota.get_or_create_subscription(session, event.tenant_id)
+
+    # Sırasız teslim koruması. Webhook'lar sıra garantisi VERMEZ: sağlayıcının
+    # yeniden denemesi ya da kuyruk gecikmesi yüzünden eski bir olay yenisinden
+    # SONRA gelebilir. Damgasız uygulasaydık, geç gelen bir "iptal edildi"
+    # olayı sonradan gelmiş "yeniden etkinleşti"yi ezer ve müşterinin ÖDEDİĞİ
+    # erişimi kapatırdı — sessizce, ve ancak müşteri şikâyet edince fark edilir.
+    #
+    # Damgası olmayan olay (occurred_at=None) yok sayılmaz: eski sağlayıcı
+    # gövdeleri ve manual sağlayıcı damga taşımayabilir; koruma ancak
+    # karşılaştırılabilir iki damga varken devreye girer.
+    if (
+        event.occurred_at is not None
+        and subscription.last_event_at is not None
+        and event.occurred_at <= subscription.last_event_at
+    ):
+        logger.info(
+            "webhook_eski_olay_atlandi",
+            provider=provider,
+            event_type=event.event_type,
+        )
+        return "stale"
+
     target_plan, target_status = _resolve_target(event, subscription.plan)
     await apply_plan_change(
         session,
@@ -147,6 +170,8 @@ async def apply_webhook_event(
         provider_customer_id=event.provider_customer_id,
         provider_subscription_id=event.provider_subscription_id,
     )
+    if event.occurred_at is not None:
+        subscription.last_event_at = event.occurred_at
     return "applied"
 
 

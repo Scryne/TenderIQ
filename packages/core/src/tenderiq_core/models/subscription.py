@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import StrEnum
 
+from sqlalchemy import DateTime, String, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tenderiq_core.billing.plans import PlanTier
@@ -45,3 +46,6 @@ class Subscription(UUIDPKMixin, TenantMixin, TimestampMixin, Base):
     provider: Mapped[str | None] = mapped_column(String(50))
     provider_customer_id: Mapped[str | None] = mapped_column(String(255))
     provider_subscription_id: Mapped[str | None] = mapped_column(String(255))
+    #: İşlenmiş SON olayın sağlayıcıdaki zamanı. Sırasız gelen webhook'larda
+    #: eski bir olayın yeni durumu ezmesini engeller (bkz. services.billing).
+    last_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
