@@ -127,6 +127,16 @@ class BillingProvider(Protocol):
         """Webhook imzasını doğrular ve olayı ayrıştırır (geçersizse hata)."""
         ...
 
+    def parse_webhook_payload(self, *, raw_body: bytes) -> WebhookEvent:
+        """Gövdeyi İMZA DOĞRULAMADAN ayrıştırır.
+
+        Yalnız ölü mektup kuyruğundan yeniden işleme için: saklanan gövde
+        redakte edildiğinden baytları orijinaliyle aynı değildir ve imzası
+        doğrulanamaz. Güven sınırı burada imza değil, çağıranın oturumudur
+        (kimliği doğrulanmış kiracı yöneticisi). Kimliksiz yolda ASLA çağrılmaz.
+        """
+        ...
+
     async def fetch_subscription(
         self, *, provider_subscription_id: str
     ) -> ProviderSubscriptionState | None:
@@ -217,6 +227,9 @@ class ManualBillingProvider:
 
     def parse_webhook(self, *, headers: Mapping[str, str], raw_body: bytes) -> WebhookEvent:
         _verify_signature(self._secret, headers, raw_body)
+        return self.parse_webhook_payload(raw_body=raw_body)
+
+    def parse_webhook_payload(self, *, raw_body: bytes) -> WebhookEvent:
         try:
             data = json.loads(raw_body)
         except (json.JSONDecodeError, ValueError) as exc:

@@ -104,6 +104,9 @@ class FakeBillingProvider:
         ).hexdigest()
         if not hmac.compare_digest(provided, expected):
             raise WebhookVerificationError("Webhook imzası geçersiz.")
+        return self.parse_webhook_payload(raw_body=raw_body)
+
+    def parse_webhook_payload(self, *, raw_body: bytes) -> WebhookEvent:
         try:
             data = json.loads(raw_body)
         except (json.JSONDecodeError, ValueError) as exc:

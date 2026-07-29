@@ -45,6 +45,7 @@ from tenderiq_core.config import get_settings
 
 DEFAULT_URL = "http://localhost:8000"
 WEBHOOK_PATH = "/api/v1/billing/webhook"
+OPS_METRICS_PATH = "/ops/metrics"
 _TIMEOUT = 15.0
 
 # Windows konsolu varsayılan olarak cp1254'tür; Türkçe metin ve işaretler
@@ -90,6 +91,7 @@ class Sender:
 
     def __init__(self, *, base_url: str, secret: str, scheme: WebhookSignatureScheme) -> None:
         self._url = base_url.rstrip("/") + WEBHOOK_PATH
+        self.ops_metrics_url = base_url.rstrip("/") + OPS_METRICS_PATH
         self._secret = secret
         self._scheme = scheme
         self.sent: list[tuple[bytes, dict[str, str]]] = []
@@ -307,7 +309,62 @@ def _scenario_unknown_tenant() -> Scenario:
     )
 
 
-def build_scenarios(tenant: uuid.UUID) -> list[Scenario]:
+def _scenario_permanent_dead_letters(ops_token: str | None) -> Scenario:
+    """Kalıcı hatanın GERÇEKTEN kuyruğa düştüğünü doğrular.
+
+    Uç 400 dönebilir ve olay yine de kaybolmuş olabilir; ikisi ayrı şeylerdir ve
+    yalnız yanıt koduna bakan bir sınama tam olarak bu farkı gözden kaçırır.
+
+    Doğrulama **operatör metriğinden** yapılır, kiracı listesinden değil: kalıcı
+    hataların çoğu (tanınmayan kiracı, ayrıştırılamayan gövde) tanımı gereği bir
+    kiracıya ATFEDİLEMEZ ve hiçbir kiracının listesinde görünmez — atfedemediğimiz
+    bir ödemeyi rastgele birine göstermek sızıntı olurdu.
+    """
+
+    def _pending(url: str) -> int | None:
+        if ops_token is None:
+            return None
+        response = httpx.get(
+            url,
+            headers={"Authorization": f"Bearer {ops_token}"},
+            timeout=_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return None
+        value = response.json().get("dead_letter_pending")
+        return int(value) if isinstance(value, int) else None
+
+    def run(sender: Sender) -> Outcome:
+        before = _pending(sender.ops_metrics_url)
+        response = sender.post(_event(uuid.uuid4(), occurred_at=datetime.now(UTC)))
+        rejected = response.status_code == 400
+        after = _pending(sender.ops_metrics_url)
+
+        if before is None or after is None:
+            return Outcome(
+                "kalici-hata-kuyruga",
+                "400 (kuyruk doğrulaması için --ops-token verin)",
+                rejected,
+                f"HTTP {response.status_code} · kuyruk KONTROL EDİLMEDİ",
+            )
+        grew = after > before
+        return Outcome(
+            "kalici-hata-kuyruga",
+            "400 + kuyruk büyüdü",
+            rejected and grew,
+            f"HTTP {response.status_code} · kuyruk {before} → {after}",
+        )
+
+    return Scenario(
+        "kalici-hata-kuyruga",
+        "Kalıcı hata yalnız reddedilmemeli, KAYDEDİLMELİ. Reddedilip "
+        "kaydedilmeyen olay sessizce kaybolur; müşteri ödemiştir ve elimizde "
+        "yeniden uygulayacak hiçbir şey kalmaz.",
+        run,
+    )
+
+
+def build_scenarios(tenant: uuid.UUID, ops_token: str | None = None) -> list[Scenario]:
     return [
         _scenario_valid(tenant),
         _scenario_bad_signature(tenant),
@@ -316,6 +373,7 @@ def build_scenarios(tenant: uuid.UUID) -> list[Scenario]:
         _scenario_replay(tenant),
         _scenario_out_of_order(tenant),
         _scenario_unknown_tenant(),
+        _scenario_permanent_dead_letters(ops_token),
     ]
 
 
@@ -346,6 +404,10 @@ def main() -> int:
     parser.add_argument("--tenant", help="Olayların yazılacağı kiracı kimliği (UUID)")
     parser.add_argument("--body", type=Path, help="Kaydedilmiş olay gövdesi (JSON)")
     parser.add_argument("--only", help="Yalnız bu senaryoyu koştur")
+    parser.add_argument(
+        "--ops-token",
+        help="OPS_METRICS_TOKEN — kalıcı hatanın kuyruğa düştüğünü doğrulamak için",
+    )
     parser.add_argument("--provider", help="İmza biçimi (varsayılan: BILLING_PROVIDER)")
     parser.add_argument("--secret", help="Webhook sırrı (varsayılan: BILLING_WEBHOOK_SECRET)")
     args = parser.parse_args()
@@ -384,7 +446,7 @@ def main() -> int:
             print("HATA: --tenant zorunlu (ya da --body verin).")
             return 2
         tenant = uuid.UUID(args.tenant)
-        scenarios = build_scenarios(tenant)
+        scenarios = build_scenarios(tenant, args.ops_token)
         if args.only:
             scenarios = [s for s in scenarios if s.name == args.only]
             if not scenarios:

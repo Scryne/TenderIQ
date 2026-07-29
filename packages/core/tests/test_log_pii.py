@@ -27,6 +27,7 @@ from pathlib import Path
 import pytest
 
 from tenderiq_core.logging import mask_email
+from tenderiq_core.redaction import SENSITIVE_FIELDS
 
 # Depo köküne göre çözülür: tarama, pytest'in çalışma dizinine bağlı olmamalı —
 # yanlış dizinde "hiç çağrı bulunamadı" sessiz bir GEÇTİ üretirdi.
@@ -37,54 +38,13 @@ _LOG_METHODS = frozenset({"debug", "info", "warning", "error", "exception", "cri
 _LOGGER_NAMES = frozenset({"logger", "log", "_logger"})
 
 #: Değeri kişisel veri veya müşteri içeriği taşıyabilecek alan adları.
-FORBIDDEN_LOG_FIELDS = frozenset(
-    {
-        "address",
-        "adres",
-        # ── Ödeme (Tur 3) ── Kart verisi bize hiç GELMEZ (sağlayıcı tokenize
-        # eder). Yine de log alanı olarak yasaklanır: bir adaptör yazarken
-        # sağlayıcı yanıtını olduğu gibi loglamak en kolay hatadır ve kart
-        # verisinin loga düşmesi PCI kapsamına girmek demektir.
-        "card",
-        "card_number",
-        "cardholder",
-        "cvc",
-        "cvv",
-        "expiry",
-        "iban",
-        "iyzico_api_key",
-        "iyzico_secret_key",
-        "kart",
-        "pan",
-        "alinti",
-        "api_key",
-        "authorization",
-        "baslik",
-        "body",
-        "completion",
-        "content",
-        "dosya_adi",
-        "e_posta",
-        "email",
-        "filename",
-        "full_name",
-        "icerik",
-        "ip",
-        "metin",
-        "parola",
-        "password",
-        "phone",
-        "prompt",
-        "quote",
-        "recipient",
-        "secret",
-        "telefon",
-        "text",
-        "title",
-        "to",
-        "token",
-    }
-)
+#:
+#: Liste artık **çalışma zamanı redaksiyonuyla ortaktır**
+#: (``tenderiq_core.redaction.SENSITIVE_FIELDS``): ölü mektup kuyruğu webhook
+#: gövdesini veritabanında saklıyor ve aynı adları oradan da temizlemek zorunda.
+#: İki ayrı liste tutmak, birine eklenip diğerine eklenmeyen bir alanın sessizce
+#: sızması demekti.
+FORBIDDEN_LOG_FIELDS = SENSITIVE_FIELDS
 
 #: (dosya son eki, olay adı) → gerekçe. Yalnız PRODUCTION'da erişilemeyen yollar.
 ALLOWED_EXCEPTIONS: dict[tuple[str, str], str] = {

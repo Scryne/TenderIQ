@@ -460,6 +460,128 @@
         "title": "DataExportResponse",
         "type": "object"
       },
+      "DeadLetterKind": {
+        "description": "Hatanın yeniden denemeyle geçip geçmeyeceği.\n\nAyrım, ucun döndüreceği yanıtı belirler: ``TRANSIENT`` sağlayıcının kendi yeniden\ndenemesiyle düzelebilir (503 döndürürüz), ``PERMANENT`` asla düzelmez —\nsağlayıcıyı yeniden denemeye çağırmak sadece gürültü üretir (400 döndürürüz).",
+        "enum": [
+          "transient",
+          "permanent"
+        ],
+        "title": "DeadLetterKind",
+        "type": "string"
+      },
+      "DeadLetterResponse": {
+        "description": "Kuyruktaki tek bir olay (gövde REDAKTE edilmiş hâliyle).",
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DeadLetterKind"
+          },
+          "last_attempt_at": {
+            "format": "date-time",
+            "title": "Last Attempt At",
+            "type": "string"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "signature_valid": {
+            "title": "Signature Valid",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeadLetterStatus"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "event_id",
+          "event_type",
+          "signature_valid",
+          "kind",
+          "status",
+          "error",
+          "attempts",
+          "payload",
+          "last_attempt_at",
+          "resolved_at"
+        ],
+        "title": "DeadLetterResponse",
+        "type": "object"
+      },
+      "DeadLetterRetryResponse": {
+        "description": "Yeniden işleme sonucu.",
+        "properties": {
+          "dead_letter": {
+            "$ref": "#/components/schemas/DeadLetterResponse"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "dead_letter"
+        ],
+        "title": "DeadLetterRetryResponse",
+        "type": "object"
+      },
+      "DeadLetterStatus": {
+        "description": "Kuyruk satırının yaşam döngüsü.",
+        "enum": [
+          "pending",
+          "resolved",
+          "discarded"
+        ],
+        "title": "DeadLetterStatus",
+        "type": "string"
+      },
       "DeliverableKind": {
         "description": "Sunulacak belge tipi (§8.1 ``Deliverable``).",
         "enum": [
@@ -3511,6 +3633,148 @@
         ]
       }
     },
+    "/api/v1/billing/dead-letters": {
+      "get": {
+        "description": "Kiracının uygulanamamış ödeme olayları (admin).",
+        "operationId": "list_dead_letters_api_v1_billing_dead_letters_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DeadLetterStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeadLetterResponse"
+                  },
+                  "title": "Response List Dead Letters Api V1 Billing Dead Letters Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Dead Letters",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/billing/dead-letters/{dead_letter_id}/retry": {
+      "post": {
+        "description": "Kuyruktaki bir olayı yeniden işler (admin).\n\n**Hiçbir korumayı atlamaz.** Olay, canlı webhook'la aynı yoldan\n(``apply_webhook_event``) geçer: idempotency damgası ve sırasız-olay\n(``occurred_at``) koruması aynen işler. Yani daha önce uygulanmış bir olay\n``duplicate``, aboneliğin şimdiki durumundan eski bir olay ``stale`` döner\nve durum DEĞİŞMEZ. Aksi hâlde \"yeniden işle\" düğmesi, iptal etmiş bir\nmüşterinin aboneliğini geri açabilirdi.\n\nOlay kimliği **saklanan sütundan** alınır, gövdeden yeniden türetilmez:\ngövde redaktedir ve bazı sağlayıcılarda kimlik redakte edilen bir alandan\ntürer — türetilseydi idempotency anahtarı kayar ve olay ikinci kez\nuygulanabilirdi.",
+        "operationId": "retry_dead_letter_api_v1_billing_dead_letters__dead_letter_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dead_letter_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Dead Letter Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeadLetterRetryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Dead Letter",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/billing/plans": {
       "get": {
         "description": "Mevcut plan kademelerini listeler; kiracının geçerli kademesini işaretler.",
@@ -3717,7 +3981,7 @@
     },
     "/api/v1/billing/webhook": {
       "post": {
-        "description": "Ödeme sağlayıcısı webhook'u (kimliksiz; HMAC imzayla doğrulanır, idempotent).\n\nİmza geçersizse 400. Olay daha önce işlenmişse durum tekrar uygulanmaz\n(``duplicate``). Kiracı bağlamı olayın imzalı gövdesinden (güvenilir) türetilir.",
+        "description": "Ödeme sağlayıcısı webhook'u (kimliksiz; HMAC imzayla doğrulanır, idempotent).\n\n**Hiçbir olay sessizce kaybolmaz.** Doğrulaması geçip uygulanamayan olay ölü\nmektup kuyruğuna yazılır ve yanıt, sağlayıcıya ne yapması gerektiğini söyler:\n\n* **kalıcı hata → 400.** Yeniden deneme düzeltmez (tanınmayan kiracı,\n  eşlenmemiş durum); sağlayıcıyı denemeye çağırmak yalnız gürültü üretir.\n* **geçici hata → 503**, ta ki deneme tavanı dolana kadar; sonra 200. Çünkü\n  sınırsız yeniden deneme fırtınası gerçek arızayı log'da görünmez kılar.\n* **imza geçersiz → 400**, ama gövde yine de (tavan dâhilinde) kuyruğa\n  yazılır: imza BİÇİMİ hâlâ doğrulanmamış bir varsayımdır ve biçim yanlışsa\n  gerçek olayların tamamı buraya düşer — teşhisin tek yolu budur.",
         "operationId": "billing_webhook_api_v1_billing_webhook_post",
         "responses": {
           "200": {

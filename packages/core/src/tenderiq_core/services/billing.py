@@ -19,10 +19,12 @@ gövdeden gelen, güvenilir) ``tenant_id``'sini bağlama yazar.
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import Any
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
@@ -36,6 +38,7 @@ from tenderiq_core.db.tenant import set_tenant_context
 from tenderiq_core.logging import get_logger
 from tenderiq_core.models import Subscription, SubscriptionStatus
 from tenderiq_core.services import quota
+from tenderiq_core.services.dead_letter import PermanentEventError
 
 logger = get_logger("tenderiq.core.billing")
 
@@ -506,6 +509,26 @@ def _resolve_target(event: WebhookEvent, current_plan: PlanTier) -> _WebhookTarg
     return _WebhookTarget(event.plan_tier or current_plan, event.status)
 
 
+def event_from_stored_payload(
+    provider: BillingProvider, *, payload: dict[str, Any], event_id: str
+) -> WebhookEvent:
+    """Kuyrukta saklanan (redakte) gövdeden olayı yeniden kurar.
+
+    İmza **doğrulanmaz** ve doğrulanamaz: gövde saklanırken redakte edildiği
+    için baytları artık orijinaliyle aynı değil. Bu bir boşluk değil, yolun
+    tanımı — bu fonksiyona yalnız kimliği doğrulanmış bir kiracı yöneticisinin
+    açık talebiyle gelinir; güven sınırı imza değil, oturumdur.
+
+    ``event_id`` gövdeden TÜRETİLMEZ, saklanan sütundan gelir: bazı
+    sağlayıcılarda kimlik redakte edilen bir alandan (``token``) türer ve
+    türetilseydi idempotency anahtarı kayardı — yani daha önce uygulanmış bir
+    olay "yeni" görünüp ikinci kez uygulanırdı.
+    """
+    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    parsed = provider.parse_webhook_payload(raw_body=raw)
+    return replace(parsed, event_id=event_id)
+
+
 async def apply_webhook_event(
     session: AsyncSession, redis: Redis, event: WebhookEvent, *, provider: str
 ) -> str:
@@ -519,9 +542,9 @@ async def apply_webhook_event(
     kesintisinde tekilleştirme atlanır ama durum uygulaması zaten idempotenttir.
     """
     if event.tenant_id is None:
-        from tenderiq_core.billing.provider import BillingError
-
-        raise BillingError("Webhook olayında kiracı kimliği (tenant_id) yok.")
+        # Kalıcı: imzalı gövde kiracıyı taşımak ZORUNDA. Yeniden denemek aynı
+        # gövdeyi aynı eksikle geri getirir.
+        raise PermanentEventError("Webhook olayında kiracı kimliği (tenant_id) yok.")
 
     # Yalnız OKUMA: damga başarılı uygulamadan sonra yazılır (bkz. docstring).
     try:
@@ -538,17 +561,16 @@ async def apply_webhook_event(
     # sağlayıcı bunu GEÇİCİ hata sayıp asla başarılı olamayacak bir olayı saatlerce
     # yeniden dener. Kalıcı bir reddetme doğru cevaptır.
     if not await _tenant_exists(session, event.tenant_id):
-        from tenderiq_core.billing.provider import BillingError
-
         # Kiracı kimliği loglanır: bu, gerçek bir müşterinin ödemesinin
         # karşılıksız kalması anlamına GELEBİLİR ve sessiz kalmamalıdır.
+        # Olay kuyruğa düşer (çağıran yazar) — kaybolmaz.
         logger.error(
             "webhook_bilinmeyen_kiraci",
             provider=provider,
             event_type=event.event_type,
             tenant_id=str(event.tenant_id),
         )
-        raise BillingError("Webhook olayındaki kiracı bulunamadı.")
+        raise PermanentEventError("Webhook olayındaki kiracı bulunamadı.")
 
     await set_tenant_context(session, event.tenant_id)
     subscription = await quota.get_or_create_subscription(session, event.tenant_id)

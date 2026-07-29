@@ -70,3 +70,4 @@ spike-out/
 # Gerçek şartname etiketleri de doküman içeriği taşır (KVKK) — commit edilmez.
 evals/golden/private/
 evals/predictions/private/
+.run/

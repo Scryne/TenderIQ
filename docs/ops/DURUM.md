@@ -4,62 +4,79 @@
 > sırada ne olduğu ve hangi süreçlerin ayakta bırakıldığı buradan okunur.
 > Her madde bitiminde güncellenir.
 
-**Son güncelleme:** 2026-07-29 · **Aktif tur:** Tur 7 — iptal/plan değişimi + webhook borcu
-> Tur 7'nin iki maddesi de bitti. **Yayın engeli kalktı.**
-> Sıradaki iş: **DLQ + yönetici yeniden işleme ucu**.
+**Son güncelleme:** 2026-07-29 · **Aktif tur:** Tur 8 — DLQ + abonelik bildirimleri
+> Tur 8'in iki maddesi de bitti. Sıradaki iş: **kiracı izolasyonu denetimi**
+> (DLQ tablosu eklendi, RLS + sızıntı testi yazıldı — geri kalan tablolar).
 
 ---
 
-## Tur 7 — biten
+## Tur 8 — biten
 
 | # | Madde | Durum |
 |---|---|---|
-| 1 | İptal + plan değişimi uçları, arayüzü ve testleri | bitti |
-| 2 | `scripts/replay_billing_webhook.py` + uçta bulunan kusurun düzeltilmesi | bitti |
-| — | ADR-0014'e "koşul" bölümü (modül açılmazsa ne olur) | bitti |
+| 1 | Ölü mektup kuyruğu + yönetici yeniden işleme ucu + metrik | bitti |
+| 2 | Abonelik olaylarında e-posta bildirimi | bitti |
 
-### Yayın engeli kalktı
+### Webhook yolu kapandı
 
-`/sartlar` §3'ün üç kuralı da artık **kodda uygulanıyor ve test edilmiş**:
+Doğrulaması geçip uygulanamayan olay artık **kaybolmuyor**:
 
-- **Yükseltme anında** — `request_plan_change`, sağlayıcıya `immediate=True`.
-- **Düşürme dönem sonunda** — `pending_plan` + `current_period_end`; kota bu
-  dönem boyunca DEĞİŞMEZ.
-- **İptal dönem sonunda erişimi keser** — `cancel_at_period_end`; erişim
-  ödenmiş dönemin sonuna kadar sürer, durum ACTIVE kalır.
+- `webhook_dead_letter` (migration `0020`): gövde **redakte**, imza durumu,
+  hata sebebi/türü, deneme sayısı, durum.
+- **Kalıcı** (tanınmayan kiracı, ayrıştırılamayan gövde, geçersiz imza) →
+  kuyruk + **400**. **Geçici** → kuyruk + **503** (sağlayıcı yeniden dener),
+  `MAX_TRANSIENT_ATTEMPTS`ten sonra **200** (fırtınayı durdur).
+- Olay sonunda uygulanırsa kuyruk satırı otomatik **çözülür**.
+- `GET /billing/dead-letters` + `POST /billing/dead-letters/{id}/retry` (admin).
+  Yeniden işleme **hiçbir korumayı atlamaz**: idempotency ve sırasız-olay
+  koruması aynen işler (`duplicate` / `stale` döner, durum değişmez).
+- `/ops/metrics` → `dead_letter_pending`. **`null` = ölçülemedi, sıfır DEĞİL** —
+  sayaç okunamadığında "kuyruk boş" demek panoyu yanlışlıkla yeşile boyardı.
+- Redaksiyon listesi artık log kapısıyla **ortak**
+  (`tenderiq_core.redaction.SENSITIVE_FIELDS`); iki liste tutmak, birine
+  eklenip diğerine eklenmeyen alanın sızması demekti.
 
-Kullanıcı kendi iptal edebiliyor (`POST /billing/subscription/cancel`, kiracı
-yöneticisi), dönem sonuna kadar geri alabiliyor (`/resume`), ve planlanmış bir
-düşürmeyi de geri alabiliyor (mevcut planını yeniden seçerek).
+### Bildirimler bağlandı
 
-**Kiracı sınırı yapısal:** yaşam döngüsü uçlarının hiçbiri gövdeden/yoldan
-kiracı ya da abonelik kimliği ALMAZ; hepsi `principal.tenant_id` üzerinde
-çalışır. "Başka kiracının aboneliğini iptal et" isteği ifade edilemez.
-Sızıntı testi yine de var (`test_iptal_yalnizca_kendi_kiracisini_etkiler`).
+Altı olay → e-posta: başladı · yenilendi · tahsilat başarısız · askıya alındı ·
+iptal edildi (dönem sonu tarihiyle) · iptal geri alındı. Gönderim **commit
+sonrası ve işlem dışı**; hata yutulur. Gerekçe: e-posta hatası isteği
+düşürseydi sağlayıcı 5xx görür, olayı yeniden gönderir ve abonelik **ikinci kez
+uygulanırdı** — bildirim arızası bir yetkilendirme arızasına dönüşürdü. Alıcı
+kiracının yöneticileri; tekrar koruması mevcut idempotency anahtarından;
+bastırma listesi geçerli.
 
-### Tur 7'nin en önemli bulgusu
+### Tur 8'in en önemli bulgusu
 
-`replay_billing_webhook.py` canlı uçta **gerçek bir kusur yakaladı**: imzalı ama
-**tanınmayan bir kiracı** taşıyan olay HTTP **500** döndürüyordu. Zincir şuydu —
-abonelik INSERT'i yabancı anahtar kısıtına takılıyor →
-`quota.get_or_create_subscription` bunu eşzamanlılık yarışı sanıp yeniden okuyor
-→ bulamayınca `assert` patlıyor. Sağlayıcı 500'ü **geçici** hata sayar ve asla
-başarılı olamayacak bir olayı saatlerce yeniden dener. Düzeltildi: kiracı varlığı
-webhook yolunda önceden kontrol ediliyor (kalıcı 400 + `error` seviyesinde log),
-ve `get_or_create_subscription` artık her `IntegrityError`'ı yarış saymıyor.
-Regresyon testi: `test_webhook_bilinmeyen_kiracida_500_donmez`.
+`replay_billing_webhook.py` yine canlı uçta bir kusur yakaladı — ve bu kez
+**entegrasyon testlerinin göremediği** bir kusur.
 
-Diğer altı senaryo (geçerli imza, bozuk imza, imzasız, gövde kurcalama, tekrar
-gönderim, sırasız damga) **canlı uçta geçti** — imza doğrulama, idempotency ve
-sırasız-olay koruması gerçekten çalışıyor.
+RLS politikası `tenant_id = current_setting('app.current_tenant', true)::uuid`
+yazılmıştı. `current_setting(..., true)` ayar **hiç tanımlanmamışsa** `NULL`
+döner; ama aynı bağlantıda daha önce bir istek onu transaction-local olarak
+kurduysa, transaction bittikten sonra ayar **boş dizeye** (`''`) döner.
+Bağlantı havuzunda bu kaçınılmazdır. `''::uuid` hata fırlatır ve politika
+"false" üretmek yerine **sorguyu çökertir** → kimliksiz webhook yolu kuyruğa
+hiç yazamıyor, uç 503 dönüyordu. Testler göremedi çünkü testlerdeki taze
+bağlantılarda ayar hiç tanımlanmamış oluyor.
+
+Düzeltme: `nullif(current_setting('app.current_tenant', true), '')::uuid`.
+Regresyon testi: `test_kiraci_baglami_kullanilmis_baglantida_da_yazilabilir`
+(önce kimlikli istekler, sonra kimliksiz webhook — sıra testin kendisi).
+
+> **Diğer tablolar için not.** Mevcut RLS politikalarının hepsi aynı
+> `nullif`siz kalıbı kullanıyor. Onlar bugüne kadar patlamadı çünkü **yalnız
+> kiracı bağlamı kurulmuşken** sorgulanıyorlar. Kimliksiz bir yoldan
+> sorgulanan ilk tablo bu oldu. Yeni bir tabloyu kimliksiz yoldan
+> sorgulayacaksan `nullif` şart.
 
 ## ÖNCELİK SIRASI (sıradaki turlar)
 
-1. **DLQ + yönetici yeniden işleme ucu.** Doğrulaması geçip uygulanamayan olay
-   şu an kayboluyor.
-2. **Olay başına e-posta bildirimi.** Şablonlar `email/templates.py`de hazır;
-   webhook işleyicisine bağlanacak. (İptal/geri alma da bildirim istiyor artık.)
-3. **Kiracı izolasyonu** — DLQ tablosu eklendiğinde RLS + sızıntı testi.
+1. **Kiracı izolasyonu denetimi.** DLQ tablosu RLS + sızıntı testiyle geldi;
+   geri kalan tablolar için aynı denetim yapılmalı. Ayrıca yukarıdaki `nullif`
+   tuzağı diğer politikalarda da var (bugün zararsız, yarın değil).
+2. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
+3. **Playwright E2E** (kayıt→doğrulama→giriş→panel + bekleme listesi).
 
 ## Sonraki turlara ertelenenler (bilerek)
 
@@ -73,30 +90,35 @@ sırasız-olay koruması gerçekten çalışıyor.
 
 ## Ayakta olan süreçler
 
-| Ne | Kapatma |
-|---|---|
-| API (uvicorn, :8000 — kullanıcının kendi süreci) | `taskkill //PID 6476 //F` |
-| Postgres + Redis konteynerleri | `docker compose -f infra/compose/docker-compose.yml stop postgres redis` |
+| Ne | Port | PID | Kapatma |
+|---|---|---|---|
+| API — **kullanıcının kendi süreci** | 8000 | 6476 / 18500 | `taskkill //PID 6476 //F` |
+| Postgres + Redis konteynerleri | — | — | `docker compose -f infra/compose/docker-compose.yml stop postgres redis` |
 
-> **Tur 7'de açılan geçici süreçler — HÂLÂ AYAKTA, elle kapatılmalı.**
-> `:8010` ve `:8011`de ek uvicorn, `:3000`de web dev sunucusu
-> (`API_URL=http://localhost:8010` ile başlatıldı). Sebep: `:8000`deki süreç
-> Tur 7 kodunu servis etmiyordu (aşağıdaki reload tuzağı) ve **kullanıcının
-> kendi süreci kapatılmadı**; onun yerine ayrı portta örnek açıldı.
->
-> Betikle kapatılamadılar (`Stop-Process`/`taskkill` PID'i bulamıyor, port
-> dinlemede kalıyor). Görev yöneticisinden ya da şu komutla kapatın:
->
-> ```powershell
-> Get-Process python | Where-Object { $_.Path -like '*Tender_IQ*' } | Stop-Process -Force
-> ```
->
-> **Dikkat:** bu komut `:8000`deki kendi sürecinizi de kapatır.
+**Tur 8'de açılan süreçler — HEPSİ KAPATILDI.** Yeni kural uygulandı: açılan her
+süreç PID'i `.run/<port>.pid`e yazılarak başlatıldı ve tur sonunda kapatıldı.
+`.run/` `.gitignore`dadır.
 
-Yerel veritabanı migration'ı: `0019_subscription_lifecycle`.
+> **Tur 7'den kalan iki süreç HÂLÂ AYAKTA ve kapatılamıyor.** `:8010` (PID
+> 10212) ve `:8011` (PID 22500). Bu PID'ler port dinlemede görünüyor ama
+> `taskkill` ve `Stop-Process` "böyle bir süreç yok" diyor — bu oturumdan
+> erişilemiyorlar. Görev Yöneticisi'nden kapatın ya da makineyi yeniden
+> başlatın. Zararsızlar (Tur 7 kodunu servis eden boşta dev sunucuları) ama
+> portları tutuyorlar.
+>
+> Sebebi kayda geçti: `nohup ... &` ile başlatılan süreçler bu ortamda
+> kapatılamıyor; `run_in_background` ile başlatılanlar kapatılabiliyor.
+
+Yerel veritabanı migration'ı: `0020_webhook_dead_letter`.
 
 ## Bilinen borç / dikkat
 
+- **`test_auth_account_flow.py`de 8 test KIRIK ve Tur 8'den ÖNCE de kırıktı.**
+  `POST /auth/register` yanıtındaki `user` nesnesi `email_verified` alanını
+  taşımıyor; testler onu bekliyor (`KeyError: 'email_verified'`). Bu turda
+  dokunulmadı — kapsam dışıydı ve sebebi ödeme yolu değil. Doğrulandı:
+  değişiklikler `git stash`lenip aynı testler koşulduğunda da 8 hata veriyor.
+  Sözleşme mi test mi yanlış, karar verilmeli.
 - Hukuki metinler **taslak**; `LEGAL_TODO.md`de 12 zorunlu alan bekliyor.
 - Resend'e **gerçek gönderim yapılmadı** (alan adı doğrulanmamış; hesap kullanıcıda).
 - iyzico **imza şeması gerçeğe karşı doğrulandı**; abonelik istek/yanıt ŞEMASI
@@ -121,6 +143,17 @@ Yerel veritabanı migration'ı: `0019_subscription_lifecycle`.
 - Testler dış servise çıkmamalı: `conftest`te `EMAIL_PROVIDER=memory` ve
   `billing_client`ta `BILLING_PROVIDER=manual` sabitlenmiş durumda. Yeni sağlayıcı
   eklerken aynı kalıbı uygula.
+- **RLS politikalarında `nullif` tuzağı** (Tur 8 bulgusu): kimliksiz yoldan
+  sorgulanacak her tabloda
+  `nullif(current_setting('app.current_tenant', true), '')::uuid` kullan.
+  `nullif`siz kalıp, bağlantı havuzunda ayar boş dizeye döndüğünde sorguyu
+  çökertir. Mevcut diğer tablolar bugün etkilenmiyor (yalnız bağlam kuruluyken
+  sorgulanıyorlar) ama kalıp yayılmamalı.
+- **Ölü mektup kuyruğunun kiracıya görünen kısmı pratikte seyrek dolar.**
+  Kalıcı hataların çoğu (tanınmayan kiracı, ayrıştırılamayan gövde) tanımı
+  gereği bir kiracıya atfedilemez ve yalnız operatöre görünür. Kiracının
+  listesinde çoğunlukla geçici altyapı hataları görünür. Bu bilinçlidir:
+  atfedemediğimiz bir ödemeyi rastgele bir kiracıya göstermek sızıntı olurdu.
 - Webhook testlerinde **sabit olay kimliği kullanma** — dedup anahtarı Redis'te
   kalıcıdır, ikinci koşuda test yanlış şeyi ölçer.
 - **Dönem sonu görevi bir YEDEKTİR**, kaynak değil. Normalde dönem bitişini
