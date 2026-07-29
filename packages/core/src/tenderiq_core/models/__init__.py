@@ -28,6 +28,11 @@ from tenderiq_core.models.timeline_event import TimelineEvent
 from tenderiq_core.models.usage_record import UsageRecord
 from tenderiq_core.models.user import User
 from tenderiq_core.models.waitlist_entry import WaitlistEntry
+from tenderiq_core.models.webhook_dead_letter import (
+    DeadLetterKind,
+    DeadLetterStatus,
+    WebhookDeadLetter,
+)
 
 __all__ = [
     "EMBEDDING_DIM",
@@ -38,6 +43,8 @@ __all__ = [
     "CapabilityProfile",
     "Chunk",
     "ComplianceResult",
+    "DeadLetterKind",
+    "DeadLetterStatus",
     "Deliverable",
     "Document",
     "DocumentKind",
@@ -65,4 +72,5 @@ __all__ = [
     "UsageRecord",
     "User",
     "WaitlistEntry",
+    "WebhookDeadLetter",
 ]

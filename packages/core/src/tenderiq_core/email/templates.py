@@ -240,3 +240,120 @@ def subscription_canceled(
         html=html,
         idempotency_key=f"subscription_canceled:{event_id}",
     )
+
+
+def subscription_started(
+    *, to: str, plan: str, next_charge_text: str, link: str, event_id: str
+) -> EmailMessage:
+    """Abonelik başladı — ilk tahsilat alındı ve plan açıldı."""
+    text = (
+        f"{plan} aboneliğiniz başladı; plan limitleriniz hemen geçerli.\n\n"
+        f"Sıradaki tahsilat: {next_charge_text}. Aboneliğinizi dilediğiniz zaman "
+        "iptal edebilirsiniz; iptal, içinde bulunduğunuz dönemin sonunda geçerli olur.\n\n"
+        f"Aboneliğinizi yönetmek için: {link}"
+    )
+    html = _wrap(
+        _paragraphs(
+            f"{plan} aboneliğiniz başladı; plan limitleriniz hemen geçerli.",
+            f"Sıradaki tahsilat: {next_charge_text}.",
+            "Aboneliğinizi dilediğiniz zaman iptal edebilirsiniz; iptal, içinde "
+            "bulunduğunuz dönemin sonunda geçerli olur.",
+        )
+        + _button(link, "Aboneliğimi yönet")
+    )
+    return EmailMessage(
+        kind=EmailKind.SUBSCRIPTION_STARTED,
+        to=to,
+        subject=f"{_BRAND} — {plan} aboneliğiniz başladı",
+        text=text,
+        html=html,
+        idempotency_key=f"subscription_started:{event_id}",
+    )
+
+
+def subscription_renewed(
+    *, to: str, plan: str, next_charge_text: str, link: str, event_id: str
+) -> EmailMessage:
+    """Abonelik yenilendi — dönem uzadı."""
+    text = (
+        f"{plan} aboneliğiniz yenilendi.\n\n"
+        f"Sıradaki tahsilat: {next_charge_text}.\n\n"
+        f"Aboneliğinizi yönetmek için: {link}"
+    )
+    html = _wrap(
+        _paragraphs(
+            f"{plan} aboneliğiniz yenilendi.",
+            f"Sıradaki tahsilat: {next_charge_text}.",
+        )
+        + _button(link, "Aboneliğimi yönet")
+    )
+    return EmailMessage(
+        kind=EmailKind.SUBSCRIPTION_RENEWED,
+        to=to,
+        subject=f"{_BRAND} — Aboneliğiniz yenilendi",
+        text=text,
+        html=html,
+        idempotency_key=f"subscription_renewed:{event_id}",
+    )
+
+
+def subscription_suspended(*, to: str, plan: str, link: str, event_id: str) -> EmailMessage:
+    """Abonelik askıya alındı — ödeme alınamadı ve denemeler tükendi.
+
+    Bu mesaj bir **uyarı** değil bir **durum bildirimi**dir: erişim değişmiştir
+    ve kullanıcının bunu ekranı açmadan önce bilmesi gerekir.
+    """
+    text = (
+        f"{plan} aboneliğiniz askıya alındı; ödeme alınamadı.\n\n"
+        "Verileriniz duruyor ve silinmedi. Ödeme yönteminizi güncellediğinizde "
+        "aboneliğiniz kaldığı yerden devam eder.\n\n"
+        f"Ödeme yöntemimi güncelle: {link}"
+    )
+    html = _wrap(
+        _paragraphs(
+            f"{plan} aboneliğiniz askıya alındı; ödeme alınamadı.",
+            "Verileriniz duruyor ve silinmedi. Ödeme yönteminizi güncellediğinizde "
+            "aboneliğiniz kaldığı yerden devam eder.",
+        )
+        + _button(link, "Ödeme yöntemimi güncelle")
+    )
+    return EmailMessage(
+        kind=EmailKind.SUBSCRIPTION_SUSPENDED,
+        to=to,
+        subject=f"{_BRAND} — Aboneliğiniz askıya alındı",
+        text=text,
+        html=html,
+        idempotency_key=f"subscription_suspended:{event_id}",
+    )
+
+
+def subscription_resumed(
+    *, to: str, plan: str, next_charge_text: str, link: str, event_id: str
+) -> EmailMessage:
+    """İptal geri alındı — abonelik devam ediyor.
+
+    Bu e-posta ihmal edilebilir görünür ama değildir: iptali geri alan kullanıcı
+    "gerçekten geri alındı mı, yine de kesilecek mi" diye tereddüt eder ve bu
+    tereddüt destek talebine dönüşür. Ayrıca iptali BAŞKASININ geri aldığı hâlde
+    (aynı organizasyonda ikinci bir yönetici) haberdar olmayı sağlar.
+    """
+    text = (
+        f"{plan} aboneliğinizin iptali geri alındı; aboneliğiniz devam ediyor.\n\n"
+        f"Sıradaki tahsilat: {next_charge_text}.\n\n"
+        f"Aboneliğinizi yönetmek için: {link}"
+    )
+    html = _wrap(
+        _paragraphs(
+            f"{plan} aboneliğinizin iptali geri alındı; aboneliğiniz devam ediyor.",
+            f"Sıradaki tahsilat: {next_charge_text}.",
+        )
+        + _button(link, "Aboneliğimi yönet")
+    )
+    return EmailMessage(
+        kind=EmailKind.SUBSCRIPTION_RESUMED,
+        to=to,
+        subject=f"{_BRAND} — Aboneliğinizin iptali geri alındı",
+        text=text,
+        html=html,
+        idempotency_key=f"subscription_resumed:{event_id}",
+    )

@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from tenderiq_api.errors import NotFoundError, UnauthorizedError
 from tenderiq_core.config import get_settings
 from tenderiq_core.ops import MAX_WINDOW_MINUTES, OpsSnapshot, collect_snapshot
+from tenderiq_core.services import dead_letter as dead_letter_service
 
 router = APIRouter(prefix="/ops", tags=["ops"], include_in_schema=False)
 
@@ -68,6 +69,15 @@ class OpsMetricsResponse(BaseModel):
     generated_at: datetime
     window_minutes: int
     queue_depth: int = Field(description="Celery kuyruğunda bekleyen iş sayısı.")
+    dead_letter_pending: int | None = Field(
+        description=(
+            "Uygulanamamış ödeme olayı sayısı (ölü mektup kuyruğu). SIFIRDAN "
+            "FARKLIYSA insan bakmalı: her satır, karşılığı verilmemiş bir ödeme "
+            "ya da uygulanmamış bir erişim değişikliği olabilir. ``null`` "
+            "ÖLÇÜLEMEDİ demektir (sıfır DEĞİL) — sayaç okunamadığında 'kuyruk "
+            "boş' demek, panoyu yanlışlıkla yeşile boyardı."
+        )
+    )
     api: ApiWindowResponse
     phases: list[PhaseWindowResponse]
     slos: list[SloVerdictResponse]
@@ -88,11 +98,12 @@ def _require_ops_token(authorization: str | None) -> None:
         raise UnauthorizedError("Ops token'ı geçersiz.")
 
 
-def _to_response(snapshot: OpsSnapshot) -> OpsMetricsResponse:
+def _to_response(snapshot: OpsSnapshot, *, dead_letter_pending: int | None) -> OpsMetricsResponse:
     return OpsMetricsResponse(
         generated_at=snapshot.generated_at,
         window_minutes=snapshot.window_minutes,
         queue_depth=snapshot.queue_depth,
+        dead_letter_pending=dead_letter_pending,
         api=ApiWindowResponse(
             requests=snapshot.api.requests,
             server_errors=snapshot.api.server_errors,
@@ -139,4 +150,9 @@ async def ops_metrics(
         request.app.state.redis,
         window_minutes=window or settings.ops_metrics_window_minutes,
     )
-    return _to_response(snapshot)
+    # Kuyruk boyutu Redis kümesinden okunur, veritabanından DEĞİL: ops ucu
+    # kiracı bağlamı kurmaz ve `webhook_dead_letter` SELECT'i RLS'ye tabidir,
+    # yani DB'den yapılan bir sayım her zaman sıfır dönerdi — sessizce yanlış
+    # bir 'her şey yolunda' metriği.
+    dead_letter_pending = await dead_letter_service.pending_count(request.app.state.redis)
+    return _to_response(snapshot, dead_letter_pending=dead_letter_pending)

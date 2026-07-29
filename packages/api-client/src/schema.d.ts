@@ -274,6 +274,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing/dead-letters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Dead Letters
+         * @description Kiracının uygulanamamış ödeme olayları (admin).
+         */
+        get: operations["list_dead_letters_api_v1_billing_dead_letters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/dead-letters/{dead_letter_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Dead Letter
+         * @description Kuyruktaki bir olayı yeniden işler (admin).
+         *
+         *     **Hiçbir korumayı atlamaz.** Olay, canlı webhook'la aynı yoldan
+         *     (``apply_webhook_event``) geçer: idempotency damgası ve sırasız-olay
+         *     (``occurred_at``) koruması aynen işler. Yani daha önce uygulanmış bir olay
+         *     ``duplicate``, aboneliğin şimdiki durumundan eski bir olay ``stale`` döner
+         *     ve durum DEĞİŞMEZ. Aksi hâlde "yeniden işle" düğmesi, iptal etmiş bir
+         *     müşterinin aboneliğini geri açabilirdi.
+         *
+         *     Olay kimliği **saklanan sütundan** alınır, gövdeden yeniden türetilmez:
+         *     gövde redaktedir ve bazı sağlayıcılarda kimlik redakte edilen bir alandan
+         *     türer — türetilseydi idempotency anahtarı kayar ve olay ikinci kez
+         *     uygulanabilirdi.
+         */
+        post: operations["retry_dead_letter_api_v1_billing_dead_letters__dead_letter_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/billing/plans": {
         parameters: {
             query?: never;
@@ -375,8 +427,16 @@ export interface paths {
          * Billing Webhook
          * @description Ödeme sağlayıcısı webhook'u (kimliksiz; HMAC imzayla doğrulanır, idempotent).
          *
-         *     İmza geçersizse 400. Olay daha önce işlenmişse durum tekrar uygulanmaz
-         *     (``duplicate``). Kiracı bağlamı olayın imzalı gövdesinden (güvenilir) türetilir.
+         *     **Hiçbir olay sessizce kaybolmaz.** Doğrulaması geçip uygulanamayan olay ölü
+         *     mektup kuyruğuna yazılır ve yanıt, sağlayıcıya ne yapması gerektiğini söyler:
+         *
+         *     * **kalıcı hata → 400.** Yeniden deneme düzeltmez (tanınmayan kiracı,
+         *       eşlenmemiş durum); sağlayıcıyı denemeye çağırmak yalnız gürültü üretir.
+         *     * **geçici hata → 503**, ta ki deneme tavanı dolana kadar; sonra 200. Çünkü
+         *       sınırsız yeniden deneme fırtınası gerçek arızayı log'da görünmez kılar.
+         *     * **imza geçersiz → 400**, ama gövde yine de (tavan dâhilinde) kuyruğa
+         *       yazılır: imza BİÇİMİ hâlâ doğrulanmamış bir varsayımdır ve biçim yanlışsa
+         *       gerçek olayların tamamı buraya düşer — teşhisin tek yolu budur.
          */
         post: operations["billing_webhook_api_v1_billing_webhook_post"];
         delete?: never;
@@ -1499,6 +1559,67 @@ export interface components {
             /** Tenders */
             tenders: components["schemas"]["ExportedTender"][];
         };
+        /**
+         * DeadLetterKind
+         * @description Hatanın yeniden denemeyle geçip geçmeyeceği.
+         *
+         *     Ayrım, ucun döndüreceği yanıtı belirler: ``TRANSIENT`` sağlayıcının kendi yeniden
+         *     denemesiyle düzelebilir (503 döndürürüz), ``PERMANENT`` asla düzelmez —
+         *     sağlayıcıyı yeniden denemeye çağırmak sadece gürültü üretir (400 döndürürüz).
+         * @enum {string}
+         */
+        DeadLetterKind: "transient" | "permanent";
+        /**
+         * DeadLetterResponse
+         * @description Kuyruktaki tek bir olay (gövde REDAKTE edilmiş hâliyle).
+         */
+        DeadLetterResponse: {
+            /** Attempts */
+            attempts: number;
+            /** Error */
+            error: string;
+            /** Event Id */
+            event_id: string;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["DeadLetterKind"];
+            /**
+             * Last Attempt At
+             * Format: date-time
+             */
+            last_attempt_at: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            } | null;
+            /** Provider */
+            provider: string;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Signature Valid */
+            signature_valid: boolean;
+            status: components["schemas"]["DeadLetterStatus"];
+        };
+        /**
+         * DeadLetterRetryResponse
+         * @description Yeniden işleme sonucu.
+         */
+        DeadLetterRetryResponse: {
+            dead_letter: components["schemas"]["DeadLetterResponse"];
+            /** Outcome */
+            outcome: string;
+        };
+        /**
+         * DeadLetterStatus
+         * @description Kuyruk satırının yaşam döngüsü.
+         * @enum {string}
+         */
+        DeadLetterStatus: "pending" | "resolved" | "discarded";
         /**
          * DeliverableKind
          * @description Sunulacak belge tipi (§8.1 ``Deliverable``).
@@ -3047,6 +3168,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckoutResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_dead_letters_api_v1_billing_dead_letters_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["DeadLetterStatus"] | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeadLetterResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_dead_letter_api_v1_billing_dead_letters__dead_letter_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                dead_letter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeadLetterRetryResponse"];
                 };
             };
             /** @description Validation Error */

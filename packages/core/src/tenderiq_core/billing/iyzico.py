@@ -347,6 +347,10 @@ class IyzicoBillingProvider:
         verify_webhook_signature(
             secret_key=self._webhook_secret, raw_body=raw_body, provided=provided
         )
+        return self.parse_webhook_payload(raw_body=raw_body)
+
+    def parse_webhook_payload(self, *, raw_body: bytes) -> WebhookEvent:
+        """Gövdeyi imza doğrulamadan ayrıştırır (ölü mektup yeniden işleme)."""
         try:
             data = json.loads(raw_body)
         except (json.JSONDecodeError, ValueError) as exc:

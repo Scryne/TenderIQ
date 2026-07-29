@@ -22,7 +22,11 @@ class EmailKind(StrEnum):
     WAITLIST_ACCEPTED = "waitlist_accepted"
     PAYMENT_SUCCEEDED = "payment_succeeded"
     PAYMENT_FAILED = "payment_failed"
+    SUBSCRIPTION_STARTED = "subscription_started"
+    SUBSCRIPTION_RENEWED = "subscription_renewed"
+    SUBSCRIPTION_SUSPENDED = "subscription_suspended"
     SUBSCRIPTION_CANCELED = "subscription_canceled"
+    SUBSCRIPTION_RESUMED = "subscription_resumed"
 
 
 # NOT: Daha önce burada tür bazlı bir "bastırmayı aşan mesajlar" listesi vardı
