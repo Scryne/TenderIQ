@@ -5,6 +5,7 @@
 > Her madde bitiminde güncellenir.
 
 **Son güncelleme:** 2026-07-29 · **Aktif tur:** Tur 4 — iyzico adaptörü + webhook
+> Madde 0 ve 1 bitti; madde 2 (webhook sertleştirme) başlanmadı.
 
 ---
 
@@ -14,12 +15,11 @@
 |---|---|---|
 | 0 | Kalıcı bounce'ta otomatik yeniden deneme kaldırıldı | `6d002ae` |
 
+| 1 | iyzico abonelik adaptörü + sahte sağlayıcı | `e46f90b` |
+
 ## Sırada (bu tur)
 
-1. **`PaymentProvider` — iyzico implementasyonu** (turun ana işi): seam'i doldur,
-   sahte sağlayıcı + sözleşme testleri, `conftest`'te sahte sağlayıcıya sabitle,
-   abonelik oluştur/iptal/yükselt/düşür.
-2. **Webhook sertleştirme**: sıra dışı olay dayanıklılığı (zaman damgası),
+1. **Webhook sertleştirme**: sıra dışı olay dayanıklılığı (zaman damgası),
    ölü mektup kuyruğu + yeniden işleme ucu (admin), her olayda e-posta bildirimi,
    yetkilendirme mutabakat kontrolü.
 3. **Kiracı izolasyonu**: yeni abonelik/ödeme tablolarında RLS + sızıntı testleri.
@@ -49,6 +49,9 @@ Yerel veritabanı migration'ı: `0017_email_suppression`.
 
 - Hukuki metinler **taslak**; `LEGAL_TODO.md`de 12 zorunlu alan bekliyor.
 - Resend'e **gerçek gönderim yapılmadı** (alan adı doğrulanmamış; hesap kullanıcıda).
+- iyzico adaptörü **gerçek sandbox'a karşı koşulmadı** (merchant hesabı kullanıcıda).
+  Sözleşme testleri sahte HTTP taşımasıyla çalışıyor; imza şeması ve uç yolları
+  dokümantasyondan yazıldı, canlı yanıtla doğrulanmadı.
 - Testler dış servise çıkmamalı: `conftest`te `EMAIL_PROVIDER=memory` ve
   `billing_client`ta `BILLING_PROVIDER=manual` sabitlenmiş durumda. Yeni sağlayıcı
   eklerken aynı kalıbı uygula.
