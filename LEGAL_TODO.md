@@ -79,7 +79,20 @@ Uygulanması için gereken adımlar:
 
 > **Yapılacak:** 2-3. adımlar; imza tarihini ve bildirim referansını sakla.
 
-## E. Hukuk onayı — `LEGAL_CONFIG.reviewedByCounsel`
+## E. e-Arşiv / e-Fatura entegrasyonu (YAPILMADI — sıradaki tur)
+
+**iyzico fatura kesmez.** Ödeme alındığında Türkiye'de fatura düzenleme
+yükümlülüğü doğar (VUK); bu ayrı bir entegratör gerektirir (Paraşüt, Birfatura,
+Logo İşbaşı vb.). Kod tarafında `InvoiceProvider` seam'i **henüz yazılmadı**.
+
+> **Yapılacak (sen):** entegratör seç ve hesap aç. Mükellefiyet türüne göre
+> e-Fatura (mükellefe) / e-Arşiv (mükellef olmayana) ayrımı gerekir; entegratör
+> bunu GİB mükellef sorgusuyla çözer.
+>
+> **Yapılacak (kod, sıradaki tur):** `InvoiceProvider` arayüzü + no-op
+> implementasyon + ödeme başarılı olayına bağlanması.
+
+## F. Hukuk onayı — `LEGAL_CONFIG.reviewedByCounsel`
 
 Metinler sistemin gerçeğine göre yazıldı (VUK×KVKK çakışması, 30 günlük saklama
 penceresi, RLS izolasyonu, sıfır saklama yapılandırması — hepsinin kodda
