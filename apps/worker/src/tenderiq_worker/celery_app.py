@@ -15,6 +15,7 @@ from tenderiq_core.queueing import (
     QUEUE_DEFAULT,
     TASK_CLEANUP_STALE_UPLOADS,
     TASK_PURGE_DELETED,
+    TASK_RECONCILE_SUBSCRIPTIONS,
 )
 
 
@@ -60,6 +61,13 @@ def create_celery_app() -> Celery:
             "purge-deleted": {
                 "task": TASK_PURGE_DELETED,
                 "schedule": 24 * 3600.0,
+            },
+            # Mutabakat SIK koşar: "ödeme alındı ama erişim açılmadı" hâlinin
+            # süresi doğrudan müşterinin bekleme süresidir. Saatlik, kayıp bir
+            # webhook'un etkisini en fazla bir saatle sınırlar.
+            "reconcile-subscriptions": {
+                "task": TASK_RECONCILE_SUBSCRIPTIONS,
+                "schedule": 3600.0,
             },
         },
     )

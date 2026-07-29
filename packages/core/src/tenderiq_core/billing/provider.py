@@ -98,6 +98,14 @@ def _verify_signature(secret: str | None, headers: Mapping[str, str], raw_body: 
         raise WebhookVerificationError("Webhook imzası geçersiz.")
 
 
+@dataclass(frozen=True)
+class ProviderSubscriptionState:
+    """Sağlayıcıdaki abonelik durumunun anlık görüntüsü (mutabakat için)."""
+
+    status: SubscriptionStatus
+    plan_tier: PlanTier | None
+
+
 class BillingProvider(Protocol):
     """Ödeme sağlayıcı sözleşmesi (checkout + webhook)."""
 
@@ -111,6 +119,17 @@ class BillingProvider(Protocol):
 
     def parse_webhook(self, *, headers: Mapping[str, str], raw_body: bytes) -> WebhookEvent:
         """Webhook imzasını doğrular ve olayı ayrıştırır (geçersizse hata)."""
+        ...
+
+    async def fetch_subscription(
+        self, *, provider_subscription_id: str
+    ) -> ProviderSubscriptionState | None:
+        """Sağlayıcıdaki güncel durumu çeker (mutabakat). Bulunamazsa ``None``.
+
+        Webhook'un HİÇ gelmediği hâlin tek yedeği budur: checkout erişimi
+        açmadığı için, kayıp bir olay "ödeme alındı ama erişim açılmadı"
+        durumunu sessizce kalıcı kılar.
+        """
         ...
 
 
@@ -134,6 +153,12 @@ class ManualBillingProvider:
             provider_customer_id=None,
             provider_subscription_id=f"manual_{tenant_id}",
         )
+
+    async def fetch_subscription(
+        self, *, provider_subscription_id: str
+    ) -> ProviderSubscriptionState | None:
+        """Test-modu sağlayıcıda uzak durum yoktur; mutabakat uygulanmaz."""
+        return None
 
     def parse_webhook(self, *, headers: Mapping[str, str], raw_body: bytes) -> WebhookEvent:
         _verify_signature(self._secret, headers, raw_body)

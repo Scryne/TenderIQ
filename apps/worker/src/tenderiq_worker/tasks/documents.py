@@ -42,6 +42,7 @@ from tenderiq_core.queueing import (
     TASK_CLEANUP_STALE_UPLOADS,
     TASK_PROCESS_DOCUMENT,
     TASK_PURGE_DELETED,
+    TASK_RECONCILE_SUBSCRIPTIONS,
 )
 from tenderiq_core.services.audit import record_audit
 from tenderiq_core.services.deletion import (
@@ -420,3 +421,49 @@ def _purge_closed_organizations(
             users_deleted=result.users_deleted,
         )
     return purged
+
+
+@celery_app.task(name=TASK_RECONCILE_SUBSCRIPTIONS)
+def reconcile_subscriptions() -> int:
+    """Sağlayıcıdaki abonelik durumuyla bizdeki yetkilendirmeyi mutabık kılar.
+
+    Checkout erişimi AÇMAZ; yetkilendirmeyi açan tek mekanizma webhook'tur.
+    Webhook hiç gelmezse "ödeme alındı ama erişim açılmadı" hâli sessizce
+    kalıcı olur — bu iş onun tek yedeğidir.
+
+    Dönen değer: toplam sapma sayısı (sıfırdan farklıysa görünür olmalı).
+    """
+    import asyncio
+
+    from tenderiq_core.billing.provider import BillingError, create_billing_provider
+    from tenderiq_core.db import create_engine, create_session_factory
+    from tenderiq_core.services import billing as billing_service
+
+    settings = get_settings()
+    try:
+        provider = create_billing_provider(
+            settings.billing_provider,
+            webhook_secret=settings.billing_webhook_secret,
+            settings=settings,
+        )
+    except BillingError as exc:
+        logger.warning("mutabakat_saglayici_yok", error=str(exc))
+        return 0
+
+    factory = get_session_factory()
+    with factory() as session:
+        tenant_ids = list(session.scalars(select(Organization.id)))
+
+    async def _run() -> int:
+        engine = create_engine(settings)
+        async_factory = create_session_factory(engine)
+        try:
+            async with async_factory() as async_session, async_session.begin():
+                report = await billing_service.reconcile_subscriptions(
+                    async_session, provider, tenant_ids=tenant_ids
+                )
+            return report.drift
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
