@@ -1,10 +1,6 @@
 """İşlemsel e-posta: mesaj modeli, Türkçe şablonlar, sağlayıcı seam'i, servis."""
 
-from tenderiq_core.email.message import (
-    SUPPRESSION_BYPASS_KINDS,
-    EmailKind,
-    EmailMessage,
-)
+from tenderiq_core.email.message import EmailKind, EmailMessage
 from tenderiq_core.email.provider import (
     EmailDeliveryError,
     EmailProvider,
@@ -16,7 +12,6 @@ from tenderiq_core.email.provider import (
 from tenderiq_core.email.service import EmailOutcome, is_suppressed, send_email
 
 __all__ = [
-    "SUPPRESSION_BYPASS_KINDS",
     "EmailDeliveryError",
     "EmailKind",
     "EmailMessage",

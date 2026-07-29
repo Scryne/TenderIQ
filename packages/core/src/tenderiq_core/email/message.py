@@ -25,11 +25,17 @@ class EmailKind(StrEnum):
     SUBSCRIPTION_CANCELED = "subscription_canceled"
 
 
-#: Bastırma listesini AŞAN türler. Kullanıcının hesabına erişimini kurtaran
-#: mesajlar bir bounce kaydı yüzünden engellenmemelidir.
-SUPPRESSION_BYPASS_KINDS: frozenset[EmailKind] = frozenset(
-    {EmailKind.VERIFY_EMAIL, EmailKind.PASSWORD_RESET}
-)
+# NOT: Daha önce burada tür bazlı bir "bastırmayı aşan mesajlar" listesi vardı
+# (doğrulama + parola sıfırlama). Kaldırıldı: kalıcı bounce almış bir adrese
+# OTOMATİK olarak yeniden göndermek, teslim edilemeyeceği KESİN bilinen bir
+# mesajı tekrar tekrar denemektir — gönderen alan adının itibarını düşürür ve
+# kullanıcıya hiçbir fayda sağlamaz.
+#
+# Yerine geçen kural: atlama, mesajın TÜRÜNE değil, gönderimin KAYNAĞINA bağlıdır
+# (``send_email(..., manual_retry=True)``). Kullanıcı "yeniden gönder" dediyse
+# ya da parolasını sıfırlamayı kendisi istediyse deneriz; sistem kendiliğinden
+# denemez. Kullanıcı adresini güncellerse bastırma yeni adres için zaten
+# geçerli değildir.
 
 
 @dataclass(frozen=True, slots=True)

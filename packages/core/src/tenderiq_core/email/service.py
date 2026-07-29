@@ -6,12 +6,12 @@ Bu katman sağlayıcıdan bağımsız **kuralları** uygular; sağlayıcı yaln�
 
 1. **Bastırma.** Kalıcı bounce/şikâyet almış adrese gönderilmez — aksi hâlde
    gönderen alan adının itibarı düşer ve meşru e-postalar da spam'e düşer.
-   İstisna: ``SUPPRESSION_BYPASS_KINDS`` (doğrulama, parola sıfırlama).
-   Kullanıcıyı hesabından kalıcı kilitlemek bir bounce kaydından ağırdır.
 2. **Tekrar koruması.** ``idempotency_key`` verilmişse aynı olay iki kez
    e-posta üretmez. Webhook'lar mükerrer teslim eder; kullanıcı aynı ödeme için
    iki "ödemeniz alındı" almamalıdır.
-3. **Gönderim çağıranı düşürmez.** Sağlayıcı hatası loglanır; kayıt/davet gibi
+3. **Bastırmayı yalnız elle tetiklenen gönderim aşar** (``manual_retry=True``).
+   Kural mesajın türüne değil, gönderimin kaynağına bağlıdır.
+4. **Gönderim çağıranı düşürmez.** Sağlayıcı hatası loglanır; kayıt/davet gibi
    akışlar e-postaya bağlı değildir (kullanıcı yeniden gönderim isteyebilir).
    Çağıran isterse ``raise_on_error=True`` ile bu davranışı kapatır.
 """
@@ -26,7 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tenderiq_core.config import Settings
-from tenderiq_core.email.message import SUPPRESSION_BYPASS_KINDS, EmailMessage
+from tenderiq_core.email.message import EmailMessage
 from tenderiq_core.email.provider import EmailDeliveryError, EmailProvider
 from tenderiq_core.logging import get_logger, mask_email
 from tenderiq_core.models import EmailSuppression
@@ -81,10 +81,14 @@ async def send_email(
     session: AsyncSession | None = None,
     redis: Redis | None = None,
     raise_on_error: bool = False,
+    manual_retry: bool = False,
 ) -> EmailOutcome:
     """Kuralları uygulayarak mesajı gönderir; sonucu (``SENT``/…) döndürür."""
-    bypasses = message.kind in SUPPRESSION_BYPASS_KINDS
-    if session is not None and not bypasses and await is_suppressed(session, message.to):
+    # Bastırmayı yalnız KULLANICININ açıkça istediği gönderim aşar. Sistem
+    # kendiliğinden (ör. kayıt sonrası) kalıcı bounce almış bir adrese yeniden
+    # denemez: teslim edilemeyeceği kesin bilinen mesajı tekrarlamak, gönderen
+    # itibarını düşürür ve kullanıcıya hiçbir fayda sağlamaz.
+    if session is not None and not manual_retry and await is_suppressed(session, message.to):
         logger.info(
             "eposta_bastirildi",
             kind=message.kind.value,
