@@ -148,3 +148,69 @@ def test_webhook_gecersiz_imza_reddedilir(billing_client: TestClient) -> None:
         headers={"x-tenderiq-signature": "deadbeef", "content-type": "application/json"},
     )
     assert resp.status_code == 400, resp.text
+
+
+# ── Kiracı izolasyonu (Tur 3 / A6) ───────────────────────────────────────────
+# Ödeme ve kota tabloları paranın ve hakkın kaydıdır: buradaki bir sızıntı
+# yalnız gizlilik değil, YETKİLENDİRME sorunudur (başkasının planını görmek ya
+# da değiştirmek). RLS bunu zaten kapatıyor; testler o kapının açık kaldığını
+# bir sonraki değişiklikte fark etsin diye var.
+
+
+def test_abonelik_baska_kiraciya_sizmaz(billing_client: TestClient) -> None:
+    """A'nın planı yükseldiğinde B hâlâ kendi (ücretsiz) planını görmeli."""
+    _, token_a = _register_and_login(billing_client, slug="bill-iz-a", email="iz-a@org.com")
+    _, token_b = _register_and_login(billing_client, slug="bill-iz-b", email="iz-b@org.com")
+
+    upgrade = billing_client.post(
+        "/api/v1/billing/checkout", json={"plan": "pro"}, headers=_auth(token_a)
+    )
+    assert upgrade.status_code == 200, upgrade.text
+
+    usage_a = billing_client.get("/api/v1/usage", headers=_auth(token_a))
+    usage_b = billing_client.get("/api/v1/usage", headers=_auth(token_b))
+
+    assert usage_a.status_code == 200
+    assert usage_b.status_code == 200
+    assert usage_a.json()["plan"] == "pro"
+    assert usage_b.json()["plan"] == "free"
+
+
+def test_webhook_yalnizca_govdedeki_kiraciyi_etkiler(billing_client: TestClient) -> None:
+    """Olay gövdesi İMZALIDIR; kiracı kimliği oradan gelir ve başkasına taşmaz."""
+    tenant_a, token_a = _register_and_login(billing_client, slug="bill-wh-a", email="wh-a@org.com")
+    _, token_b = _register_and_login(billing_client, slug="bill-wh-b", email="wh-b@org.com")
+
+    raw, headers = _sign(
+        {
+            # Dedup anahtarı Redis'te KALICIDIR; sabit kimlik ikinci koşuda
+            # olayı "mükerrer" yapar ve test sessizce yanlış şey ölçer.
+            "event_id": f"evt-izolasyon-{uuid.uuid4()}",
+            "event_type": "subscription.activated",
+            "tenant_id": tenant_a,
+            "plan": "pro",
+            "status": "active",
+        }
+    )
+    response = billing_client.post("/api/v1/billing/webhook", content=raw, headers=headers)
+    assert response.status_code == 200, response.text
+
+    assert billing_client.get("/api/v1/usage", headers=_auth(token_a)).json()["plan"] == "pro"
+    assert billing_client.get("/api/v1/usage", headers=_auth(token_b)).json()["plan"] == "free"
+
+
+def test_kullanim_kaydi_kiracilar_arasi_toplanmaz(billing_client: TestClient) -> None:
+    """Kota sayacı kiracıya özeldir; B'nin tüketimi A'nın kotasını yemez."""
+    _, token_a = _register_and_login(billing_client, slug="bill-kt-a", email="kt-a@org.com")
+    _, token_b = _register_and_login(billing_client, slug="bill-kt-b", email="kt-b@org.com")
+
+    for token in (token_a, token_b):
+        created = billing_client.post(
+            "/api/v1/tenders", json={"title": "Kota testi"}, headers=_auth(token)
+        )
+        assert created.status_code == 201
+
+    usage_a = billing_client.get("/api/v1/usage", headers=_auth(token_a)).json()
+    usage_b = billing_client.get("/api/v1/usage", headers=_auth(token_b)).json()
+
+    assert usage_a["documents"]["used"] == usage_b["documents"]["used"] == 0
