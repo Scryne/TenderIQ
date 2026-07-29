@@ -1,0 +1,8 @@
+{
+  "http_status": 422,
+  "body": {
+    "status": "failure",
+    "errorCode": "100001",
+    "errorMessage": "Sistem hatası"
+  }
+}

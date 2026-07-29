@@ -1,0 +1,15 @@
+{
+  "http_status": 200,
+  "body": {
+    "binNumber": "554960",
+    "cardType": "<gizli>",
+    "cardAssociation": "<gizli>",
+    "cardFamily": "<gizli>",
+    "bankName": "Garanti Bankası",
+    "bankCode": 62,
+    "commercial": 0,
+    "status": "success",
+    "locale": "tr",
+    "conversationId": "t"
+  }
+}
