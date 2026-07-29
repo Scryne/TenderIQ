@@ -86,6 +86,11 @@ def api_client(app_database_url: str) -> Iterator[TestClient]:
     os.environ["OBJECT_STORAGE_ENDPOINT_URL"] = "http://localhost:9000"
     os.environ["OBJECT_STORAGE_ACCESS_KEY_ID"] = "test-key"
     os.environ["OBJECT_STORAGE_SECRET_ACCESS_KEY"] = "test-secret"
+    # E-posta sağlayıcısı SABİTLENİR: `Settings` `.env`i de okur ve geliştirici
+    # makinesinde gerçek bir sağlayıcı (resend) seçiliyse testler DIŞ SERVİSE
+    # çıkar — yavaşlar, kota harcar ve ağ kesintisinde kırmızıya döner.
+    # (Aynı gerekçe BILLING_PROVIDER için de geçerli; bkz. billing_client.)
+    os.environ["EMAIL_PROVIDER"] = "memory"
     get_settings.cache_clear()
 
     # Oran sınırlama (rl:*), refresh token'lar (rt:* / rtfam:*) ve operasyon

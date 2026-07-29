@@ -41,6 +41,19 @@ FORBIDDEN_LOG_FIELDS = frozenset(
     {
         "address",
         "adres",
+        # ── Ödeme (Tur 3) ── Kart verisi bize hiç GELMEZ (sağlayıcı tokenize
+        # eder). Yine de log alanı olarak yasaklanır: bir adaptör yazarken
+        # sağlayıcı yanıtını olduğu gibi loglamak en kolay hatadır ve kart
+        # verisinin loga düşmesi PCI kapsamına girmek demektir.
+        "card",
+        "card_number",
+        "cardholder",
+        "cvc",
+        "cvv",
+        "expiry",
+        "iban",
+        "kart",
+        "pan",
         "alinti",
         "api_key",
         "authorization",
