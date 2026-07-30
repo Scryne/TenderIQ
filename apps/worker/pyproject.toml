@@ -5,7 +5,7 @@ description = "TenderIQ Celery worker (parsing/indexing/extraction task'ları)."
 requires-python = ">=3.12"
 dependencies = [
     "tenderiq-core",
-    "celery[redis]>=5.4.0",
+    "celery[redis]>=5.6.3",
 ]
 
 [tool.uv.sources]
