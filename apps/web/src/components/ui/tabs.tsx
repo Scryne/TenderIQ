@@ -64,6 +64,31 @@ function TabsList({
   );
 }
 
+/**
+ * Tetikleyici sınıfları — `SegmentedControl` de bunu kullanır.
+ *
+ * Ayrı bir bileşen aynı sınıfları KOPYALASA görünüm zamanla sessizce ayrışırdı;
+ * segment kontrolünün sekmeyle birebir aynı görünmesi bir tasarım gereğidir
+ * (DESIGN.md §8.11). Bu yüzden tek kaynak.
+ */
+const tabsTriggerClassName = cn(
+  "relative inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
+  "text-sm font-medium text-ink-2 transition-colors duration-[120ms] ease-out",
+  "disabled:pointer-events-none disabled:opacity-50",
+  "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  // segment
+  "group-data-[variant=segment]/tabs-list:h-full group-data-[variant=segment]/tabs-list:rounded-sm group-data-[variant=segment]/tabs-list:px-3",
+  "group-data-[variant=segment]/tabs-list:data-[state=active]:bg-surface group-data-[variant=segment]/tabs-list:data-[state=active]:text-ink-1 group-data-[variant=segment]/tabs-list:data-[state=active]:shadow-sm",
+  // underline — 2px mürekkep ray, alt kenarın üstünde
+  "group-data-[variant=underline]/tabs-list:h-full group-data-[variant=underline]/tabs-list:px-0.5",
+  "group-data-[variant=underline]/tabs-list:after:absolute group-data-[variant=underline]/tabs-list:after:inset-x-0 group-data-[variant=underline]/tabs-list:after:-bottom-px group-data-[variant=underline]/tabs-list:after:h-0.5 group-data-[variant=underline]/tabs-list:after:rounded-full group-data-[variant=underline]/tabs-list:after:bg-accent group-data-[variant=underline]/tabs-list:after:opacity-0",
+  "group-data-[variant=underline]/tabs-list:data-[state=active]:text-ink-1 group-data-[variant=underline]/tabs-list:data-[state=active]:after:opacity-100",
+  // vertical (ayarlar sol sekmesi §9.7)
+  "group-data-[variant=vertical]/tabs-list:h-9 group-data-[variant=vertical]/tabs-list:justify-start group-data-[variant=vertical]/tabs-list:rounded-sm group-data-[variant=vertical]/tabs-list:px-2.5",
+  "group-data-[variant=vertical]/tabs-list:data-[state=active]:bg-surface-2 group-data-[variant=vertical]/tabs-list:data-[state=active]:text-ink-1",
+  "hover:text-ink-1",
+);
+
 function TabsTrigger({
   className,
   ...props
@@ -71,24 +96,7 @@ function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
-      className={cn(
-        "relative inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
-        "text-sm font-medium text-ink-2 transition-colors duration-[120ms] ease-out",
-        "disabled:pointer-events-none disabled:opacity-50",
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        // segment
-        "group-data-[variant=segment]/tabs-list:h-full group-data-[variant=segment]/tabs-list:rounded-sm group-data-[variant=segment]/tabs-list:px-3",
-        "group-data-[variant=segment]/tabs-list:data-[state=active]:bg-surface group-data-[variant=segment]/tabs-list:data-[state=active]:text-ink-1 group-data-[variant=segment]/tabs-list:data-[state=active]:shadow-sm",
-        // underline — 2px mürekkep ray, alt kenarın üstünde
-        "group-data-[variant=underline]/tabs-list:h-full group-data-[variant=underline]/tabs-list:px-0.5",
-        "group-data-[variant=underline]/tabs-list:after:absolute group-data-[variant=underline]/tabs-list:after:inset-x-0 group-data-[variant=underline]/tabs-list:after:-bottom-px group-data-[variant=underline]/tabs-list:after:h-0.5 group-data-[variant=underline]/tabs-list:after:rounded-full group-data-[variant=underline]/tabs-list:after:bg-accent group-data-[variant=underline]/tabs-list:after:opacity-0",
-        "group-data-[variant=underline]/tabs-list:data-[state=active]:text-ink-1 group-data-[variant=underline]/tabs-list:data-[state=active]:after:opacity-100",
-        // vertical (ayarlar sol sekmesi §9.7)
-        "group-data-[variant=vertical]/tabs-list:h-9 group-data-[variant=vertical]/tabs-list:justify-start group-data-[variant=vertical]/tabs-list:rounded-sm group-data-[variant=vertical]/tabs-list:px-2.5",
-        "group-data-[variant=vertical]/tabs-list:data-[state=active]:bg-surface-2 group-data-[variant=vertical]/tabs-list:data-[state=active]:text-ink-1",
-        "hover:text-ink-1",
-        className,
-      )}
+      className={cn(tabsTriggerClassName, className)}
       {...props}
     />
   );
@@ -107,4 +115,4 @@ function TabsContent({
   );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants };
+export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants, tabsTriggerClassName };

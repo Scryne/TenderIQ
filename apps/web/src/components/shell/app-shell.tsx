@@ -292,7 +292,14 @@ function UserCard({
           <button
             type="button"
             disabled={user === null}
-            aria-label="Hesap menüsü"
+            // `aria-label` YOK (bilinçli). Buton görünür metin taşıyor
+            // (kullanıcı adı + rol); sabit bir `aria-label` erişilebilir adı
+            // "Hesap menüsü"ne indirir ve görünen metni ADIN DIŞINDA bırakır.
+            // Bu WCAG 2.5.3 "Label in Name" ihlalidir: sesli komutla "Berkay"
+            // diyen kullanıcı butonu çalıştıramaz (Lighthouse
+            // `label-content-name-mismatch` — 2026-07-30'da tüm kimlikli
+            // sayfalarda ölçüldü). Amaç bilgisi aşağıdaki gizli metinle
+            // veriliyor, böylece ad görünen metni KAPSAR.
             className={cn(
               "flex w-full items-center gap-2.5 rounded-md py-1.5 text-left transition-colors duration-[120ms] hover:bg-surface-2 disabled:opacity-60",
               collapsed ? "justify-center px-0" : "px-2",
@@ -313,6 +320,10 @@ function UserCard({
                 </span>
               </span>
             )}
+            {/* Daraltılmışken görünen tek şey baş harfler; butonun ne yaptığı
+                yalnız ekran okuyucuya bu metinle söylenir. Görünür metin adın
+                İÇİNDE kaldığı için 2.5.3 korunur. */}
+            <span className="sr-only">hesap menüsü</span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="top" className="w-60">

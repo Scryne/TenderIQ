@@ -8,7 +8,7 @@ import { FilterEmptyState, EmptyState, ErrorState, TableSkeleton } from "@/compo
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Table,
   TableBody,
@@ -106,10 +106,14 @@ export function TenderListView({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={segment} onValueChange={setSegment} className="gap-0">
-          <TabsList variant="segment">
-            {SEGMENTS.map((item) => (
-              <TabsTrigger key={item.value} value={item.value}>
+        <SegmentedControl
+          label="İhale durumuna göre filtrele"
+          value={segment}
+          onValueChange={setSegment}
+          options={SEGMENTS.map((item) => ({
+            value: item.value,
+            label: (
+              <>
                 {item.label}
                 <span
                   className={cn(
@@ -119,10 +123,10 @@ export function TenderListView({
                 >
                   {formatNumber(counts[item.value] ?? 0)}
                 </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+              </>
+            ),
+          }))}
+        />
 
         <div className="relative w-full sm:w-72">
           <Search

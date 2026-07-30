@@ -91,7 +91,7 @@ export default function CapabilityProfilePage() {
 
       <Card>
         <CardHeader className="block">
-          <CardTitle>Firma yetkinlik beyanı</CardTitle>
+          <CardTitle as="h2">Firma yetkinlik beyanı</CardTitle>
           <CardDescription>
             Referans projeler, sertifikalar (ör. ISO 9001, ISO 27001), kadro ve teknoloji
             yetkinliklerinizi serbest metin olarak yazın.

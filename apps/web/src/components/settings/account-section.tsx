@@ -75,7 +75,7 @@ export function AccountSection() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader className="block">
-          <CardTitle>Hesap</CardTitle>
+          <CardTitle as="h2">Hesap</CardTitle>
           <CardDescription>
             Güvenlik bildirimleri ve davet e-postaları bu adrese gönderilir.
           </CardDescription>
@@ -117,7 +117,7 @@ export function AccountSection() {
 
       <Card>
         <CardHeader className="block">
-          <CardTitle>Çalışma alanlarım</CardTitle>
+          <CardTitle as="h2">Çalışma alanlarım</CardTitle>
           <CardDescription>
             Aynı hesapla birden fazla organizasyonda yer alabilirsiniz. Etkin alan, tüm
             ekranlardaki verileri belirler.
@@ -176,7 +176,7 @@ export function AccountSection() {
           eylem (oturumu kapatma) burada, danger kenarlığıyla verilir. */}
       <Card className="border-danger/30">
         <CardHeader className="block">
-          <CardTitle>Oturum</CardTitle>
+          <CardTitle as="h2">Oturum</CardTitle>
           <CardDescription>
             Ortak kullanılan bir bilgisayardaysanız işiniz bittiğinde oturumu kapatın.
           </CardDescription>

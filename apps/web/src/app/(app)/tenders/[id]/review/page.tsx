@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { api } from "@/lib/api";
 import {
   CATEGORY_LABELS,
@@ -454,16 +454,23 @@ export default function TenderReviewPage({ params }: { params: Promise<{ id: str
         {/* ── Sol bölme: bulgu listesi ───────────────────────────────────── */}
         <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface lg:col-span-5 xl:col-span-4">
           <div className="shrink-0 border-b border-border p-3">
-            <Tabs value={category} onValueChange={switchCategory} className="gap-3">
-              <TabsList variant="segment" className="w-full">
-                {(Object.keys(CATEGORY_LABELS) as FindingCategory[]).map((key) => (
-                  <TabsTrigger key={key} value={key} className="min-w-0 flex-1 px-1.5 text-xs">
+            <SegmentedControl
+              label="Bulgu kategorisi"
+              value={category}
+              onValueChange={switchCategory}
+              className="gap-3"
+              listClassName="w-full"
+              optionClassName="min-w-0 flex-1 px-1.5 text-xs"
+              options={(Object.keys(CATEGORY_LABELS) as FindingCategory[]).map((key) => ({
+                value: key,
+                label: (
+                  <>
                     <span className="truncate">{CATEGORY_LABELS[key]}</span>
                     <span className="font-mono text-[10px] text-ink-3">{counts[key] ?? "·"}</span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+                  </>
+                ),
+              }))}
+            />
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <FilterChip

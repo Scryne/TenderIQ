@@ -9,6 +9,7 @@ from tenderiq_api.routers.v1 import (
     billing,
     capability_profile,
     documents,
+    email_webhook,
     export,
     findings,
     invitations,
@@ -28,6 +29,11 @@ api_v1_router.include_router(findings.router)
 api_v1_router.include_router(export.router)
 api_v1_router.include_router(documents.router)
 api_v1_router.include_router(billing.router)
+# Sağlayıcı bounce/şikâyet bildirimleri. Tur 10'a kadar BURAYA EKLENMEMİŞTİ:
+# modül ve testleri vardı, rota yoktu — sağlayıcının her POST'u 404 alıyordu ve
+# hiçbir adres otomatik bastırılmıyordu. Sessizdi çünkü uç kimliksizdir ve
+# 404, sır yapılandırılmamış kurulumun BEKLENEN yanıtıdır.
+api_v1_router.include_router(email_webhook.router)
 api_v1_router.include_router(capability_profile.router)
 api_v1_router.include_router(invitations.router)
 api_v1_router.include_router(jobs.router)
