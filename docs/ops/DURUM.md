@@ -231,25 +231,29 @@ kopyalanmaz.
 
 ### 2.1 Öncelik sırası
 
-1. **J.6 — LLM maliyet tavanı + kotalar (GA ENGELİ, Tur 12'de BAŞLANMADI).**
-   `SIGNUP_MODE=open` ile self-service kayıt açık ve kiracı başına LLM
-   harcamasının hiçbir tavanı yok; ücretsiz kademe doğrudan finansal risk.
-   Tur 12'de madde 1 alanı doldurduğu için hiç başlanmadı (yarım iş
-   commit'lememek için). Çıkarılmış tasarım — sıradaki tur bununla başlayabilir:
-   - Fiyat tablosu **yapılandırmadan** (`config/llm-pricing.json` +
-     `LLM_PRICING_PATH`, `LLM_USD_TRY_RATE`); kodda sabit rakam yok.
-   - Kayıt kancası HAZIR: `llm/client.py` her çağrıda `span.record(input_tokens=…,
-     output_tokens=…)` çağırıyor ve `generation(model=…)` modeli biliyor. Maliyet
-     kaydı için **yeni bir seam gerekmez**; `create_llm_tracer`ın döndürdüğü
-     tracer sarmalanır (Langfuse tracer'ı bozmadan), böylece ajan katmanına
-     hiç dokunulmaz.
-   - Kiracı bağlamı zaten var: `tenant_id_var` (contextvar) + worker
-     `run_extraction_phase(job_id, tenant_id)`.
-   - `LlmUsage` tablosu (tenant × model × işlem, token + maliyet) RLS'li;
-     `Plan`a `llm_budget_try_per_month` ve `storage_bytes` alanları.
-   - Sert tavan **reddeder** (sessizce küçük modele düşme YOK), yumuşak eşik
-     alarm üretir (Tur 8'in e-posta yolu). Ücretsiz kademeye ayrı, sıkı tavan.
-   - Kuyruk adaleti (kiracı başına eşzamanlılık) bilinçli olarak ERTELENDİ.
+1. **J.6 madde 2–3: TAVAN ve DEPOLAMA KOTASI (GA ENGELİ; ölçüm Tur 13'te bitti).**
+   Ölçüm çalışıyor (`llm_usage`, `CostTracer`, `compute_spend_sync`) ama
+   **hiçbir tavan yok** — `SIGNUP_MODE=open` ile kayıt açık olduğu için risk
+   duruyor. Tur 13'te alt adım sınırında durduk; alınan tasarım kararları:
+   - **`Plan.llm_budget_micros_try_per_month`** — ücretsiz kademeye ayrı ve
+     sıkı tavan (kötüye kullanım yüzeyi orası). Sert tavanda **reddet**;
+     sessizce küçük modele düşme / kısaltma / kısmi sonuç YOK.
+   - **Yarış koruması: Redis rezervasyonu.** Yalnız "harcama < tavan" bakmak
+     yetmez — eşzamanlı iki iş aynı anda bakıp ikisi de geçer. Kabul anında
+     `llm:reserved:{tenant}:{period}` atomik artırılır (iş başına muhafazakâr
+     bir tahmin), iş bitince düşülür; karar `harcanan + rezerve` üzerinden
+     verilir. Aşım böylece (eşzamanlılık × tahmin) ile SINIRLI kalır.
+   - **İşin ORTASINDA tavan aşılırsa iş BİTİRİLİR, sonraki iş reddedilir.**
+     Gerekçe: token'lar zaten harcanmıştır (fatura oluştu) ve yarıda kesmek
+     kullanıcıya işe yaramaz bir yarım analiz bırakır; aşım tek dokümanla
+     sınırlıdır. Kesme, parayı geri getirmediği hâlde değeri yok eder.
+   - Yumuşak eşikte (ör. %80) alarm: Tur 8'in e-posta yolu + arayüzde uyarı.
+     Tavana çarpınca kullanıcı NE OLDUĞUNU, NE ZAMAN sıfırlanacağını
+     (dönem `quota.current_period_bounds` ile aynı takvim ayı) ve ne
+     yapabileceğini görmeli.
+   - **Depolama kotası:** plan bazlı `storage_bytes`; aşımda yükleme reddi +
+     bildirim. Mevcut kullanım hesabı silinen dosyalarda da doğru kalmalı.
+   - Kuyruk adaleti (kiracı başına eşzamanlılık + adil sıralama) hâlâ ERTELENDİ.
 2. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
 3. **Onboarding sihirbazı + demo analiz.**
 4. **Kalan doğrulama borcu:** statik prerender kaybının GERÇEK maliyeti
@@ -291,6 +295,7 @@ trivy), `image-scan`.
 | CI koşumu (Tur 10 push'u, `7274618`) | `e2e` ✅ · `image-scan` ✅ (3 imaj) · `frontend` ✅ · `contract` ✅ · **`security` ❌ (gitleaks)** · **`backend` ❌ (mypy)** | 2026-07-30, Actions REST API'sinden okundu (run #12, id 30516757650). İki arıza Tur 11'de yerelde üretilip düzeltildi |
 | CI koşumu (Tur 12, `7a30448`) | **9 job'ın tamamı yeşil** | 2026-07-30, Actions REST API'si (run id 30568253675). Not: derleme kapısı önce `frontend` + `image-scan` job'larını düşürdü — kapı çalıştı, eksik olan bağlantıydı; denetim de o iki hedefi görmüyordu (manifesto listelemiyordu) |
 | CI koşumu (Tur 11, `61a0274`) | **9 job'ın TAMAMI yeşil** (`backend` · `contract` · `frontend` · `e2e` · `a11y` · `security` · `image-scan`×3) | 2026-07-30, Actions REST API'sinden okundu (run id 30537772592). CI ilk kez uçtan uca yeşil |
+| Yerel tam koşum (Tur 13 commit'i) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (248 dosya) · `mypy` strict 143 dosya · `pytest` 391 · `pytest -m integration` 160 · migration `0022` temiz DB'de upgrade→downgrade→upgrade |
 | Yerel tam koşum (Tur 12 commit'i) | geçti | 2026-07-30 · `ruff check` + `ruff format --check` (241 dosya) · `mypy` strict 139 dosya · `pytest` 375 · `pytest -m integration` 157 · `playwright test` 23 · eslint + tsc + `next build` · derleme kapısı negatif doğrulandı |
 | Yerel tam koşum (Tur 11 commit'i) | geçti | 2026-07-30 · `ruff check` + `ruff format --check` (240 dosya) · `mypy` strict **iki ortamda** (yerel `.venv` + CI eşi `.venv-ci --frozen`), 139 dosya · `pytest` 368 · `pytest -m integration` 157 · `playwright test` 17 · `replay_billing_webhook.py` 8/8 · eslint + tsc (web & api-client) + `next build` · OpenAPI ve api-client drift yok |
 | Lighthouse erişilebilirlik | **18 rota × 100/100** (dinamik rotalar dâhil), düşen denetim yok | 2026-07-30 · `docs/ops/lighthouse-erisilebilirlik.md`; artık CI'da `a11y` job'ı olarak da koşar |
@@ -302,4 +307,4 @@ trivy), `image-scan`.
 > veritabanı üzerinde çalışır. Bir sonraki oturum "yeşil mi?" sorusunu bu
 > dosyadan değil CI'dan yanıtlamalı.
 
-Veritabanı şema başı: `0021_rls_null_safe_tenant`.
+Veritabanı şema başı: `0022_llm_usage`.
