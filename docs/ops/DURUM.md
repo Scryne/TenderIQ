@@ -34,7 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
-| 14 | J.6 madde 2: LLM bütçe TAVANI (Redis rezervasyonu · sert ret · yumuşak eşik bildirimi) | `HEAD` |
+| 14 | J.6 madde 2: LLM bütçe TAVANI (Redis rezervasyonu · sert ret · yumuşak eşik bildirimi) | `c07af86` |
 | 13 | J.6 madde 1: LLM kullanım/maliyet ÖLÇÜMÜ (tracer sarmalama · `llm_usage` RLS · fiyat tablosu yapılandırmadan) | `42e2138` |
 | 12 | Derleme-zamanı yapılandırma manifestosu + üç kapı (derleme · açılış · dağıtım-dosyası denetimi) | `0067e70` |
 | 11 | CI yeşile alındı (gitleaks + mypy) · bağlanmamış artefakt denetimi (router/beat/webhook/adaptör) · dinamik rotalar Lighthouse'a girdi · performans tabanı · Lighthouse CI job'ı · **CSP'nin öldürdüğü doküman tuvali bulundu** | `e77ee20`…`61a0274` |
@@ -246,32 +246,30 @@ kopyalanmaz.
 
 ### 2.1 Öncelik sırası
 
-1. **J.6 madde 2–3: TAVAN ve DEPOLAMA KOTASI (GA ENGELİ; ölçüm Tur 13'te bitti).**
-   Ölçüm çalışıyor (`llm_usage`, `CostTracer`, `compute_spend_sync`) ama
-   **hiçbir tavan yok** — `SIGNUP_MODE=open` ile kayıt açık olduğu için risk
-   duruyor. Tur 13'te alt adım sınırında durduk; alınan tasarım kararları:
-   - **`Plan.llm_budget_micros_try_per_month`** — ücretsiz kademeye ayrı ve
-     sıkı tavan (kötüye kullanım yüzeyi orası). Sert tavanda **reddet**;
-     sessizce küçük modele düşme / kısaltma / kısmi sonuç YOK.
-   - **Yarış koruması: Redis rezervasyonu.** Yalnız "harcama < tavan" bakmak
-     yetmez — eşzamanlı iki iş aynı anda bakıp ikisi de geçer. Kabul anında
-     `llm:reserved:{tenant}:{period}` atomik artırılır (iş başına muhafazakâr
-     bir tahmin), iş bitince düşülür; karar `harcanan + rezerve` üzerinden
-     verilir. Aşım böylece (eşzamanlılık × tahmin) ile SINIRLI kalır.
-   - **İşin ORTASINDA tavan aşılırsa iş BİTİRİLİR, sonraki iş reddedilir.**
-     Gerekçe: token'lar zaten harcanmıştır (fatura oluştu) ve yarıda kesmek
-     kullanıcıya işe yaramaz bir yarım analiz bırakır; aşım tek dokümanla
-     sınırlıdır. Kesme, parayı geri getirmediği hâlde değeri yok eder.
-   - Yumuşak eşikte (ör. %80) alarm: Tur 8'in e-posta yolu + arayüzde uyarı.
-     Tavana çarpınca kullanıcı NE OLDUĞUNU, NE ZAMAN sıfırlanacağını
-     (dönem `quota.current_period_bounds` ile aynı takvim ayı) ve ne
-     yapabileceğini görmeli.
-   - **Depolama kotası:** plan bazlı `storage_bytes`; aşımda yükleme reddi +
-     bildirim. Mevcut kullanım hesabı silinen dosyalarda da doğru kalmalı.
-   - Kuyruk adaleti (kiracı başına eşzamanlılık + adil sıralama) hâlâ ERTELENDİ.
-2. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
-3. **Onboarding sihirbazı + demo analiz.**
-4. **Kalan doğrulama borcu:** statik prerender kaybının GERÇEK maliyeti
+1. **J.6 kalanı — GA ENGELİ (Tur 14'te tavan bitti, bunlar başlamadı):**
+   - **Fiyat doğrulama borcu.** `config/llm-pricing.json`daki fiyatların hepsi
+     `verified: false` — yani tavan DOĞRULANMAMIŞ sayıların üstünde duruyor.
+     Fiyatları sağlayıcıların güncel fiyat sayfalarına karşı doğrula, kaynak URL
+     ve tarih yaz, `verified: true` yap; doğrulayamadığını `false` bırak
+     (uydurma). `verified:false` kalan model varsa açılışta uyarı/ops metriği
+     üret. **`LLM_USD_TRY_RATE` statik ve kur kayıyor:** kimin ne sıklıkla
+     güncelleyeceğini yaz, bayatlık eşiğini aşarsa uyarı üret (otomatik kur
+     çekme EKLEME — yalnız bayatlığı görünür kıl).
+   - **Depolama kotası (madde 3).** `Plan.storage_bytes` alanı EKLENDİ
+     (ücretsiz 500 MB, Pro 20 GB, kurumsal sınırsız) ama **hiçbir yerde
+     zorlanmıyor**. Kota kontrolü yükleme BAŞLAMADAN yapılmalı; aşımda ret +
+     bildirim. Mevcut kullanım hesabı silinen dosyalarda doğru kalmalı ve
+     yarım kalan yüklemeler kotayı kalıcı şişirmemeli.
+   - **Yönetici görünürlüğü.** Kiracı bazlı dönem harcaması, rezerve tutar ve
+     `unpriced_calls` bir uçtan görünmeli — "tavan neden gevşek davrandı"
+     sorusu ancak böyle yanıtlanır. `BudgetDecision` bu üç sayıyı zaten
+     taşıyor; eksik olan yalnız uç/arayüz.
+   - **Arayüzde tavan durumu.** Ret hâlinde e-posta gidiyor ama `/usage`
+     ekranında bütçe/kalan gösterilmiyor.
+2. **Kuyruk adaleti** (kiracı başına eşzamanlılık + adil sıralama) — hâlâ ertelendi.
+3. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
+4. **Onboarding sihirbazı + demo analiz.**
+5. **Kalan doğrulama borcu:** statik prerender kaybının GERÇEK maliyeti
    (CDN/kenar önbelleği) ölçülmedi — staging olmadan ölçülemez (J.1) ·
    `email_suppression`dan adres çıkarmanın operatör ucu yok (ADR-0015 "Ödünler").
 
@@ -311,6 +309,7 @@ trivy), `image-scan`.
 | CI koşumu (Tur 13, `8f5ff82`) | **9 job'ın tamamı yeşil** | 2026-07-31, Actions REST API'si (run id 30587710454) |
 | CI koşumu (Tur 12, `7a30448`) | **9 job'ın tamamı yeşil** | 2026-07-30, Actions REST API'si (run id 30568253675). Not: derleme kapısı önce `frontend` + `image-scan` job'larını düşürdü — kapı çalıştı, eksik olan bağlantıydı; denetim de o iki hedefi görmüyordu (manifesto listelemiyordu) |
 | CI koşumu (Tur 11, `61a0274`) | **9 job'ın TAMAMI yeşil** (`backend` · `contract` · `frontend` · `e2e` · `a11y` · `security` · `image-scan`×3) | 2026-07-30, Actions REST API'sinden okundu (run id 30537772592). CI ilk kez uçtan uca yeşil |
+| Yerel tam koşum (Tur 14 commit'i) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (251 dosya) · `mypy` strict 145 dosya · `pytest` 394 · `pytest -m integration` 168 |
 | Yerel tam koşum (Tur 13 commit'i) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (248 dosya) · `mypy` strict 143 dosya · `pytest` 391 · `pytest -m integration` 160 · migration `0022` temiz DB'de upgrade→downgrade→upgrade |
 | Yerel tam koşum (Tur 12 commit'i) | geçti | 2026-07-30 · `ruff check` + `ruff format --check` (241 dosya) · `mypy` strict 139 dosya · `pytest` 375 · `pytest -m integration` 157 · `playwright test` 23 · eslint + tsc + `next build` · derleme kapısı negatif doğrulandı |
 | Yerel tam koşum (Tur 11 commit'i) | geçti | 2026-07-30 · `ruff check` + `ruff format --check` (240 dosya) · `mypy` strict **iki ortamda** (yerel `.venv` + CI eşi `.venv-ci --frozen`), 139 dosya · `pytest` 368 · `pytest -m integration` 157 · `playwright test` 17 · `replay_billing_webhook.py` 8/8 · eslint + tsc (web & api-client) + `next build` · OpenAPI ve api-client drift yok |
