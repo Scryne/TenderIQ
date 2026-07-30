@@ -92,7 +92,7 @@ export function DataRightsSection({ isAdmin }: { isAdmin: boolean }) {
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>Verilerimin kopyası</CardTitle>
+          <CardTitle as="h2">Verilerimin kopyası</CardTitle>
           <CardDescription>
             Hesabınıza ve bu organizasyona ait kayıtların makine-okunur (JSON) kopyasını
             indirin. Şartname dosyalarının kendisi değil, hangi dosyaların işlendiği
@@ -114,7 +114,7 @@ export function DataRightsSection({ isAdmin }: { isAdmin: boolean }) {
       {isAdmin && (
         <Card className="border-danger/30">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle as="h2" className="flex items-center gap-2">
               <ShieldAlert strokeWidth={1.75} className="size-4 text-danger" />
               Hesabı kapat
             </CardTitle>

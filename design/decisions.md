@@ -316,3 +316,56 @@ karşı yapıldı. "Ücretsiz" plan kartında başlık ve fiyat alanı aynı kel
 kez yazıyor (`formatPrice` 0 TL için "Ücretsiz" döndürüyor) — bu turun kapsamı
 dışında, plan kartı kopyası ayrı bir karar. Lighthouse erişilebilirlik skoru
 hâlâ ölçülmedi (§15 açık madde).
+
+---
+
+## 2026-07-30 · zorlayıcı CSP + erişilebilirlik denetimi · tur 10
+
+**Kapsam.** Görsel yeniden tasarım değil: politika (CSP) ve semantik (ARIA,
+başlık kademesi) düzeltmeleri. Bu yüzden döngünün amacı "daha iyi görünsün"
+değil, **görünümün hiç değişmediğini kanıtlamak** oldu.
+
+**Tur 1 — ölçüm (kusurları bulan tur).** Lighthouse erişilebilirlik 16 rotada
+ölçüldü (`scripts/lighthouse-a11y.mjs`). Skorlar 95–100 arasıydı, yani görev
+eşiğinin (90) üstünde; buna rağmen **üç gerçek kusur** çıktı. Ders: skora bakmak
+yetmiyor, düşen denetimlerin listesine bakmak gerekiyor.
+
+**İyi:** Hukuki sayfalar, auth ekranları ve `/panel` ilk ölçümde 100'dü — token
+sistemi ve kontrast kararları tutmuş. Konsol dört viewport'ta temiz.
+
+**Kötü (ölçümle bulundu):**
+1. Hesap menüsü butonunun erişilebilir adı görünen metni kapsamıyordu
+   (`aria-label="Hesap menüsü"` vs görünen "E2E Test Kullanıcısı · Yönetici") —
+   WCAG 2.5.3. Sesli komut kullanıcısı butonu adıyla çağıramaz.
+2. `CardTitle` sayfa düzeyindeki kartlarda `h1 → h3` atlaması üretiyordu
+   (`/usage`, `/settings`, `/capability`).
+3. Segment kontrolü Radix `Tabs` ile kuruluyordu ama panel yoktu; `aria-controls`
+   var olmayan bir kimliğe işaret ediyordu. DESIGN.md §8.11 bu ayrımı zaten
+   yazmış ("sekme sayfa bölümü değiştirir, segment aynı veriyi farklı gösterir")
+   — kod o ayrımı takip etmiyordu.
+
+**Uygulanan:** 1 → `aria-label` kaldırıldı, amaç `sr-only` metne taşındı.
+2 → `CardTitle` `as` prop'u aldı (varsayılan `h3`), sayfa düzeyindeki kartlar
+`as="h2"`. 3 → `components/ui/segmented-control.tsx` (`role="group"` +
+`aria-pressed`); sınıflar `tabs.tsx`ten **tek kaynak** olarak alınıyor
+(`tabsTriggerClassName` dışa açıldı) — kopyalasaydım görünüm zamanla ayrışırdı.
+
+**Tur 2 — doğrulama.** Yeniden ölçüm: **16 rota × 100/100, düşen denetim yok.**
+Ekran görüntüleri `/tenders` (375·768·1440·1920 + koyu tema), `/settings`
+(375·1440), `/usage` (1440): yatay taşma yok, konsol temiz, segment kontrolü
+375'te kendi içinde kayıyor (§7.4) ve koyu temada yüzey açıklığıyla derinlik
+veriyor (§5.2). Kart başlıkları aynı boyutta — seviye değişikliği görünümü
+etkilemedi (sınıflar seviyeden bağımsız).
+
+**CSP notu (tasarımı etkileyen taraf).** Politika zorlayıcı ve nonce tabanlı
+oldu; nonce istek başına değiştiği için kök layout `headers()` okuyor ve **tüm
+rotalar dinamik render'a geçti** (derleme çıktısında artık `○` yok, hepsi `ƒ`).
+Statik hukuki sayfalar da dâhil. Bu bilinçli bir ödün: alternatif, korumayı en
+çok gereken yerlerde (`/login`, `/register`) `'unsafe-inline'` bırakmaktı.
+`next-themes`in satır içi tema betiğine nonce geçirildi — geçirilmezse koyu tema
+kullanıcısı her yüklemede bir kare beyaz görürdü.
+
+**Bilinen borç.** `design/refs/` hâlâ boş. `/tenders/[id]` ve
+`/tenders/[id]/review` Lighthouse ile ölçülmedi (dinamik rota; betiğin listesi
+sabit) — inceleme ekranı çekirdek çalışma alanı olduğu için bu bir açık madde.
+Performans kategorisi ölçülmedi; dinamik render'a geçişin maliyeti bilinmiyor.

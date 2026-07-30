@@ -97,7 +97,7 @@ export function InvitationsSection() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader className="block">
-          <CardTitle>Yeni davet</CardTitle>
+          <CardTitle as="h2">Yeni davet</CardTitle>
           <CardDescription>
             Davet edilen kişi e-postadaki bağlantıyla hesabını kendisi kurar. Bağlantı 7 gün
             geçerlidir.
@@ -153,7 +153,7 @@ export function InvitationsSection() {
 
       <Card>
         <CardHeader className="block">
-          <CardTitle>Bekleyen davetler</CardTitle>
+          <CardTitle as="h2">Bekleyen davetler</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {invitations.isPending && <Skeleton className="h-16 w-full" />}

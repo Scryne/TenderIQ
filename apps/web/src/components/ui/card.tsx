@@ -36,9 +36,26 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"h3">) {
+/**
+ * Kart başlığı.
+ *
+ * `as` ile başlık seviyesi seçilir ve VARSAYILAN `h3`tür: kartlar çoğu yerde
+ * bir `SectionHeader` (h2) altında yaşar. Ama kart doğrudan sayfa başlığının
+ * (h1) altındaysa `h3` bir seviye ATLAR — ekran okuyucu kullanıcısı başlık
+ * listesinde eksik bir kademe görür (Lighthouse `heading-order`; 2026-07-30'da
+ * `/usage`, `/settings`, `/capability`te ölçüldü). O kartlarda `as="h2"`
+ * verilir.
+ *
+ * Görünüm seviyeden BAĞIMSIZDIR (sınıflar sabit) — yani seviyeyi düzeltmek
+ * tasarımı değiştirmez.
+ */
+function CardTitle({
+  className,
+  as: Heading = "h3",
+  ...props
+}: React.ComponentProps<"h3"> & { as?: "h2" | "h3" | "h4" }) {
   return (
-    <h3
+    <Heading
       data-slot="card-title"
       className={cn("font-display text-lg leading-6 font-semibold text-ink-1", className)}
       {...props}

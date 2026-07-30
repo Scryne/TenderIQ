@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Instrument_Sans, Inter_Tight } from "next/font/google";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import { Providers } from "@/components/providers";
@@ -44,13 +45,24 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+/**
+ * Kök layout.
+ *
+ * `headers()` okunuyor çünkü zorlayıcı CSP istek başına nonce üretiyor
+ * (`middleware.ts`) ve `next-themes`in satır içi tema betiği o nonce'u taşımak
+ * zorunda — taşımazsa politika betiği engeller ve sayfa tema seçimini
+ * kaybeder. Bedeli bilinerek ödeniyor: bu okuma tüm rotaları dinamik render'a
+ * geçirir (bkz. `lib/security/csp.ts`).
+ */
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="tr" suppressHydrationWarning>
       <body
         className={`${instrumentSans.variable} ${interTight.variable} ${plexMono.variable} min-h-screen antialiased`}
       >
-        <Providers>{children}</Providers>
+        <Providers nonce={nonce}>{children}</Providers>
         <Toaster />
       </body>
     </html>

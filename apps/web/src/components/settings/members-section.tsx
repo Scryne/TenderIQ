@@ -128,7 +128,7 @@ export function MembersSection({
       <Card>
         <CardHeader>
           <div className="min-w-0">
-            <CardTitle>Üyeler</CardTitle>
+            <CardTitle as="h2">Üyeler</CardTitle>
             <CardDescription>
               {isAdmin
                 ? "Rol değişikliği anında geçerli olur. Son yönetici düşürülemez ya da çıkarılamaz."

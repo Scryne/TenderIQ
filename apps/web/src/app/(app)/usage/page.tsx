@@ -119,7 +119,7 @@ export default function UsagePage() {
       <Card className="mb-6">
         <CardHeader>
           <div className="min-w-0">
-            <CardTitle>{usage.isPending ? "…" : (usage.data?.plan_name ?? "Plan")}</CardTitle>
+            <CardTitle as="h2">{usage.isPending ? "…" : (usage.data?.plan_name ?? "Plan")}</CardTitle>
             {usage.data !== undefined && (
               <p className="mt-1 text-sm text-ink-2">
                 Dönem {formatDate(usage.data.period_start)} – {formatDate(usage.data.period_end)} ·

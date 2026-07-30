@@ -12,8 +12,12 @@ import { TooltipProvider } from "@/components/ui/tooltip";
  * Tema varsayılanı light (BRIEF `tema`): ana çalışma yüzeyi beyaz bir PDF
  * tuvali; koyu kabuk + beyaz tuval kontrast sıçraması göz yorar. Koyu tema
  * tam desteklenir, varsayılan değildir.
+ *
+ * `nonce`: `next-themes` ilk boyamada temayı ayarlamak için satır içi bir
+ * betik gömüyor. Zorlayıcı CSP altında o betik nonce olmadan çalışmaz — ve
+ * çalışmazsa koyu tema kullanıcısı her yüklemede bir kare beyaz görür.
  */
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, nonce }: { children: ReactNode; nonce?: string }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -33,6 +37,7 @@ export function Providers({ children }: { children: ReactNode }) {
       defaultTheme="light"
       enableSystem
       disableTransitionOnChange
+      nonce={nonce}
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
