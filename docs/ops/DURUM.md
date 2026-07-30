@@ -306,6 +306,7 @@ trivy), `image-scan`.
 | Ne | Durum | Nasıl / ne zaman ölçüldü |
 |---|---|---|
 | CI koşumu (Tur 10 push'u, `7274618`) | `e2e` ✅ · `image-scan` ✅ (3 imaj) · `frontend` ✅ · `contract` ✅ · **`security` ❌ (gitleaks)** · **`backend` ❌ (mypy)** | 2026-07-30, Actions REST API'sinden okundu (run #12, id 30516757650). İki arıza Tur 11'de yerelde üretilip düzeltildi |
+| CI koşumu (Tur 14, `e10b51e`) | **9 job'ın tamamı yeşil** | 2026-07-31, Actions REST API'si (run id 30589435347) |
 | CI koşumu (Tur 13, `8f5ff82`) | **9 job'ın tamamı yeşil** | 2026-07-31, Actions REST API'si (run id 30587710454) |
 | CI koşumu (Tur 12, `7a30448`) | **9 job'ın tamamı yeşil** | 2026-07-30, Actions REST API'si (run id 30568253675). Not: derleme kapısı önce `frontend` + `image-scan` job'larını düşürdü — kapı çalıştı, eksik olan bağlantıydı; denetim de o iki hedefi görmüyordu (manifesto listelemiyordu) |
 | CI koşumu (Tur 11, `61a0274`) | **9 job'ın TAMAMI yeşil** (`backend` · `contract` · `frontend` · `e2e` · `a11y` · `security` · `image-scan`×3) | 2026-07-30, Actions REST API'sinden okundu (run id 30537772592). CI ilk kez uçtan uca yeşil |
