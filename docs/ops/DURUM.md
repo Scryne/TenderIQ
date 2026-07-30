@@ -34,6 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
+| 13 | J.6 madde 1: LLM kullanım/maliyet ÖLÇÜMÜ (tracer sarmalama · `llm_usage` RLS · fiyat tablosu yapılandırmadan) | `HEAD` |
 | 12 | Derleme-zamanı yapılandırma manifestosu + üç kapı (derleme · açılış · dağıtım-dosyası denetimi) | `0067e70` |
 | 11 | CI yeşile alındı (gitleaks + mypy) · bağlanmamış artefakt denetimi (router/beat/webhook/adaptör) · dinamik rotalar Lighthouse'a girdi · performans tabanı · Lighthouse CI job'ı · **CSP'nin öldürdüğü doküman tuvali bulundu** | `e77ee20`…`61a0274` |
 
@@ -79,6 +80,17 @@ kopyalanmaz.
   yazmak doğru yapılandırılmış kurulumu bile "eksik" sanır. `config/env.ts`
   bu yüzden değişken başına açık okuyucu tutar; okuyucusu olmayan bir manifesto
   girdisi `e2e/csp-policy.spec.ts`i kırar.
+- **LLM maliyeti ÖLÇÜLÜYOR** (J.6 madde 1, Tur 13): `create_llm_tracer` çıktısı
+  `CostTracer` ile sarmalanır — Langfuse yolu bozulmaz, ajan katmanına
+  dokunulmaz. Ölçüm LLM çağrısını BLOKE ETMEZ: contextvar tamponuna yazılır,
+  worker faz sonunda `llm_usage`a (RLS) tek transaction'da boşaltır. Yazma
+  `finally` içinde — iş yarıda düşse bile token'lar harcanmıştır ve faturaya
+  girer. Fiyat tablosu `config/llm-pricing.json` (yapılandırma; kodda rakam
+  yok). **0 TL dört ayrı şey demektir ve dördü ayrı işaretlenir**
+  (`priced` / `unverified` / `unknown_model` / `no_fx_rate`); toplam yalnız
+  ilk ikisini sayar, hesaplanamayanlar ayrıca raporlanır. Kayıp kayıt
+  `ops` metriğine düşer (`llm_usage_lost`) — "harcama düşük" ile "kayıt
+  kayboluyor" ayırt edilebilsin diye. **Tavan HENÜZ YOK** (madde 2).
 - **Bağlanmamış artefakt denetimi var** (Tur 11): `apps/api/tests/test_baglanti_denetimi.py`
   (her router erişilebilir · webhook'lar erişilebilir · "rota yok" ≠ "sır yok" ·
   her sağlayıcı adaptörü fabrikaya bağlı) ve `apps/worker/tests/test_beat_denetimi.py`

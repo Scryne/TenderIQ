@@ -17,6 +17,7 @@ from tenderiq_core.models.job import (
     Job,
     JobStatus,
 )
+from tenderiq_core.models.llm_usage import LlmUsage
 from tenderiq_core.models.membership import Membership, Role
 from tenderiq_core.models.organization import Organization
 from tenderiq_core.models.parsed_element import ParsedElement
@@ -57,6 +58,7 @@ __all__ = [
     "InvitationStatus",
     "Job",
     "JobStatus",
+    "LlmUsage",
     "Membership",
     "Organization",
     "ParsedElement",

@@ -24,6 +24,7 @@ from typing import Any, Protocol, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from tenderiq_core.config import Settings, get_settings
+from tenderiq_core.llm.cost import wrap_tracer_with_cost
 from tenderiq_core.llm.tracing import LLMTracer, create_llm_tracer
 from tenderiq_core.logging import get_logger
 
@@ -446,7 +447,9 @@ def create_structured_llm(settings: Settings | None = None) -> StructuredLLM | N
     provider = LLMProvider(settings.llm_provider)
     if provider is LLMProvider.NONE:
         return None
-    tracer = create_llm_tracer(settings)  # Langfuse anahtarları yoksa no-op
+    # Langfuse anahtarları yoksa no-op; maliyet ölçümü onu SARMALAR (J.6):
+    # Langfuse yolu aynen çalışır, ajan katmanına ve istemcilere dokunulmaz.
+    tracer = wrap_tracer_with_cost(create_llm_tracer(settings), settings)
     _log_retention_posture(settings, provider)
     if provider is LLMProvider.OLLAMA:
         # Yerel sağlayıcı: anahtar gerektirmez; erişilemezse çağrı anında hata

@@ -49,7 +49,8 @@ from tenderiq_core.agents.schemas import (
 )
 from tenderiq_core.config import get_settings
 from tenderiq_core.llm import StructuredLLM, create_structured_llm
-from tenderiq_core.logging import get_logger
+from tenderiq_core.llm.cost import UsageBuffer, collect_llm_usage, drain_buffer
+from tenderiq_core.logging import get_logger, tenant_id_var
 from tenderiq_core.models import (
     CapabilityProfile,
     ComplianceResult,
@@ -62,6 +63,7 @@ from tenderiq_core.models import (
     TimelineEvent,
 )
 from tenderiq_core.models import ParsedElement as ParsedElementRow
+from tenderiq_core.ops import record_llm_usage_lost
 from tenderiq_core.retrieval import (
     HybridRetriever,
     Reranker,
@@ -69,6 +71,7 @@ from tenderiq_core.retrieval import (
     load_corpus,
     semantic_search,
 )
+from tenderiq_core.services.llm_budget import record_llm_calls_sync
 from tenderiq_worker.db import tenant_session
 from tenderiq_worker.indexing import get_embedder
 
@@ -152,6 +155,38 @@ class _GraphContextRetriever:
 
 
 def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
+    """Çıkarım fazı + LLM kullanım ölçümü (J.6).
+
+    Ölçüm bu sarmalda: `_run_extraction_phase` içindeki hiçbir çağrı maliyet
+    kaydını bilmez. `finally` bilinçli — iş yarıda düşse bile token'lar
+    HARCANMIŞTIR ve faturaya girmelidir; yalnız başarılı işleri saymak,
+    tekrar tekrar düşen bir işi bedava kılardı.
+    """
+    tenant_token = tenant_id_var.set(str(tenant_id))
+    try:
+        with collect_llm_usage() as buffer:
+            try:
+                _run_extraction_phase(job_id, tenant_id)
+            finally:
+                _flush_llm_usage(buffer, tenant_id=tenant_id, job_id=job_id)
+    finally:
+        tenant_id_var.reset(tenant_token)
+
+
+def _flush_llm_usage(buffer: UsageBuffer, *, tenant_id: uuid.UUID, job_id: uuid.UUID) -> None:
+    """Tamponu DB'ye yazar. Hata iş akışını BOZMAZ, sayaca düşer."""
+    calls = drain_buffer(buffer)
+    if not calls:
+        return
+    try:
+        with tenant_session(tenant_id) as session:
+            record_llm_calls_sync(session, calls, job_id=job_id)
+    except Exception as exc:  # ölçüm, ölçtüğü işi ASLA bozmaz
+        logger.warning("llm_kullanim_kaydi_yazilamadi", error=str(exc), count=len(calls))
+        record_llm_usage_lost(len(calls), reason="db_write_failed")
+
+
+def _run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
     """Bir işin dokümanı için çıkarım ajanlarını koşar ve bulguları yazar."""
     settings = get_settings()
     with tenant_session(tenant_id) as session:

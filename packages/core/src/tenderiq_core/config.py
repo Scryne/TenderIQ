@@ -90,6 +90,14 @@ class Settings(BaseSettings):
     # Şema zorlaması: şemaya uymayan çıktı hata geri bildirimiyle yeniden istenir;
     # bu tavan aşılırsa çıkarım hatayla biter (Celery faz retry'ı devralır).
     llm_schema_max_attempts: int = 3
+    # ── LLM maliyet ölçümü ve tavanı (J.6) ──────────────────────────────────
+    # Fiyat tablosu YAPILANDIRMADIR; kodda rakam yok (bkz. llm/pricing.py).
+    # Göreli yol depo köküne göre çözülür.
+    llm_pricing_path: str = "config/llm-pricing.json"
+    # USD→TL kuru. TANIMSIZ ise maliyet HESAPLANMAZ ve kayıtlar
+    # `pricing_status="no_fx_rate"` ile işaretlenir — 0 TL yazmak tavanı
+    # sessizce sonsuz yapardı.
+    llm_usd_try_rate: float | None = None
     # Ollama (yerel sağlayıcı): OpenAI/Anthropic'ten farklı olarak API anahtarı
     # yoktur; şema zorlaması `format=<json-schema>` ile (structured outputs).
     ollama_base_url: str = "http://localhost:11434"

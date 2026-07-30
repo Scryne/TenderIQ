@@ -127,6 +127,36 @@ def test_manifesto_alanlari_eksiksiz() -> None:
         )
 
 
+#: Backend değişkenleri manifestoda değil (`pydantic-settings` çalışma anında
+#: okur, derleme anında gömülmez) — ama kurulmaları yine de zorunlu. J.6 maliyet
+#: ölçümü tavanın girdisidir: `.env.example`de yoksa operatör varlığından
+#: haberdar olmaz ve tavan sessizce ölçümsüz kalır.
+J6_BACKEND_VARIABLES = ("LLM_PRICING_PATH", "LLM_USD_TRY_RATE")
+
+
+@pytest.mark.parametrize("name", J6_BACKEND_VARIABLES)
+def test_j6_degiskenleri_env_example_ve_dokumanda(name: str) -> None:
+    """J.6 değişkenleri `.env.example`de ve yapılandırma belgesinde olmalı."""
+    env_lines = _file_lines(".env.example")
+    assert any(re.match(rf"^{re.escape(name)}=", line) for line in env_lines), (
+        f"`{name}` .env.example'de yok — operatör varlığını bilemez."
+    )
+    doc = (REPO_ROOT / "docs" / "ops" / "yapilandirma.md").read_text(encoding="utf-8")
+    assert name in doc, f"`{name}` docs/ops/yapilandirma.md'de belgelenmemiş."
+
+
+def test_fiyat_tablosu_varsayilan_yolda_mevcut() -> None:
+    """`LLM_PRICING_PATH` varsayılanı gerçekten var olan bir dosyayı göstermeli.
+
+    Dosya yoksa her kayıt `unknown_model` olur; sistem çalışır ama HİÇBİR
+    maliyet hesaplanmaz — tavanın sessizce devre dışı kaldığı hâl budur.
+    """
+    from tenderiq_core.config import Settings
+
+    varsayilan = Settings.model_fields["llm_pricing_path"].default
+    assert (REPO_ROOT / str(varsayilan)).is_file(), f"fiyat tablosu bulunamadı: {varsayilan}"
+
+
 def test_webde_okunan_her_degisken_manifestoda() -> None:
     """Kodda okunan bir değişken manifestoya YAZILMADAN kalmasın.
 
