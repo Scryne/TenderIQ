@@ -57,6 +57,9 @@ açılışında fail-fast uygulayanlar:
 | `OPS_METRICS_TOKEN` | boşsa `/ops/metrics` 404 döner |
 | `LLM_PRICING_PATH` | okunamazsa her kayıt `unknown_model` olur; tutar hesaplanamaz ve bu KAYITTA görünür |
 | `LLM_USD_TRY_RATE` | boşsa maliyet hesaplanmaz (`no_fx_rate`). **0 yazmayın** — 0 TL tavanı sessizce sonsuz yapar |
+| `LLM_JOB_RESERVATION_TRY` | kabulde rezerve edilen tutar; küçük olursa eşzamanlı işler tavanı birlikte aşabilir |
+| `LLM_RESERVATION_TTL_SECONDS` | en uzun işten kısa olursa koşan iş rezervasyonunu kaybeder (tavan zayıflar) |
+| `LLM_BUDGET_SOFT_THRESHOLD` | uyarı eşiği; reddetme bundan değil sert tavandan gelir |
 
 ## Dağıtım öncesi kontrol listesi
 

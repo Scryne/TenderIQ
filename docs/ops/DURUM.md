@@ -34,6 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
+| 14 | J.6 madde 2: LLM bütçe TAVANI (Redis rezervasyonu · sert ret · yumuşak eşik bildirimi) | `HEAD` |
 | 13 | J.6 madde 1: LLM kullanım/maliyet ÖLÇÜMÜ (tracer sarmalama · `llm_usage` RLS · fiyat tablosu yapılandırmadan) | `42e2138` |
 | 12 | Derleme-zamanı yapılandırma manifestosu + üç kapı (derleme · açılış · dağıtım-dosyası denetimi) | `0067e70` |
 | 11 | CI yeşile alındı (gitleaks + mypy) · bağlanmamış artefakt denetimi (router/beat/webhook/adaptör) · dinamik rotalar Lighthouse'a girdi · performans tabanı · Lighthouse CI job'ı · **CSP'nin öldürdüğü doküman tuvali bulundu** | `e77ee20`…`61a0274` |
@@ -80,6 +81,20 @@ kopyalanmaz.
   yazmak doğru yapılandırılmış kurulumu bile "eksik" sanır. `config/env.ts`
   bu yüzden değişken başına açık okuyucu tutar; okuyucusu olmayan bir manifesto
   girdisi `e2e/csp-policy.spec.ts`i kırar.
+- **LLM bütçe TAVANI var** (J.6 madde 2, Tur 14). Plan bazlı
+  `llm_budget_try_per_month`; ücretsizde 25 TL, Pro'da 500 TL, kurumsalda
+  sınırsız (tavan sözleşmeyle). **Sert tavan REDDEDER** — küçük modele düşme,
+  kısaltma, kısmi sonuç yok. Kabul kontrolü faz BAŞLAMADAN yapılır; işin
+  ortasında aşım olursa iş BİTİRİLİR (token zaten harcandı; kesmek parayı geri
+  getirmez, yalnız yarım analiz bırakır).
+  **Yarış koruması Redis rezervasyonu** (`llm:reserved:{tenant}:{dönem}`, Lua ile
+  atomik): harcama iş bitince yazıldığı için yalnız "harcanan < tavan" bakmak
+  eşzamanlı işleri birlikte geçirirdi. Her rezervasyon kendi son kullanma
+  damgasını taşır — çöken worker kiracıyı kendi tavanına KİLİTLEMEZ.
+  **Redis kesintisinde muhafazakâr DB kontrolüne düşülür** (tek rezervasyon
+  varmış gibi; sınır erken kapanır) ve `ops`ta `llm_budget_degraded` sayılır —
+  "sessizce geç" seçenek değildi. Fiilî kabul sınırı `tavan − rezervasyon`;
+  son kısmi dilim bilinçli olarak verilmez.
 - **LLM maliyeti ÖLÇÜLÜYOR** (J.6 madde 1, Tur 13): `create_llm_tracer` çıktısı
   `CostTracer` ile sarmalanır — Langfuse yolu bozulmaz, ajan katmanına
   dokunulmaz. Ölçüm LLM çağrısını BLOKE ETMEZ: contextvar tamponuna yazılır,

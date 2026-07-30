@@ -98,6 +98,17 @@ class Settings(BaseSettings):
     # `pricing_status="no_fx_rate"` ile işaretlenir — 0 TL yazmak tavanı
     # sessizce sonsuz yapardı.
     llm_usd_try_rate: float | None = None
+    # Bir işin kabulünde REZERVE edilen muhafazakâr tutar (TL). Gerçek maliyet
+    # iş bitince yazılır; rezervasyon yalnız eşzamanlı işlerin tavanı BİRLİKTE
+    # aşmasını engeller. Aşım (eşzamanlılık × bu değer) ile sınırlıdır.
+    llm_job_reservation_try: float = 5.0
+    # Rezervasyon TTL'i (sn). En uzun işten güvenli marjla uzun olmalı: Celery
+    # sert zaman tavanı 30 dk, bu yüzden 2 katı. Kısa olursa hâlâ koşan bir iş
+    # rezervasyonunu kaybeder ve tavan birlikte aşılabilir; uzun olursa çöken
+    # bir worker kiracıyı gereksiz uzun süre kilitler.
+    llm_reservation_ttl_seconds: int = 3600
+    # Yumuşak eşik: bu oranı aşınca uyarı/bildirim (reddetme YOK).
+    llm_budget_soft_threshold: float = 0.8
     # Ollama (yerel sağlayıcı): OpenAI/Anthropic'ten farklı olarak API anahtarı
     # yoktur; şema zorlaması `format=<json-schema>` ile (structured outputs).
     ollama_base_url: str = "http://localhost:11434"
