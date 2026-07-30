@@ -44,6 +44,8 @@
  * `style-src 'self'` + `style-src-attr 'unsafe-inline'` ikilisine geçilir.
  */
 
+import { sentryDsn, storageOrigin } from "@/config/env";
+
 /** İhlal raporlarının toplandığı uç (`report-uri` + `report-to`). */
 export const CSP_REPORT_PATH = "/api/csp-report";
 
@@ -76,17 +78,16 @@ export const CSP_REPORT_GROUP = "tenderiq-csp";
  * `e2e/csp.spec.ts`in kimlikli testi yakaladı; rapor modunda hiçbir şeyi
  * engellemediği için Tur 10'da görünmemişti.
  */
-function connectSources(): string[] {
+export function connectSources(): string[] {
   const sources = ["'self'"];
-  // İkisi de derleme anında gömülür; `NEXT_PUBLIC_*` olan tarayıcı paketine de
-  // girer, `STORAGE_ORIGIN` yalnız sunucu/edge paketine.
-  const storageOrigin =
-    process.env.NEXT_PUBLIC_STORAGE_ORIGIN || process.env.STORAGE_ORIGIN || "";
-  if (storageOrigin) sources.push(storageOrigin);
-  const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
-  if (sentryDsn) {
+  // Değerler manifestodan tipli okunur (`config/env.ts`); orada hangi katmanda
+  // okundukları ve eksikliklerinin ne kırdığı yazılıdır.
+  const origin = storageOrigin();
+  if (origin) sources.push(origin);
+  const dsn = sentryDsn();
+  if (dsn) {
     try {
-      sources.push(new URL(sentryDsn).origin);
+      sources.push(new URL(dsn).origin);
     } catch {
       // Bozuk DSN politikayı düşürmemeli; Sentry zaten devre dışı kalır.
     }

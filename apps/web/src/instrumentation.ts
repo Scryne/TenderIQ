@@ -4,7 +4,14 @@
 // backend olaylarında taşınır (tarayıcı JWT'yi hiç görmez — httpOnly cookie).
 import * as Sentry from "@sentry/nextjs";
 
+import { assertRuntimeEnv } from "@/config/env";
+
 export async function register() {
+  // Sunucu açılışında zorunlu değişkenler doğrulanır; eksikse süreç BAŞLAMAZ.
+  // Derleme-zamanı olanlar da tekrar bakılır: derleme başka bir aşamada
+  // yapılmış olabilir ve imaj elden ele geçer (bkz. `config/env.ts`).
+  assertRuntimeEnv();
+
   if (!process.env.NEXT_PUBLIC_SENTRY_DSN) return;
   Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
