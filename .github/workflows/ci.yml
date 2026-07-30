@@ -229,12 +229,16 @@ jobs:
       - name: uv kurulumu
         uses: astral-sh/setup-uv@v4
         with:
-          enable-cache: true
-          # Önbellek anahtarı job'a özgü olmalı: aynı anahtarı paylaşan job'lar
-          # eşzamanlı bitince önbelleği kaydetme adımı ("Post uv kurulumu")
-          # çakışıp job'ı DÜŞÜRÜYOR — ölçüm geçse bile. Tur 11'de bu job tam
-          # böyle kırıldı (bütün adımlar yeşil, yalnız post-adım kırmızı).
-          cache-suffix: a11y
+          # Önbellek BİLİNÇLİ KAPALI. Bu job'da bütün adımlar yeşilken
+          # "Post uv kurulumu" (önbelleği kaydetme) iki kez job'ı düşürdü;
+          # `cache-suffix` ile anahtarı tekilleştirmek çözmedi. Log içeriği
+          # kimlik doğrulaması istediği için (403) kök neden teşhis edilemedi;
+          # en olası sebep bu job'ın arka planda sunucu bırakması (aşağıda
+          # kapatılıyor). Teşhis edilemeyen bir arıza kaynağını, ölçtüğü şeyi
+          # (erişilebilirlik) gizlemesin diye tamamen kaldırıyoruz — bu job'da
+          # önbelleğin kazancı, Next derlemesi + 18 Lighthouse koşumunun yanında
+          # küçük.
+          enable-cache: false
       - name: pnpm kurulumu
         uses: pnpm/action-setup@v4
       - name: Node kurulumu
@@ -281,6 +285,14 @@ jobs:
         # kusur 95–100 aralığında saklanıyordu (ağırlığı 0 olan denetimler skoru
         # düşürmüyor). Skor eşiği ek koruma olarak duruyor.
         run: node scripts/lighthouse-a11y.mjs --base http://127.0.0.1:3200 --json a11y-rapor.json
+      - name: Arka plan süreçlerini kapat
+        # Job sonunda çalışmaya devam eden uvicorn/next süreçleri, runner'ın
+        # temizlik/post adımlarında dosyaları tutmaya devam ediyor. Ölçüm bitti,
+        # bırakmanın faydası yok.
+        if: always()
+        run: |
+          pkill -f "uvicorn tenderiq_api" || true
+          pkill -f "next start" || true
       - name: Rapor (her hâlde)
         if: always()
         uses: actions/upload-artifact@v4
