@@ -34,6 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
+| 12 | Derleme-zamanı yapılandırma manifestosu + üç kapı (derleme · açılış · dağıtım-dosyası denetimi) | `HEAD` |
 | 11 | CI yeşile alındı (gitleaks + mypy) · bağlanmamış artefakt denetimi (router/beat/webhook/adaptör) · dinamik rotalar Lighthouse'a girdi · performans tabanı · Lighthouse CI job'ı · **CSP'nin öldürdüğü doküman tuvali bulundu** | `e77ee20`…`61a0274` |
 
 Ayrıntılı gerekçeler commit gövdelerindedir (`git show <hash>`); buraya
@@ -58,14 +59,26 @@ kopyalanmaz.
   istisna çağıranın kendi kaydolduğu adres (`POST /auth/register` →
   `email_delivery`). Davet/üyelik uçları gönderim sonucunu ATAR.
   `test_email_suppression_leak.py` bunu kilitler.
+- **Web ortam değişkenlerinin TEK KAYNAĞI `apps/web/env-manifest.json`.**
+  Her girdi "hangi katmanda okunuyor / derleme mi çalışma anı mı / eksikse ne
+  kırılır" bilgisini taşır; okunur özeti `docs/ops/yapilandirma.md`. Üç kapı
+  (Tur 12): **derleme** (`next.config.ts` → `assertBuildTimeEnv`, yalnız
+  `PHASE_PRODUCTION_BUILD`ta), **açılış** (`instrumentation.ts` →
+  `assertRuntimeEnv`) ve **dağıtım-dosyası denetimi**
+  (`test_yapilandirma_denetimi.py`: `.env.example` · compose build arg ·
+  Dockerfile `ARG` · CI job env — dördünden biri eksikse kırılır; ayrıca kodda
+  okunup manifestoya yazılmamış değişken bırakmaz).
 - **`NEXT_PUBLIC_STORAGE_ORIGIN` DOLDURULMAK ZORUNDA** ve **derleme anında**
-  verilir (compose'da build arg, CI'da job env). Boş kalırsa zorlayıcı CSP
-  `connect-src`i aynı-origin'e kilitler, tarayıcı imzalı PDF URL'ini çekemez ve
-  **doküman tuvali sessizce boş kalır** — ürünün çekirdek vaadi o tuvalde.
-  Çalışma anı değişkeni İŞE YARAMAZ: politikayı üreten middleware edge
-  runtime'da koşuyor ve `process.env` orada derleme sırasında sabite çevriliyor
-  (Tur 11'de denendi, sessizce etkisiz kaldı). `e2e/csp.spec.ts`in kimlikli
-  testi bunu CI'da yakalar.
+  verilir. Boş kalırsa zorlayıcı CSP `connect-src`i aynı-origin'e kilitler,
+  tarayıcı imzalı PDF URL'ini çekemez ve **doküman tuvali sessizce boş kalır**.
+  Çalışma anı değişkeni İŞE YARAMAZ: middleware edge runtime'da koşuyor ve
+  `process.env` orada derleme sırasında sabite çevriliyor. Artık production
+  derlemesi bu değişken olmadan DÜŞER.
+- **Next yalnız STATİK `process.env.SABIT` erişimini gömer.** `process.env[ad]`
+  (dinamik) derlenmiş imajda değeri göremez — doğrulamayı dinamik erişimle
+  yazmak doğru yapılandırılmış kurulumu bile "eksik" sanır. `config/env.ts`
+  bu yüzden değişken başına açık okuyucu tutar; okuyucusu olmayan bir manifesto
+  girdisi `e2e/csp-policy.spec.ts`i kırar.
 - **Bağlanmamış artefakt denetimi var** (Tur 11): `apps/api/tests/test_baglanti_denetimi.py`
   (her router erişilebilir · webhook'lar erişilebilir · "rota yok" ≠ "sır yok" ·
   her sağlayıcı adaptörü fabrikaya bağlı) ve `apps/worker/tests/test_beat_denetimi.py`
@@ -206,9 +219,28 @@ kopyalanmaz.
 
 ### 2.1 Öncelik sırası
 
-1. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
-2. **Onboarding sihirbazı + demo analiz.**
-3. **Kalan doğrulama borcu:** statik prerender kaybının GERÇEK maliyeti
+1. **J.6 — LLM maliyet tavanı + kotalar (GA ENGELİ, Tur 12'de BAŞLANMADI).**
+   `SIGNUP_MODE=open` ile self-service kayıt açık ve kiracı başına LLM
+   harcamasının hiçbir tavanı yok; ücretsiz kademe doğrudan finansal risk.
+   Tur 12'de madde 1 alanı doldurduğu için hiç başlanmadı (yarım iş
+   commit'lememek için). Çıkarılmış tasarım — sıradaki tur bununla başlayabilir:
+   - Fiyat tablosu **yapılandırmadan** (`config/llm-pricing.json` +
+     `LLM_PRICING_PATH`, `LLM_USD_TRY_RATE`); kodda sabit rakam yok.
+   - Kayıt kancası HAZIR: `llm/client.py` her çağrıda `span.record(input_tokens=…,
+     output_tokens=…)` çağırıyor ve `generation(model=…)` modeli biliyor. Maliyet
+     kaydı için **yeni bir seam gerekmez**; `create_llm_tracer`ın döndürdüğü
+     tracer sarmalanır (Langfuse tracer'ı bozmadan), böylece ajan katmanına
+     hiç dokunulmaz.
+   - Kiracı bağlamı zaten var: `tenant_id_var` (contextvar) + worker
+     `run_extraction_phase(job_id, tenant_id)`.
+   - `LlmUsage` tablosu (tenant × model × işlem, token + maliyet) RLS'li;
+     `Plan`a `llm_budget_try_per_month` ve `storage_bytes` alanları.
+   - Sert tavan **reddeder** (sessizce küçük modele düşme YOK), yumuşak eşik
+     alarm üretir (Tur 8'in e-posta yolu). Ücretsiz kademeye ayrı, sıkı tavan.
+   - Kuyruk adaleti (kiracı başına eşzamanlılık) bilinçli olarak ERTELENDİ.
+2. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
+3. **Onboarding sihirbazı + demo analiz.**
+4. **Kalan doğrulama borcu:** statik prerender kaybının GERÇEK maliyeti
    (CDN/kenar önbelleği) ölçülmedi — staging olmadan ölçülemez (J.1) ·
    `email_suppression`dan adres çıkarmanın operatör ucu yok (ADR-0015 "Ödünler").
 
@@ -246,6 +278,7 @@ trivy), `image-scan`.
 |---|---|---|
 | CI koşumu (Tur 10 push'u, `7274618`) | `e2e` ✅ · `image-scan` ✅ (3 imaj) · `frontend` ✅ · `contract` ✅ · **`security` ❌ (gitleaks)** · **`backend` ❌ (mypy)** | 2026-07-30, Actions REST API'sinden okundu (run #12, id 30516757650). İki arıza Tur 11'de yerelde üretilip düzeltildi |
 | CI koşumu (Tur 11, `61a0274`) | **9 job'ın TAMAMI yeşil** (`backend` · `contract` · `frontend` · `e2e` · `a11y` · `security` · `image-scan`×3) | 2026-07-30, Actions REST API'sinden okundu (run id 30537772592). CI ilk kez uçtan uca yeşil |
+| Yerel tam koşum (Tur 12 commit'i) | geçti | 2026-07-30 · `ruff check` + `ruff format --check` (241 dosya) · `mypy` strict 139 dosya · `pytest` 375 · `pytest -m integration` 157 · `playwright test` 23 · eslint + tsc + `next build` · derleme kapısı negatif doğrulandı |
 | Yerel tam koşum (Tur 11 commit'i) | geçti | 2026-07-30 · `ruff check` + `ruff format --check` (240 dosya) · `mypy` strict **iki ortamda** (yerel `.venv` + CI eşi `.venv-ci --frozen`), 139 dosya · `pytest` 368 · `pytest -m integration` 157 · `playwright test` 17 · `replay_billing_webhook.py` 8/8 · eslint + tsc (web & api-client) + `next build` · OpenAPI ve api-client drift yok |
 | Lighthouse erişilebilirlik | **18 rota × 100/100** (dinamik rotalar dâhil), düşen denetim yok | 2026-07-30 · `docs/ops/lighthouse-erisilebilirlik.md`; artık CI'da `a11y` job'ı olarak da koşar |
 | Nonce CSP'nin performans bedeli | ortanca TTFB +6 ms · LCP +25 ms · skor değişmedi | 2026-07-30 · aynı makinede statik-prerender taban derlemesiyle karşılaştırıldı; localhost olduğu için CDN/önbellek kaybını ÖLÇMEZ |

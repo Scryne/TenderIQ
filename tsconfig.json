@@ -1,0 +1,23 @@
+{
+  "$comment": [
+    "Kök tsconfig — yalnızca E2E/Playwright dosyaları için.",
+    "Playwright kendi transpile'ını yapıyor ve `apps/web/tsconfig.json`i görmüyor;",
+    "web kaynağından bir modülü doğrudan import eden birim spec'leri (ör.",
+    "`e2e/csp-policy.spec.ts`) `@/` takma adını çözebilsin diye burada eşleniyor."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./apps/web/src/*"]
+    }
+  },
+  "include": ["e2e/**/*.ts", "playwright.config.ts", "scripts/**/*.mjs"]
+}

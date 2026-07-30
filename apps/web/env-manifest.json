@@ -1,0 +1,70 @@
+{
+  "$comment": [
+    "Web uygulamasının okuduğu TÜM ortam değişkenleri — tek kaynak.",
+    "TS tarafı `src/config/env.ts` ile tipli okur; Python denetimi",
+    "`apps/api/tests/test_yapilandirma_denetimi.py` aynı dosyayı okuyup",
+    "`.env.example`, compose build arg, Dockerfile ARG ve CI job env'inde",
+    "bulunduğunu doğrular. JSON seçildi çünkü iki dil de parse edebiliyor;",
+    "TS'te tanımlansaydı Python tarafı kaynağı ayrıştırmak zorunda kalırdı.",
+    "",
+    "ALANLAR:",
+    "  buildTime  — değer DERLEME anında gömülür (NEXT_PUBLIC_* ya da build ARG).",
+    "               Çalışma anında verilmesi ETKİSİZDİR.",
+    "  layers     — hangi katmanda okunuyor: edge (middleware), server, client.",
+    "  required   — 'always' | 'production' | false.",
+    "  wiring     — hangi dağıtım dosyalarında görünmesi ZORUNLU (denetim buna bakar).",
+    "  failure    — eksikse ne olur (sessiz arıza tarifi; boş bırakılamaz)."
+  ],
+  "variables": [
+    {
+      "name": "NEXT_PUBLIC_STORAGE_ORIGIN",
+      "buildTime": true,
+      "layers": ["edge"],
+      "required": "production",
+      "default": "",
+      "wiring": ["env-example", "compose-build-arg", "dockerfile-arg", "ci-e2e", "ci-a11y"],
+      "description": "Tarayıcının imzalı PDF baytlarını indirdiği nesne depolama origin'i; CSP connect-src'e girer.",
+      "failure": "CSP connect-src aynı-origin'e kilitlenir, tarayıcı imzalı PDF URL'ini çekemez ve DOKÜMAN TUVALİ SESSİZCE BOŞ KALIR. Sunucu logunda görünmez."
+    },
+    {
+      "name": "STORAGE_ORIGIN",
+      "buildTime": true,
+      "layers": ["edge"],
+      "required": false,
+      "default": "",
+      "wiring": ["env-example"],
+      "description": "NEXT_PUBLIC_STORAGE_ORIGIN için yedek ad (sunucu paketine girer, tarayıcıya girmez).",
+      "failure": "Yedek olduğu için tek başına eksikliği arıza üretmez; ikisi de boşsa NEXT_PUBLIC_STORAGE_ORIGIN'in arızası geçerlidir."
+    },
+    {
+      "name": "NEXT_PUBLIC_API_URL",
+      "buildTime": true,
+      "layers": ["server"],
+      "required": false,
+      "default": "http://localhost:8000",
+      "wiring": ["env-example", "compose-build-arg", "dockerfile-arg"],
+      "description": "Backend API'nin tarayıcıdan erişilen kök adresi; sunucu tarafı proxy için API_URL yedeği.",
+      "failure": "Eksikse localhost varsayılanına düşer — üretimde tüm API çağrıları kendi makinesine gider ve uygulama boş veri gösterir."
+    },
+    {
+      "name": "API_URL",
+      "buildTime": false,
+      "layers": ["server"],
+      "required": false,
+      "default": "http://localhost:8000",
+      "wiring": ["env-example"],
+      "description": "Sunucu tarafı proxy'nin (/api/v1/[...path]) backend'e ulaştığı adres; çalışma anında okunur.",
+      "failure": "Eksikse NEXT_PUBLIC_API_URL'e, o da yoksa localhost'a düşer; container ağında backend'e ulaşamaz."
+    },
+    {
+      "name": "NEXT_PUBLIC_SENTRY_DSN",
+      "buildTime": true,
+      "layers": ["edge", "server", "client"],
+      "required": false,
+      "default": "",
+      "wiring": ["env-example"],
+      "description": "Sentry DSN; boşsa Sentry TAMAMEN kapalıdır ve CSP connect-src'e Sentry origin'i eklenmez.",
+      "failure": "Eksikse hata izleme sessizce kapalı kalır (bilinçli davranış), uygulama çalışır."
+    }
+  ]
+}

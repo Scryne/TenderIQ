@@ -2,6 +2,10 @@ import path from "node:path";
 
 import type { NextConfig } from "next";
 
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+
+import { assertBuildTimeEnv } from "./src/config/env";
+
 const isProduction = process.env.NODE_ENV === "production";
 
 /**
@@ -51,4 +55,18 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Yapılandırma FAZA göre verilir.
+ *
+ * Zorunlu derleme-zamanı değişkenleri yalnız `phase-production-build`ta
+ * doğrulanır: bu dosya `next start` sırasında da yüklenir, ama o an değer
+ * artık imaja gömülüdür ve `process.env`de GÖRÜNMEZ. Kontrolü faza bağlamadan
+ * yazmak, doğru derlenmiş bir imajın açılışını yanlışlıkla engelliyordu
+ * (Tur 12'de E2E bunu yakaladı).
+ *
+ * Eksik build ARG derlemeyi düşürür — hatalı yapılandırmayla imaj üretilemez.
+ */
+export default function config(phase: string): NextConfig {
+  if (phase === PHASE_PRODUCTION_BUILD) assertBuildTimeEnv();
+  return nextConfig;
+}
