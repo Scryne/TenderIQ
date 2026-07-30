@@ -55,6 +55,20 @@ paths = ['''^scripts/load_test\.py$''']
 
 [[rules.allowlists]]
 description = """
+Tur 11'de CI'ın `a11y` job'ına yazılıp AYNI TUR İÇİNDE kaldırılan test sabiti
+(`e77ee20`). Değer hiçbir zaman gerçek bir sır değildi — geçici bir CI
+ortamının `AUTH_SECRET`iydi ve artık koşum anında `openssl rand` ile üretiliyor.
+
+İstisna GEÇMİŞ için gerekli: `gitleaks detect` commit'leri tarar, yani bir kez
+commit'lenen sır-benzeri dize dosyadan silinse bile sonsuza kadar bulgu üretir.
+Depo herkese açık ve commit push edilmiş olduğu için geçmiş YENİDEN YAZILMADI.
+İstisna yol ya da commit değil DEĞER bazında: o dizeden başka hiçbir şeyi
+muaf tutmuyor.
+"""
+regexes = ['''^ci-a11y-secret-en-az-otuz-iki-karakter-uzunlugunda$''']
+
+[[rules.allowlists]]
+description = """
 `packages/core/src/tenderiq_core/ops.py` — `SloVerdict(key="api_latency_p95")`.
 `key=` bir SLO tanımlayıcısı; sır değil. Yol bazında değil DEĞER bazında
 istisna: dosyanın tamamı muaf olmasın, yalnız `slo`/`api`/`job` ile başlayan
