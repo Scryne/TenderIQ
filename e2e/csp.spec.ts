@@ -30,6 +30,10 @@ const PUBLIC_ROUTES = [
   "/dpa",
 ] as const;
 
+/** Tohumdaki E2E hesabı (`scripts/seed_e2e.py`). */
+const SEED_EMAIL = process.env.E2E_EMAIL ?? "e2e@tenderiq-e2e.com";
+const SEED_PASSWORD = process.env.E2E_PASSWORD ?? "e2e-password-123";
+
 type Violation = { directive: string; blocked: string };
 
 for (const route of PUBLIC_ROUTES) {
@@ -78,6 +82,12 @@ for (const route of PUBLIC_ROUTES) {
     // sıkılaştıkça kör uçarız.
     expect(policy).toContain("report-uri /api/csp-report");
 
+    // NOT: `style-src`te `'unsafe-inline'` bilinçli olarak DURUYOR — `sonner`
+    // çalışma anında nonce'suz bir `<style>` bloğu enjekte ediyor ve nonce
+    // kabul etmiyor (Tur 11'de ölçüldü, bkz. `lib/security/csp.ts`). Burada
+    // onu yasaklayan bir beklenti YOK; koyulsaydı bilinen bir borcu her koşuda
+    // kırmızıya çevirirdi.
+
     // Next'in kendi betikleri nonce almış olmalı. Almadıysa politika onları
     // engellerdi ve sayfa hidrasyon yapmazdı.
     const nonced = await page.locator("script[nonce]").count();
@@ -106,6 +116,71 @@ for (const route of PUBLIC_ROUTES) {
     );
   });
 }
+
+/**
+ * Kimlikli ekranlar — özellikle inceleme çalışma alanı.
+ *
+ * Herkese açık sayfalar politikanın en basit hâlini sınar. Asıl risk oturum
+ * arkasındadır: inceleme ekranı `react-pdf`/`pdfjs` çalıştırıyor (worker +
+ * blob URL) ve zorlayıcı CSP altında en kırılgan yüzey orası. `style-src`
+ * Tur 11'de `'unsafe-inline'`dan `'self'`e sıkıldı; satır içi `<style>` bloğu
+ * üreten bir kütüphane varsa ihlal İLK burada görünür.
+ */
+test("kimlikli ekranlarda da CSP ihlali yok (inceleme çalışma alanı dâhil)", async ({ page }) => {
+  const violations: Violation[] = [];
+  const consoleErrors: string[] = [];
+
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => consoleErrors.push(`pageerror: ${error.message}`));
+  await page.addInitScript(() => {
+    const store: Violation[] = [];
+    (window as unknown as { __cspViolations: Violation[] }).__cspViolations = store;
+    document.addEventListener("securitypolicyviolation", (event) => {
+      store.push({ directive: event.effectiveDirective, blocked: event.blockedURI });
+    });
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("E-posta").fill(SEED_EMAIL);
+  await page.getByLabel("Parola").fill(SEED_PASSWORD);
+  await page.getByRole("button", { name: "Giriş yap" }).click();
+  await page.waitForURL(/\/panel/);
+
+  // Tohumlanan ihaleye git, oradan inceleme ekranına.
+  await page.goto("/tenders");
+  // `:visible` şart: liste hem mobil kart listesi hem masaüstü tablosu olarak
+  // render ediliyor (§7.4) ve ilk eşleşen bağlantı masaüstü genişliğinde
+  // GİZLİ olan mobil sürüm. Görünürlük filtresi olmadan test, var olan bir
+  // öğeyi "yok" sanıyordu.
+  const tenderLink = page.locator('a[href^="/tenders/"]:visible').first();
+  await expect(tenderLink).toBeVisible();
+  const href = await tenderLink.getAttribute("href");
+  const tenderId = href?.split("/")[2];
+  expect(tenderId, "tohumda ihale yok — seed_e2e.py koştu mu?").toBeTruthy();
+
+  for (const route of [`/tenders/${tenderId}`, `/tenders/${tenderId}/review`, "/usage", "/settings"]) {
+    await page.goto(route);
+    // Doküman tuvali tembel yüklenir; ihlal ancak render başlayınca doğar.
+    await page.waitForLoadState("networkidle");
+  }
+
+  const collected = await page.evaluate(
+    () => (window as unknown as { __cspViolations?: Violation[] }).__cspViolations ?? [],
+  );
+  expect(collected, `kimlikli ekranlarda CSP ihlali: ${JSON.stringify(collected)}`).toEqual([]);
+
+  // Konsol hataları CSP ile SINIRLI tutulur. Depolama origin'i bu koşumda
+  // bilinçli olarak ölü bir yerel port (bkz. playwright.config.ts): PDF baytları
+  // hiç gelmez ve tarayıcı bir AĞ hatası yazar. Bu beklenen; sınanan şey
+  // politikanın o origin'e izin VERDİĞİ — vermezse hata CSP hatası olur ve
+  // aşağıdaki filtre onu yakalar.
+  const cspErrors = consoleErrors.filter((message) =>
+    message.includes("Content Security Policy"),
+  );
+  expect(cspErrors, `kimlikli ekranlarda CSP konsol hatası: ${cspErrors.join(" | ")}`).toEqual([]);
+});
 
 /**
  * Rapor ucu gerçekten kabul ediyor mu?

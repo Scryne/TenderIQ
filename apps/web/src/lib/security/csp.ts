@@ -23,12 +23,25 @@
  * bırakmak) korumayı tam olarak en çok gerektiği yerde — oturum açma, kayıt,
  * hukuki metinler — kaldırırdı.
  *
- * ## `style-src 'unsafe-inline'` kalan borçtur
+ * ## `style-src 'unsafe-inline'` KALICI borçtur — sebebi ölçüldü (Tur 11)
  *
- * Next kritik CSS'i ve `next/font` tanımlarını satır içi `<style>` ile
- * gömüyor ve bunlara nonce geçirmenin desteklenen bir yolu yok. Satır içi
- * stil ile ulaşılabilecek saldırı yüzeyi betiğe göre çok sınırlıdır
- * (script çalıştırmaz); bilinçli olarak burada bırakıldı.
+ * Eski gerekçe ("Next kritik CSS'i satır içi gömüyor") YANLIŞTI: sunucudan
+ * gelen HTML'de hiç satır içi `<style>` yok. Sıkılaştırma denendi
+ * (`style-src 'self'` + `style-src-attr 'unsafe-inline'`) ve E2E anında
+ * kırıldı — her sayfada üç `style-src-elem` ihlali.
+ *
+ * **Gerçek sebep `sonner` (toast, 2.0.7):** bileşen ÇALIŞMA ANINDA
+ * `document.head`e 14,8 KB'lık bir `<style>` bloğu ekliyor. Paket nonce
+ * kabul etmiyor (dist'te `nonce` hiç geçmiyor) ve enjeksiyon koşulsuz — ayrı
+ * gelen `dist/styles.css`i import etmek onu durdurmuyor. Hash tabanlı izin de
+ * çözüm değil: içerik paket sürümüyle değişir, her yükseltmede politika sessizce
+ * kırılır.
+ *
+ * Kalan risk: enjekte edilen bir `<style>` bloğu sayfayı yeniden çizebilir,
+ * tıklama hedeflerini kaydırabilir ve `background-image: url(...)` ile veri
+ * sızdırabilir. Betik çalıştıramaz — `script-src` nonce'lu kalıyor, yani XSS
+ * yolu kapalı. Borç bilinçli: sonner nonce desteklerse ya da değişirse
+ * `style-src 'self'` + `style-src-attr 'unsafe-inline'` ikilisine geçilir.
  */
 
 /** İhlal raporlarının toplandığı uç (`report-uri` + `report-to`). */
@@ -42,12 +55,33 @@ export const CSP_REPORT_GROUP = "tenderiq-csp";
  *
  * Tarayıcı iki dış origin'e gider: imzalı nesne depolama URL'i (PDF önizleme
  * baytları doğrudan R2'den indirilir — bkz. `pdf-viewer.tsx`) ve varsa Sentry.
- * İkisi de dağıtıma özgüdür; `NEXT_PUBLIC_*` oldukları için derleme anında
- * gömülür ve middleware (edge) içinde de okunabilirler.
+ *
+ * ## Depolama origin'i DERLEME anında gömülür — çalışma anında değiştirilemez
+ *
+ * Bu modül `middleware.ts` içinden çağrılıyor ve middleware **edge çalışma
+ * zamanında** koşuyor. Orada `process.env` erişimi derleme sırasında sabite
+ * çevrilir: imaja gömülmeyen bir değişken çalışma anında GÖRÜNMEZ. Tur 11'de
+ * `STORAGE_ORIGIN` çalışma anı değişkeni olarak verilip denendi ve politika
+ * `connect-src 'self'` olarak kaldı — yani sessizce hiçbir etkisi olmadı.
+ * Bu yüzden değer **derleme anında** verilmelidir (compose'da build arg,
+ * CI'da job env'i).
+ *
+ * ## Neden bu satır kritik
+ *
+ * Değişken hiçbir yerde KURULMUYORDU (`.env.example`de boş, compose'da yok).
+ * Sonuç: `connect-src 'self'` ile kalıyordu ve zorlayıcı CSP altında tarayıcı
+ * imzalı R2 URL'ini çekemiyordu — **doküman tuvali sessizce boş kalıyordu.**
+ * Ürünün çekirdek vaadi (bulgu ↔ kaynak) tam olarak o tuvale bağlı. Arıza
+ * sunucu logunda görünmez, yalnız tarayıcı konsolunda. Tur 11'de
+ * `e2e/csp.spec.ts`in kimlikli testi yakaladı; rapor modunda hiçbir şeyi
+ * engellemediği için Tur 10'da görünmemişti.
  */
 function connectSources(): string[] {
   const sources = ["'self'"];
-  const storageOrigin = process.env.NEXT_PUBLIC_STORAGE_ORIGIN;
+  // İkisi de derleme anında gömülür; `NEXT_PUBLIC_*` olan tarayıcı paketine de
+  // girer, `STORAGE_ORIGIN` yalnız sunucu/edge paketine.
+  const storageOrigin =
+    process.env.NEXT_PUBLIC_STORAGE_ORIGIN || process.env.STORAGE_ORIGIN || "";
   if (storageOrigin) sources.push(storageOrigin);
   const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
   if (sentryDsn) {
@@ -82,6 +116,7 @@ export function buildContentSecurityPolicy(nonce: string, isProduction: boolean)
     "frame-ancestors 'none'",
     "object-src 'none'",
     `script-src 'nonce-${nonce}' 'strict-dynamic' https:`,
+    // `'unsafe-inline'` KALICI borç — sebebi yukarıda ölçülerek yazıldı (sonner).
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",

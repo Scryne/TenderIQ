@@ -19,12 +19,81 @@ CHROME_PATH="<playwright chromium>" \
   node scripts/lighthouse-a11y.mjs --base http://127.0.0.1:3200 --json skorlar.json
 ```
 
-Betik çıkış kodu **eşiği zorlar**: bir rota 95'in altındaysa 1 döner. Kimlikli
-sayfalar Playwright ile giriş yapılıp `--extra-headers` ile ölçülür — yalnız
-herkese açık sayfaları ölçmek borcun büyük kısmını gizlerdi.
+Betik çıkış kodu **kapıyı zorlar** ve kapı şudur: *düşen erişilebilirlik
+denetimi olmayacak.* Skor eşiği (≥95) yalnız EK korumadır — Tur 10'da üç gerçek
+kusur 95–100 aralığında saklanıyordu, çünkü bazı denetimlerin kategori ağırlığı
+0 ve skoru hiç düşürmüyorlar. Performans skoru kapıya GİRMEZ (çalıştığı makineye
+çok duyarlı; ham metrikler JSON'a yazılır, karşılaştırma elle yapılır).
+
+Kimlikli sayfalar Playwright ile giriş yapılıp `--extra-headers` ile ölçülür —
+yalnız herkese açık sayfaları ölçmek borcun büyük kısmını gizlerdi.
+
+**CI'da koşar:** `.github/workflows/ci.yml` → `a11y` job'ı (Tur 11). Ölçüm
+hermetiktir: `EMAIL_PROVIDER=memory`, `BILLING_PROVIDER=fake` ve depolama
+origin'i ölü bir yerel port.
 
 Araç sürümü kilitli (`lighthouse` kök `devDependencies`); `pnpm dlx` ile
 koşulmaz, çünkü sürüm değişince skor sessizce kayar.
+
+---
+
+## 2026-07-30 · Tur 11 · dinamik rotalar dâhil + performans tabanı
+
+Yöntem Tur 10 ile aynı; iki fark: **dinamik rotalar** artık ölçülüyor
+(`:tenderId` yer tutucusu tohumdaki gerçek ihaleden çözülür — kimlik listeden
+okunur, elle verilmez; yanlış kimlik verilse Lighthouse 404 sayfasını ölçer ve
+skor "iyi" görünür) ve **performans** kategorisi de alınıyor.
+
+| Rota | a11y | perf | LCP | TTFB |
+|---|---|---|---|---|
+| `/` | 100 | 99 | 868 ms | 18 ms |
+| `/login` | 100 | 100 | 771 ms | 10 ms |
+| `/register` | 100 | 100 | 765 ms | 10 ms |
+| `/forgot-password` | 100 | 100 | 788 ms | 8 ms |
+| `/reset-password` | 100 | 100 | 776 ms | 12 ms |
+| `/verify-email` | 100 | 100 | 729 ms | 9 ms |
+| `/accept-invitation` | 100 | 99 | 833 ms | 10 ms |
+| `/kvkk` · `/sartlar` · `/trust` · `/dpa` | 100 | 100 | 771–821 ms | 9–15 ms |
+| `/panel` | 100 | 99 | 917 ms | 21 ms |
+| `/tenders` | 100 | 100 | 806 ms | 10 ms |
+| **`/tenders/[id]`** | **100** | 100 | 774 ms | 16 ms |
+| **`/tenders/[id]/review`** | **100** | 100 | 816 ms | 17 ms |
+| `/usage` · `/settings` · `/capability` | 100 | 99 | 825–929 ms | 9–11 ms |
+
+**18 rotanın tamamı a11y 100/100, düşen denetim yok.** Ortanca: LCP 820 ms ·
+TTFB 10 ms.
+
+### Dinamik rotalar ölçülür ölçülmez bir kusur çıktı
+
+`/tenders/[id]` ilk ölçümde **98** aldı: `heading-order` — "Şartname yükle"
+kartının başlığı `h3`tü ve sayfa başlığı (h1) altında bir kademe atlıyordu.
+`CardTitle as="h2"` ile düzeltildi (`components/tenders/tender-detail-view.tsx`).
+Tur 10'da bu rota ölçülmediği için görünmemişti; ders, ölçüm KAPSAMININ da
+denetlenmesi gerektiği.
+
+### Performans: nonce CSP'nin bedeli (önce/sonra)
+
+Zorlayıcı nonce CSP tüm rotaları dinamik render'a geçirdi (Tur 10). Maliyet
+ölçüldü: aynı makinede, aynı üretim derlemesi, CSP kapalı + kök layout
+`headers()` okumayan bir taban derlemeyle karşılaştırıldı.
+
+| | Statik prerender (CSP öncesi) | Nonce CSP (dinamik) | Fark |
+|---|---|---|---|
+| Derleme çıktısı | 21 statik · 9 dinamik | 0 statik · 29 dinamik | — |
+| Ortanca TTFB | 5 ms | 11 ms | **+6 ms** |
+| Ortanca LCP | 782 ms | 807 ms | +25 ms (gürültü sınırında) |
+| Performans skoru | 99–100 | 98–100 | fark yok |
+
+**Sonuç: render maliyeti ihmal edilebilir.** ADR taslağı YAZILMADI çünkü
+ölçüm "kabul edilemez" demedi.
+
+> **Bu ölçümün görmediği şey.** localhost'ta ağ gecikmesi yok. Statik
+> prerender'ın gerçek değeri CDN/kenar önbelleğidir: her istek uygulama
+> sunucusuna gidiyorsa coğrafi olarak uzak kullanıcı TTFB'yi ağ turu kadar
+> öder ve önbellek isabeti sıfırdır. Yani asıl bedel "render süresi" değil,
+> **önbelleklenebilirliğin kaybı** — ve o ancak gerçek bir dağıtımda ölçülebilir
+> (staging yok, J.1). Karar yeniden açılırsa alternatifler: yalnız kimlik
+> gerektiren rotalarda nonce, hukuki/pazarlama sayfalarını statik bırakma.
 
 ---
 

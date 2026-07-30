@@ -217,7 +217,9 @@ export function UploadCard({
   return (
     <Card>
       <CardHeader className="block">
-        <CardTitle>Şartname yükle</CardTitle>
+        {/* `as="h2"`: kart doğrudan sayfa başlığının (h1) altında; `h3`
+            varsayılanı bir kademe atlar (Lighthouse `heading-order`). */}
+        <CardTitle as="h2">Şartname yükle</CardTitle>
         <CardDescription>
           PDF, DOCX veya XLSX · en fazla 100 MB. Yükleme sonrası analiz kendiliğinden başlar.
         </CardDescription>

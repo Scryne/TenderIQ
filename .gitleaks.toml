@@ -1,0 +1,63 @@
+# Gitleaks yapılandırması — sır taraması (CI: `security` job'ı, BLOKE EDİCİ).
+#
+# ## Neden bu dosya var
+#
+# Varsayılan kural seti `generic-api-key` ile "yeterince rastgele görünen" her
+# atamayı sır sayıyor. Bu depoda altı yanlış pozitif üretti ve CI'ı 2026-07-16'dan
+# beri kırmızı tutuyordu (Tur 11'de fark edildi: job düşüyordu ama kimse log'a
+# bakmamıştı). Hiçbiri gerçek bir kimlik bilgisi değil — beşi test sabiti, biri
+# bir SLO anahtarı.
+#
+# ## Kural: istisnalar DARALTILIR
+#
+# Buraya bir yol eklemek, o yoldaki GERÇEK bir sızıntının da görünmez olması
+# demektir. Bu yüzden istisnalar dosya bazında ve **yalnız `generic-api-key`
+# kuralı için** verilir; yüksek güvenli kurallar (AWS/GitHub/Stripe/private-key
+# gibi sağlayıcıya özgü desenler) test dosyalarında da BLOKE ETMEYE devam eder.
+# Gerçek bir anahtar test dosyasına yanlışlıkla girerse onu bu desenler yakalar.
+
+[extend]
+useDefault = true
+
+[[rules]]
+# Varsayılan `generic-api-key` kuralını, aşağıdaki istisnalarla yeniden tanımlar.
+# `useDefault` ile gelen kuralın kimliği aynı olduğu için bu tanım onu EZER.
+id = "generic-api-key"
+description = "Generic API Key (proje istisnalarıyla)"
+regex = '''(?i)(?:key|api|token|secret|client|passwd|password|auth|access)(?:[0-9a-z\-_\t .]{0,20})(?:[\s|']|[\s|"]){0,3}(?:=|>|:{1,3}=|\|\||:|<=|=>|:=|\?=|,)(?:'|\"|\s|=|\x60){0,5}([0-9a-z\-_.=]{10,150})(?:['|\"|\n|\r|\s|\x60|;|\\]|$)'''
+keywords = [
+    "key", "api", "token", "secret", "client", "passwd", "password", "auth", "access",
+]
+entropy = 3.5
+secretGroup = 1
+
+[[rules.allowlists]]
+description = """
+Test dosyaları tanımı gereği uydurma kimlik bilgisi içerir: JWT test anahtarı,
+kayıt/giriş yükündeki parola, davet kabul parolası. Gerçek bir sır buraya
+konsaydı test onu kullanmazdı — testler yerel/konteyner servislerine bağlanır.
+Yalnız `generic-api-key` için geçerli; sağlayıcıya özgü desenler burada da bloke
+eder.
+"""
+paths = [
+    '''(^|/)tests?/''',
+    '''(^|/)conftest\.py$''',
+    '''(^|/)e2e/''',
+]
+
+[[rules.allowlists]]
+description = """
+`scripts/load_test.py` — yük testi kendi kiracılarını oluşturup siliyor;
+`PASSWORD` o kısa ömürlü hesapların parolası ve depo dışında hiçbir yerde
+geçerli değil. Betik zaten `# noqa: S105` ile aynı gerekçeyi taşıyor.
+"""
+paths = ['''^scripts/load_test\.py$''']
+
+[[rules.allowlists]]
+description = """
+`packages/core/src/tenderiq_core/ops.py` — `SloVerdict(key="api_latency_p95")`.
+`key=` bir SLO tanımlayıcısı; sır değil. Yol bazında değil DEĞER bazında
+istisna: dosyanın tamamı muaf olmasın, yalnız `slo`/`api`/`job` ile başlayan
+tanımlayıcı sabitleri.
+"""
+regexes = ['''^(?:slo|api|job)_[a-z0-9_]+$''']
