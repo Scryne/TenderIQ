@@ -7,7 +7,7 @@ dependencies = [
     # `export` extra: Word/Excel rapor üretimi (Sprint 3.2) API sürecinde koşar.
     "tenderiq-core[export]",
     "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
+    "uvicorn[standard]>=0.52.0",
     "email-validator>=2.2.0",
     # Üretici taraf: task'lar ada göre kuyruğa yayınlanır (send_task).
     "celery[redis]>=5.4.0",
