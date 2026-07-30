@@ -40,6 +40,12 @@ WIRING_TARGETS: dict[str, tuple[str, str]] = {
     "dockerfile-arg": ("infra/docker/web.Dockerfile", r"^ARG\s+{name}\b"),
     "ci-e2e": (".github/workflows/ci.yml", r"^\s+{name}:\s*\S"),
     "ci-a11y": (".github/workflows/ci.yml", r"^\s+{name}:\s*\S"),
+    "ci-frontend": (".github/workflows/ci.yml", r"^\s+{name}:\s*\S"),
+    # İmaj taraması `docker build` çağırıyor; değişken orada `--build-arg` ile
+    # geçer. Tur 12'de CI tam bu iki hedefte düştü: manifesto onları
+    # listelemediği için denetim "her şey yolunda" demişti — denetim ancak
+    # manifestonun İDDİA ETTİĞİ kadar kapsayıcıdır.
+    "ci-image-scan": (".github/workflows/ci.yml", r"--build-arg\s+{name}="),
 }
 
 

@@ -19,50 +19,80 @@
     {
       "name": "NEXT_PUBLIC_STORAGE_ORIGIN",
       "buildTime": true,
-      "layers": ["edge"],
+      "layers": [
+        "edge"
+      ],
       "required": "production",
       "default": "",
-      "wiring": ["env-example", "compose-build-arg", "dockerfile-arg", "ci-e2e", "ci-a11y"],
+      "wiring": [
+        "env-example",
+        "compose-build-arg",
+        "dockerfile-arg",
+        "ci-e2e",
+        "ci-a11y",
+        "ci-frontend",
+        "ci-image-scan"
+      ],
       "description": "Tarayıcının imzalı PDF baytlarını indirdiği nesne depolama origin'i; CSP connect-src'e girer.",
       "failure": "CSP connect-src aynı-origin'e kilitlenir, tarayıcı imzalı PDF URL'ini çekemez ve DOKÜMAN TUVALİ SESSİZCE BOŞ KALIR. Sunucu logunda görünmez."
     },
     {
       "name": "STORAGE_ORIGIN",
       "buildTime": true,
-      "layers": ["edge"],
+      "layers": [
+        "edge"
+      ],
       "required": false,
       "default": "",
-      "wiring": ["env-example"],
+      "wiring": [
+        "env-example"
+      ],
       "description": "NEXT_PUBLIC_STORAGE_ORIGIN için yedek ad (sunucu paketine girer, tarayıcıya girmez).",
       "failure": "Yedek olduğu için tek başına eksikliği arıza üretmez; ikisi de boşsa NEXT_PUBLIC_STORAGE_ORIGIN'in arızası geçerlidir."
     },
     {
       "name": "NEXT_PUBLIC_API_URL",
       "buildTime": true,
-      "layers": ["server"],
+      "layers": [
+        "server"
+      ],
       "required": false,
       "default": "http://localhost:8000",
-      "wiring": ["env-example", "compose-build-arg", "dockerfile-arg"],
+      "wiring": [
+        "env-example",
+        "compose-build-arg",
+        "dockerfile-arg"
+      ],
       "description": "Backend API'nin tarayıcıdan erişilen kök adresi; sunucu tarafı proxy için API_URL yedeği.",
       "failure": "Eksikse localhost varsayılanına düşer — üretimde tüm API çağrıları kendi makinesine gider ve uygulama boş veri gösterir."
     },
     {
       "name": "API_URL",
       "buildTime": false,
-      "layers": ["server"],
+      "layers": [
+        "server"
+      ],
       "required": false,
       "default": "http://localhost:8000",
-      "wiring": ["env-example"],
+      "wiring": [
+        "env-example"
+      ],
       "description": "Sunucu tarafı proxy'nin (/api/v1/[...path]) backend'e ulaştığı adres; çalışma anında okunur.",
       "failure": "Eksikse NEXT_PUBLIC_API_URL'e, o da yoksa localhost'a düşer; container ağında backend'e ulaşamaz."
     },
     {
       "name": "NEXT_PUBLIC_SENTRY_DSN",
       "buildTime": true,
-      "layers": ["edge", "server", "client"],
+      "layers": [
+        "edge",
+        "server",
+        "client"
+      ],
       "required": false,
       "default": "",
-      "wiring": ["env-example"],
+      "wiring": [
+        "env-example"
+      ],
       "description": "Sentry DSN; boşsa Sentry TAMAMEN kapalıdır ve CSP connect-src'e Sentry origin'i eklenmez.",
       "failure": "Eksikse hata izleme sessizce kapalı kalır (bilinçli davranış), uygulama çalışır."
     }
