@@ -218,7 +218,11 @@ jobs:
       OBJECT_STORAGE_BUCKET: tenderiq-a11y
       OBJECT_STORAGE_ACCESS_KEY_ID: a11y-key
       OBJECT_STORAGE_SECRET_ACCESS_KEY: a11y-secret
-      AUTH_SECRET: ci-a11y-secret-en-az-otuz-iki-karakter-uzunlugunda
+      # AUTH_SECRET burada TANIMLANMAZ: sabit, yeterince rastgele görünen bir
+      # değer gitleaks'in `generic-api-key` kuralını tetikliyor ve `security`
+      # job'ını kırıyor (Tur 11'de tam bu satır yüzünden kırıldı). Koşum anında
+      # üretilir — depoda sır biçiminde hiçbir literal kalmaz ve değer her
+      # koşuda benzersiz olur.
       ENVIRONMENT: development
     steps:
       - uses: actions/checkout@v4
@@ -226,6 +230,11 @@ jobs:
         uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          # Önbellek anahtarı job'a özgü olmalı: aynı anahtarı paylaşan job'lar
+          # eşzamanlı bitince önbelleği kaydetme adımı ("Post uv kurulumu")
+          # çakışıp job'ı DÜŞÜRÜYOR — ölçüm geçse bile. Tur 11'de bu job tam
+          # böyle kırıldı (bütün adımlar yeşil, yalnız post-adım kırmızı).
+          cache-suffix: a11y
       - name: pnpm kurulumu
         uses: pnpm/action-setup@v4
       - name: Node kurulumu
@@ -257,6 +266,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Yığını kaldır
         run: |
+          export AUTH_SECRET="$(openssl rand -hex 32)"
           uv run uvicorn tenderiq_api.main:app --host 127.0.0.1 --port 8020 &
           API_URL=http://127.0.0.1:8020 pnpm --filter @tenderiq/web start --port 3200 &
           for i in $(seq 1 60); do
