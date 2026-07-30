@@ -36,6 +36,12 @@ class Plan:
     documents_per_month: int | None
     pages_per_month: int | None
     monthly_price_try: int
+    #: Aylık LLM harcama tavanı (TL). ``None`` = sınırsız (kurumsal).
+    #: **Ücretsiz kademeye ayrı ve sıkı tavan**: kayıt açık olduğu için
+    #: kötüye kullanım yüzeyi orası ve geliri sıfır.
+    llm_budget_try_per_month: int | None
+    #: Toplam nesne depolama kotası (bayt). ``None`` = sınırsız.
+    storage_bytes: int | None
 
 
 PLANS: dict[PlanTier, Plan] = {
@@ -45,6 +51,9 @@ PLANS: dict[PlanTier, Plan] = {
         documents_per_month=5,
         pages_per_month=150,
         monthly_price_try=0,
+        # Geliri sıfır olan kademe: tavan doğrudan zarar sınırıdır.
+        llm_budget_try_per_month=25,
+        storage_bytes=500 * 1024 * 1024,  # 500 MB
     ),
     PlanTier.PRO: Plan(
         tier=PlanTier.PRO,
@@ -52,6 +61,11 @@ PLANS: dict[PlanTier, Plan] = {
         documents_per_month=100,
         pages_per_month=5000,
         monthly_price_try=1500,
+        # Aylık gelirin belirgin altında: LLM maliyeti tek gider kalemi değil
+        # (OCR/embedding/depolama da var). BAŞLANGIÇ değeri — gerçek kullanım
+        # verisiyle kalibre edilecek (bkz. docs/ops/maliyet-tavani.md).
+        llm_budget_try_per_month=500,
+        storage_bytes=20 * 1024 * 1024 * 1024,  # 20 GB
     ),
     PlanTier.ENTERPRISE: Plan(
         tier=PlanTier.ENTERPRISE,
@@ -59,6 +73,9 @@ PLANS: dict[PlanTier, Plan] = {
         documents_per_month=None,  # sınırsız
         pages_per_month=None,  # sınırsız
         monthly_price_try=0,  # özel fiyat (satışla belirlenir)
+        # Sınırsız: tavan sözleşmeyle konur, kodla değil.
+        llm_budget_try_per_month=None,
+        storage_bytes=None,
     ),
 }
 

@@ -173,6 +173,25 @@ def record_llm_usage_lost(amount: int, *, reason: str) -> None:
         logger.debug("ops_llm_kayip_metrigi_yazilamadi", error=str(exc))
 
 
+def record_llm_budget_degraded(*, reason: str) -> None:
+    """Bütçe kontrolünün REZERVASYONSUZ (muhafazakâr) moda düştüğü sayacı.
+
+    Kesintide sessizce geçmek seçenek değildi: bu sayaç "tavan hâlâ zorlanıyor
+    ama yarış koruması yok" hâlini görünür kılar. Sürekli artıyorsa Redis
+    arızası tavanı zayıflatıyor demektir.
+    """
+    key = _minute_key(_JOB_PREFIX, _utcnow())
+    try:
+        client = _sync_redis()
+        pipe = client.pipeline(transaction=False)
+        pipe.hincrby(key, "llm_budget_degraded", 1)
+        pipe.hincrby(key, f"llm_budget_degraded:{reason}", 1)
+        pipe.expire(key, _BUCKET_TTL_SECONDS)
+        pipe.execute()
+    except Exception as exc:  # ölçüm, ölçtüğü işi ASLA bozmaz
+        logger.debug("ops_llm_butce_metrigi_yazilamadi", error=str(exc))
+
+
 # ── Okuma tarafı ─────────────────────────────────────────────────────────────
 
 

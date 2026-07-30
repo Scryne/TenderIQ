@@ -22,9 +22,11 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
+from redis import Redis as SyncRedis
 from sqlalchemy import delete, select
 
 from tenderiq_core.agents import (
@@ -63,7 +65,7 @@ from tenderiq_core.models import (
     TimelineEvent,
 )
 from tenderiq_core.models import ParsedElement as ParsedElementRow
-from tenderiq_core.ops import record_llm_usage_lost
+from tenderiq_core.ops import record_llm_budget_degraded, record_llm_usage_lost
 from tenderiq_core.retrieval import (
     HybridRetriever,
     Reranker,
@@ -71,7 +73,15 @@ from tenderiq_core.retrieval import (
     load_corpus,
     semantic_search,
 )
-from tenderiq_core.services.llm_budget import record_llm_calls_sync
+from tenderiq_core.services.budget_notifications import notify_budget_threshold
+from tenderiq_core.services.llm_budget import (
+    BudgetDecision,
+    LlmBudgetExceededError,
+    enforce_llm_budget_sync,
+    period_key,
+    record_llm_calls_sync,
+    release_job_reservation,
+)
 from tenderiq_worker.db import tenant_session
 from tenderiq_worker.indexing import get_embedder
 
@@ -164,13 +174,105 @@ def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
     """
     tenant_token = tenant_id_var.set(str(tenant_id))
     try:
-        with collect_llm_usage() as buffer:
-            try:
-                _run_extraction_phase(job_id, tenant_id)
-            finally:
-                _flush_llm_usage(buffer, tenant_id=tenant_id, job_id=job_id)
+        redis = _budget_redis()
+        # KABUL KONTROLÜ — faz BAŞLAMADAN. Tavan dolmuşsa iş hiç başlamaz;
+        # yarıda kesmek token'ları geri getirmez, yalnız yarım analiz bırakır.
+        try:
+            with tenant_session(tenant_id) as session:
+                decision = enforce_llm_budget_sync(
+                    session, tenant_id=tenant_id, job_id=job_id, redis=redis
+                )
+        except LlmBudgetExceededError as exc:
+            # Kullanıcı NE OLDUĞUNU ve NE ZAMAN sıfırlanacağını görmeli; işin
+            # sessizce "failed" olması, sebebi yalnız logda bırakırdı.
+            _notify_budget(
+                tenant_id=tenant_id,
+                spent_micros=exc.spent_micros,
+                limit_micros=exc.limit_micros,
+                period_end=exc.period_end,
+                exceeded=True,
+            )
+            raise
+        _warn_if_soft_exceeded(decision, tenant_id=tenant_id)
+        try:
+            with collect_llm_usage() as buffer:
+                try:
+                    _run_extraction_phase(job_id, tenant_id)
+                finally:
+                    _flush_llm_usage(buffer, tenant_id=tenant_id, job_id=job_id)
+        finally:
+            # Rezervasyon her hâlde bırakılır: gerçek maliyet artık kayıtta.
+            # Bırakılamazsa TTL üst sınırdır — çöken worker kiracıyı kendi
+            # tavanına kilitlemez.
+            release_job_reservation(redis, tenant_id=tenant_id, job_id=job_id)
     finally:
         tenant_id_var.reset(tenant_token)
+
+
+def _budget_redis() -> Any | None:
+    """Bütçe rezervasyonu için Redis; kurulamazsa ``None`` (muhafazakâr mod).
+
+    Hata burada YUTULUR ama sonuç sessiz DEĞİL: `admit_job_sync` ``None``
+    aldığında rezervasyonsuz muhafazakâr karara düşer ve bunu `degraded`
+    olarak bildirir.
+    """
+    try:
+        return SyncRedis.from_url(get_settings().redis_url)
+    except Exception as exc:  # pragma: no cover - yapılandırma hatası
+        logger.warning("llm_butce_redis_kurulamadi", error=str(exc))
+        record_llm_budget_degraded(reason="redis_client_error")
+        return None
+
+
+def _warn_if_soft_exceeded(decision: BudgetDecision, *, tenant_id: uuid.UUID) -> None:
+    """Yumuşak eşik: uyarı ve bildirim; iş DURDURULMAZ."""
+    if not decision.soft_exceeded:
+        return
+    logger.warning(
+        "llm_butcesi_yumusak_esikte",
+        tenant_id=str(tenant_id),
+        spent_micros=decision.spent_micros,
+        limit_micros=decision.limit_micros,
+        degraded=decision.degraded,
+        unpriced_calls=decision.unpriced_calls,
+    )
+    if decision.limit_micros is None:
+        return
+    _notify_budget(
+        tenant_id=tenant_id,
+        spent_micros=decision.spent_micros,
+        limit_micros=decision.limit_micros,
+        period_end=decision.period_end,
+        exceeded=False,
+    )
+
+
+def _notify_budget(
+    *,
+    tenant_id: uuid.UUID,
+    spent_micros: int,
+    limit_micros: int,
+    period_end: datetime,
+    exceeded: bool,
+) -> None:
+    """Bütçe bildirimi (yumuşak eşik ya da ret). Hata işi BOZMAZ.
+
+    Dönem başına tek mesaj: şablonun `idempotency_key`i dönem anahtarını
+    taşıyor, tekrar `send_email` tarafından eleniyor.
+    """
+    try:
+        with tenant_session(tenant_id) as session:
+            notify_budget_threshold(
+                session,
+                tenant_id=tenant_id,
+                spent_micros=spent_micros,
+                limit_micros=limit_micros,
+                period_end=period_end,
+                period_key=period_key(period_end),
+                exceeded=exceeded,
+            )
+    except Exception as exc:  # bildirim, tavanı uygulamayı bozmamalı
+        logger.warning("butce_bildirimi_gonderilemedi", error=str(exc), exceeded=exceeded)
 
 
 def _flush_llm_usage(buffer: UsageBuffer, *, tenant_id: uuid.UUID, job_id: uuid.UUID) -> None:

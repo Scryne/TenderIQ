@@ -357,3 +357,65 @@ def subscription_resumed(
         html=html,
         idempotency_key=f"subscription_resumed:{event_id}",
     )
+
+
+def budget_soft_threshold(
+    *, to: str, spent_try: float, limit_try: float, reset_date: str, period_key: str, link: str
+) -> EmailMessage:
+    """Aylık analiz bütçesinin çoğu kullanıldı — UYARI (analiz durmadı)."""
+    text = (
+        f"Bu ayki analiz bütçenizin büyük kısmını kullandınız: "
+        f"{spent_try:.2f} / {limit_try:.2f} TL.\n\n"
+        f"Bütçe {reset_date} tarihinde sıfırlanır. Bütçe dolarsa yeni analizler "
+        "başlatılamaz; mevcut analizleriniz etkilenmez.\n\n"
+        f"Planınızı yükseltmek için: {link}"
+    )
+    html = _wrap(
+        _paragraphs(
+            f"Bu ayki analiz bütçenizin büyük kısmını kullandınız: "
+            f"{spent_try:.2f} / {limit_try:.2f} TL.",
+            f"Bütçe {reset_date} tarihinde sıfırlanır. Bütçe dolarsa yeni analizler "
+            "başlatılamaz; mevcut analizleriniz etkilenmez.",
+        )
+        + _button(link, "Planı yükselt")
+    )
+    return EmailMessage(
+        kind=EmailKind.BUDGET_SOFT_THRESHOLD,
+        to=to,
+        subject=f"{_BRAND} — Analiz bütçenizin çoğu kullanıldı",
+        text=text,
+        html=html,
+        # Dönem başına TEK uyarı: her iş için e-posta göndermek, gerçekten
+        # önemli olanın okunmamasına yol açar.
+        idempotency_key=f"budget-soft:{to}:{period_key}",
+    )
+
+
+def budget_exceeded(
+    *, to: str, spent_try: float, limit_try: float, reset_date: str, period_key: str, link: str
+) -> EmailMessage:
+    """Bütçe doldu — yeni analizler REDDEDİLİYOR."""
+    text = (
+        f"Bu ayki analiz bütçeniz doldu ({spent_try:.2f} / {limit_try:.2f} TL) ve "
+        "yeni analizler başlatılamıyor.\n\n"
+        f"Bütçe {reset_date} tarihinde sıfırlanır. Daha önce başlamış analizleriniz "
+        "tamamlanır ve mevcut sonuçlarınıza erişiminiz sürer.\n\n"
+        f"Hemen devam etmek için planınızı yükseltebilirsiniz: {link}"
+    )
+    html = _wrap(
+        _paragraphs(
+            f"Bu ayki analiz bütçeniz doldu ({spent_try:.2f} / {limit_try:.2f} TL) ve "
+            "yeni analizler başlatılamıyor.",
+            f"Bütçe {reset_date} tarihinde sıfırlanır. Daha önce başlamış analizleriniz "
+            "tamamlanır ve mevcut sonuçlarınıza erişiminiz sürer.",
+        )
+        + _button(link, "Planı yükselt")
+    )
+    return EmailMessage(
+        kind=EmailKind.BUDGET_EXCEEDED,
+        to=to,
+        subject=f"{_BRAND} — Analiz bütçeniz doldu",
+        text=text,
+        html=html,
+        idempotency_key=f"budget-exceeded:{to}:{period_key}",
+    )

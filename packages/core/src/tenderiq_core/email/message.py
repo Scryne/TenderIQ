@@ -27,6 +27,9 @@ class EmailKind(StrEnum):
     SUBSCRIPTION_SUSPENDED = "subscription_suspended"
     SUBSCRIPTION_CANCELED = "subscription_canceled"
     SUBSCRIPTION_RESUMED = "subscription_resumed"
+    #: Aylık analiz bütçesi eşiğe yaklaştı / doldu (J.6).
+    BUDGET_SOFT_THRESHOLD = "budget_soft_threshold"
+    BUDGET_EXCEEDED = "budget_exceeded"
 
 
 # NOT: Daha önce burada tür bazlı bir "bastırmayı aşan mesajlar" listesi vardı

@@ -131,7 +131,13 @@ def test_manifesto_alanlari_eksiksiz() -> None:
 #: okur, derleme anında gömülmez) — ama kurulmaları yine de zorunlu. J.6 maliyet
 #: ölçümü tavanın girdisidir: `.env.example`de yoksa operatör varlığından
 #: haberdar olmaz ve tavan sessizce ölçümsüz kalır.
-J6_BACKEND_VARIABLES = ("LLM_PRICING_PATH", "LLM_USD_TRY_RATE")
+J6_BACKEND_VARIABLES = (
+    "LLM_PRICING_PATH",
+    "LLM_USD_TRY_RATE",
+    "LLM_JOB_RESERVATION_TRY",
+    "LLM_RESERVATION_TTL_SECONDS",
+    "LLM_BUDGET_SOFT_THRESHOLD",
+)
 
 
 @pytest.mark.parametrize("name", J6_BACKEND_VARIABLES)

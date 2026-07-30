@@ -16,14 +16,19 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from tenderiq_core.billing.plans import DEFAULT_PLAN_TIER, PlanTier, get_plan
+from tenderiq_core.config import Settings, get_settings
 from tenderiq_core.llm.cost import LlmCall
 from tenderiq_core.llm.pricing import MICROS_PER_TRY, PricingStatus
 from tenderiq_core.logging import get_logger
-from tenderiq_core.models import LlmUsage
+from tenderiq_core.models import LlmUsage, Subscription
+from tenderiq_core.ops import record_llm_budget_degraded
+from tenderiq_core.services.llm_reservation import release, try_reserve
 from tenderiq_core.services.quota import current_period_bounds
 
 logger = get_logger("tenderiq.services.llm_budget")
@@ -105,3 +110,185 @@ def compute_spend_sync(session: Session, *, now: datetime | None = None) -> Spen
         unpriced_calls=int(unpriced or 0),
         calls=int(total or 0),
     )
+
+
+# ── Tavan (J.6 madde 2) ─────────────────────────────────────────────────────
+
+
+class LlmBudgetExceededError(Exception):
+    """Aylık LLM bütçesi doldu: YENİ iş reddedilir.
+
+    Sert tavan **reddeder**. Sessizce küçük modele düşmek, bağlamı kısaltmak ya
+    da kısmi sonuç üretmek seçenek değil: kullanıcı, sonucun neden eksik
+    olduğunu göremeyeceği bir "başarı" yerine açık bir ret görmeli.
+    """
+
+    def __init__(self, *, spent_micros: int, limit_micros: int, period_end: datetime) -> None:
+        super().__init__(
+            f"Aylık analiz bütçesi doldu ({spent_micros / MICROS_PER_TRY:.2f}/"
+            f"{limit_micros / MICROS_PER_TRY:.2f} TL)."
+        )
+        self.spent_micros = spent_micros
+        self.limit_micros = limit_micros
+        self.period_end = period_end
+
+
+@dataclass(frozen=True, slots=True)
+class BudgetDecision:
+    """Kabul kararı + kullanıcıya/yöneticiye anlatılacak sayılar."""
+
+    accepted: bool
+    limit_micros: int | None
+    spent_micros: int
+    reserved_micros: int
+    period_end: datetime
+    #: Yumuşak eşik aşıldı mı (uyarı; ret DEĞİL).
+    soft_exceeded: bool
+    #: Rezervasyon kurulamadığı için muhafazakâr DB kontrolüne düşüldü mü.
+    degraded: bool
+    unpriced_calls: int
+
+    @property
+    def remaining_micros(self) -> int | None:
+        if self.limit_micros is None:
+            return None
+        return max(0, self.limit_micros - self.spent_micros - self.reserved_micros)
+
+
+def period_key(period_start: datetime) -> str:
+    """Rezervasyon anahtarının dönem parçası (kota dönemiyle AYNI takvim ayı)."""
+    return period_start.strftime("%Y-%m")
+
+
+def _tenant_plan_tier(session: Session) -> PlanTier:
+    """Aktif kiracının plan kademesi; aboneliği yoksa varsayılan (FREE).
+
+    Bilinmeyen/eksik abonelikte **en sıkı** kademeye düşmek bilinçli: kaydı
+    olmayan bir kiracıya sınırsız bütçe vermek, kayıt açıkken doğrudan zarardır.
+    """
+    row = session.scalar(select(Subscription.plan))
+    if row is None:
+        return DEFAULT_PLAN_TIER
+    return PlanTier(row)
+
+
+def _degraded_decision(remaining_micros: int, estimate_micros: int) -> tuple[bool, int]:
+    """Rezervasyonsuz, muhafazakâr karar: tek iş varmış gibi davran."""
+    accepted = remaining_micros >= estimate_micros
+    return accepted, estimate_micros if accepted else 0
+
+
+def admit_job_sync(
+    session: Session,
+    *,
+    tenant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    redis: Any | None,
+    settings: Settings | None = None,
+    now: datetime | None = None,
+) -> BudgetDecision:
+    """Bir işi bütçe açısından kabul eder ya da REDDEDER (karar döndürür).
+
+    Sıra önemli: önce harcama okunur (DB), sonra rezervasyon denenir (Redis).
+    Karar ``harcanan + rezerve`` üzerinden verilir — yalnız harcanana bakmak,
+    eşzamanlı işlerin tavanı birlikte aşmasına izin verirdi (harcama iş
+    BİTİNCE yazılıyor).
+
+    **Redis kesintisinde muhafazakâr DB kontrolüne düşülür**, işler
+    durdurulmaz. Gerekçe: kesintide her işi reddetmek ürünü tamamen durdurur;
+    DB kontrolü KAYITLI harcamayı hâlâ zorlar ve kaybedilen tek şey yarış
+    korumasıdır. Muhafazakârlık şurada: tek bir rezervasyon varmış gibi
+    davranılır (``harcanan + tahmin <= tavan``), yani sınır erken kapanır.
+    Kesinti ops metriğine yazılır — "sessizce geç" seçenek değildi.
+    """
+    settings = settings or get_settings()
+    snapshot = compute_spend_sync(session, now=now)
+    plan = get_plan(_tenant_plan_tier(session))
+    limit_try = plan.llm_budget_try_per_month
+
+    if limit_try is None:  # sınırsız kademe (kurumsal: tavan sözleşmeyle)
+        return BudgetDecision(
+            accepted=True,
+            limit_micros=None,
+            spent_micros=snapshot.spent_micros_try,
+            reserved_micros=0,
+            period_end=snapshot.period_end,
+            soft_exceeded=False,
+            degraded=False,
+            unpriced_calls=snapshot.unpriced_calls,
+        )
+
+    limit_micros = limit_try * MICROS_PER_TRY
+    estimate = int(settings.llm_job_reservation_try * MICROS_PER_TRY)
+    remaining = max(0, limit_micros - snapshot.spent_micros_try)
+    soft_exceeded = snapshot.spent_micros_try >= int(
+        limit_micros * settings.llm_budget_soft_threshold
+    )
+    degraded = False
+
+    if redis is None:
+        accepted, reserved = _degraded_decision(remaining, estimate)
+        degraded = True
+    else:
+        try:
+            accepted, reserved = try_reserve(
+                redis,
+                tenant_id=tenant_id,
+                period_key=period_key(snapshot.period_start),
+                job_id=job_id,
+                amount_micros=estimate,
+                remaining_micros=remaining,
+                ttl_seconds=settings.llm_reservation_ttl_seconds,
+            )
+        except Exception as exc:
+            logger.warning("llm_rezervasyon_kurulamadi", error=str(exc))
+            record_llm_budget_degraded(reason="redis_unavailable")
+            accepted, reserved = _degraded_decision(remaining, estimate)
+            degraded = True
+
+    return BudgetDecision(
+        accepted=accepted,
+        limit_micros=limit_micros,
+        spent_micros=snapshot.spent_micros_try,
+        reserved_micros=reserved,
+        period_end=snapshot.period_end,
+        soft_exceeded=soft_exceeded,
+        degraded=degraded,
+        unpriced_calls=snapshot.unpriced_calls,
+    )
+
+
+def enforce_llm_budget_sync(
+    session: Session,
+    *,
+    tenant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    redis: Any | None,
+    settings: Settings | None = None,
+    now: datetime | None = None,
+) -> BudgetDecision:
+    """`admit_job_sync` + reddedildiyse `LlmBudgetExceededError`."""
+    decision = admit_job_sync(
+        session, tenant_id=tenant_id, job_id=job_id, redis=redis, settings=settings, now=now
+    )
+    if not decision.accepted:
+        # Sınırsız kademede ret üretilmez; tip daraltması için açık kontrol
+        # (assert üretimde -O ile silinebilir, bu yol para kararı veriyor).
+        if decision.limit_micros is None:  # pragma: no cover - mantıken erişilmez
+            return decision
+        raise LlmBudgetExceededError(
+            spent_micros=decision.spent_micros,
+            limit_micros=decision.limit_micros,
+            period_end=decision.period_end,
+        )
+    return decision
+
+
+def release_job_reservation(
+    redis: Any | None, *, tenant_id: uuid.UUID, job_id: uuid.UUID, now: datetime | None = None
+) -> None:
+    """İş bitince rezervasyonu bırakır (gerçek maliyet artık kayıtta)."""
+    if redis is None:
+        return
+    start, _ = current_period_bounds(now or datetime.now(UTC))
+    release(redis, tenant_id=tenant_id, period_key=period_key(start), job_id=job_id)
