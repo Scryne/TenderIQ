@@ -55,7 +55,8 @@ açılışında fail-fast uygulayanlar:
 | `EMAIL_PROVIDER=memory` | üretimde reddedilir |
 | `RESEND_WEBHOOK_SECRET` | boşsa bounce webhook ucu 404 döner (kapalı kurulum) |
 | `OPS_METRICS_TOKEN` | boşsa `/ops/metrics` 404 döner |
-| `LLM_PRICING_PATH` | fiyat tablosu okunamazsa maliyet **kaydedilemez**; tavan uygulanamaz (bkz. `docs/ops/maliyet-tavani.md`) |
+| `LLM_PRICING_PATH` | okunamazsa her kayıt `unknown_model` olur; tutar hesaplanamaz ve bu KAYITTA görünür |
+| `LLM_USD_TRY_RATE` | boşsa maliyet hesaplanmaz (`no_fx_rate`). **0 yazmayın** — 0 TL tavanı sessizce sonsuz yapar |
 
 ## Dağıtım öncesi kontrol listesi
 

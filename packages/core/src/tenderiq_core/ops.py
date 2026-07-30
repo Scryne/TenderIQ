@@ -154,6 +154,25 @@ def record_job_phase(
         logger.debug("ops_is_metrigi_yazilamadi", error=str(exc))
 
 
+def record_llm_usage_lost(amount: int, *, reason: str) -> None:
+    """Yazılamayan LLM kullanım kaydı sayacı (J.6).
+
+    Maliyet ölçümünün kendi arızası GÖRÜNÜR olmalı: bu sayaç olmadan "kiracının
+    harcaması düşük" ile "kayıtlar kayboluyor" ayırt edilemez ve tavan sessizce
+    devre dışı kalır.
+    """
+    key = _minute_key(_JOB_PREFIX, _utcnow())
+    try:
+        client = _sync_redis()
+        pipe = client.pipeline(transaction=False)
+        pipe.hincrby(key, "llm_usage_lost", amount)
+        pipe.hincrby(key, f"llm_usage_lost:{reason}", amount)
+        pipe.expire(key, _BUCKET_TTL_SECONDS)
+        pipe.execute()
+    except Exception as exc:  # ölçüm, ölçtüğü işi ASLA bozmaz
+        logger.debug("ops_llm_kayip_metrigi_yazilamadi", error=str(exc))
+
+
 # ── Okuma tarafı ─────────────────────────────────────────────────────────────
 
 

@@ -1,0 +1,38 @@
+{
+  "$comment": [
+    "LLM fiyat tablosu — YAPILANDIRMADIR, kod değil.",
+    "",
+    "Fiyatlar sağlayıcının ilan ettiği USD/1M token değerleridir. Kodda hiçbir",
+    "rakam sabitlenmez; bu dosya `LLM_PRICING_PATH` ile değiştirilebilir.",
+    "",
+    "!! ÖNEMLİ: `verified: false` olan satırlar SAĞLAYICIYA KARŞI DOĞRULANMADI.",
+    "Doğrulanmamış fiyatla hesaplanan tutar bir TAHMİNDİR; kayıt bunu",
+    "`pricing_status='unverified'` ile işaretler ve tavan kararında kullanılmaz",
+    "sayılmaz — ama operatör dağıtımdan önce güncel fiyatı girmelidir",
+    "(bkz. docs/ops/yapilandirma.md kontrol listesi).",
+    "",
+    "Bilinmeyen model adı SESSİZCE 0 TL sayılmaz: kayıt `pricing_status='unknown_model'`",
+    "ile yazılır, uyarı loglanır ve ops metriğine düşer."
+  ],
+  "currency": "USD",
+  "models": {
+    "claude-opus-4-8": {
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0,
+      "verified": false,
+      "note": "Yayın birincil modeli. Fiyat dağıtımdan önce doğrulanmalı."
+    },
+    "qwen/qwen3.5-122b-a10b": {
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "verified": false,
+      "note": "NVIDIA NIM dev katmanı; kota ücretsiz olabilir, hesaba göre değişir."
+    },
+    "qwen2.5:7b-instruct-q5_K_M": {
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "verified": true,
+      "note": "Ollama YEREL: token başına sağlayıcı ücreti yok (donanım maliyeti bu tabloya girmez)."
+    }
+  }
+}
