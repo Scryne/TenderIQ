@@ -34,7 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
-| 11 | CI yeşile alındı (gitleaks + mypy) · bağlanmamış artefakt denetimi (router/beat/webhook/adaptör) · dinamik rotalar Lighthouse'a girdi · performans tabanı · Lighthouse CI job'ı · **CSP'nin öldürdüğü doküman tuvali bulundu** | `HEAD` |
+| 11 | CI yeşile alındı (gitleaks + mypy) · bağlanmamış artefakt denetimi (router/beat/webhook/adaptör) · dinamik rotalar Lighthouse'a girdi · performans tabanı · Lighthouse CI job'ı · **CSP'nin öldürdüğü doküman tuvali bulundu** | `e77ee20` |
 
 Ayrıntılı gerekçeler commit gövdelerindedir (`git show <hash>`); buraya
 kopyalanmaz.
