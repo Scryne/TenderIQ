@@ -369,3 +369,42 @@ kullanıcısı her yüklemede bir kare beyaz görürdü.
 `/tenders/[id]/review` Lighthouse ile ölçülmedi (dinamik rota; betiğin listesi
 sabit) — inceleme ekranı çekirdek çalışma alanı olduğu için bu bir açık madde.
 Performans kategorisi ölçülmedi; dinamik render'a geçişin maliyeti bilinmiyor.
+
+---
+
+## 2026-07-30 · dinamik rotalar ölçüme girdi · tur 11
+
+**Kapsam.** Görsel değişiklik yok; ölçüm KAPSAMININ genişletilmesi. Tur 10'da
+`/tenders/[id]` ve `/tenders/[id]/review` "dinamik rota" oldukları için Lighthouse
+listesinin dışında kalmıştı — yani ürünün çekirdek çalışma alanı hiç ölçülmemişti.
+
+**Ölçüm kapsamı genişletilir gibi bir şey yoktu: kimlik listeden okunuyor.**
+`scripts/lighthouse-a11y.mjs` artık giriş yaptıktan sonra `/tenders` listesinden
+ilk ihalenin `href`ini okuyup `:tenderId` yer tutucusunu dolduruyor. Elle env
+değişkeni vermek yanlış olurdu: tohum yeniden koşulduğunda kimlik değişir,
+Lighthouse 404 sayfasını ölçer ve skor "iyi" görünür.
+
+**Kötü (ölçümle bulundu):** `/tenders/[id]` = 98 · `heading-order`. "Şartname
+yükle" kartının başlığı `h3`, sayfa başlığı `h1` → bir kademe atlanıyor.
+Tur 10'da altı kart başlığı düzeltilmişti ama bu sayfa ölçülmediği için gözden
+kaçmıştı — düzeltmenin kapsamı ölçümün kapsamı kadardı.
+
+**Uygulanan:** `CardTitle as="h2"` (`components/tenders/tender-detail-view.tsx`).
+Sonuç: **18 rota × 100/100, düşen denetim yok.**
+
+**CSP'nin doküman tuvalini öldürdüğü bulundu (görsel sonucu olan asıl kusur).**
+`e2e/csp.spec.ts`e eklenen kimlikli test, inceleme ekranında `connect-src`
+ihlali gösterdi: imzalı PDF URL'i politikada yok, yani **tuval boş kalıyor**.
+BRIEF `kirmizi_cizgiler` #1 ("bulgu kaynağından koparılamaz") tam olarak o tuvale
+dayanıyor; zorlayıcı CSP onu sessizce kesmişti. Sebep `NEXT_PUBLIC_STORAGE_ORIGIN`
+değişkeninin hiçbir yerde kurulmaması + derleme anında gömülmesi. Düzeltildi
+(compose build arg, CI job env, `.env.example`'da "ZORUNLU" işaretiyle).
+
+**Performans.** Nonce CSP'nin tüm rotaları dinamik render'a geçirmesinin bedeli
+ölçüldü: ortanca TTFB +6 ms, LCP +25 ms, skor değişmedi (98–100). Tasarım
+açısından anlamı: yoğunluk/yerleşim kararlarını değiştirmeyi gerektiren bir
+maliyet yok. Ölçümün görmediği şey CDN önbelleği kaybı (localhost).
+
+**Bilinen borç.** `design/refs/` hâlâ boş. `sonner` çalışma anında nonce'suz
+`<style>` enjekte ettiği için `style-src 'unsafe-inline'` kalıcı borç oldu
+(ölçülerek doğrulandı; DURUM.md §1.2).

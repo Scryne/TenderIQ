@@ -167,6 +167,12 @@ jobs:
           SQL
       - name: Web derlemesi (E2E `next start` ile koşar)
         run: pnpm --filter @tenderiq/web build
+        env:
+          # CSP `connect-src` bu origin'i taşımazsa tarayıcı imzalı PDF URL'ini
+          # çekemez ve `csp.spec.ts`in kimlikli testi kırılır. DERLEME anında
+          # gömülmek zorunda (middleware edge runtime'da `process.env`i sabitler)
+          # ve `playwright.config.ts`teki `STORAGE_ORIGIN` ile AYNI olmalı.
+          NEXT_PUBLIC_STORAGE_ORIGIN: http://127.0.0.1:9
       - name: Playwright tarayıcısı
         run: pnpm exec playwright install --with-deps chromium
       - name: E2E
@@ -179,6 +185,100 @@ jobs:
           path: |
             test-results/
           retention-days: 7
+
+  a11y:
+    name: Erişilebilirlik (Lighthouse)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: tenderiq
+          POSTGRES_PASSWORD: tenderiq
+          POSTGRES_DB: tenderiq
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tenderiq -d tenderiq"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_ADMIN_URL: postgresql+psycopg://tenderiq:tenderiq@localhost:5432/tenderiq
+      DATABASE_URL: postgresql+psycopg://tenderiq_app:tenderiq_app@localhost:5432/tenderiq
+      REDIS_URL: redis://localhost:6379/0
+      # Ölçüm hermetiktir: e-posta/ödeme dışa çıkmaz, depolama origin'i ölü bir
+      # yerel port (imzalı PDF URL'i ağa gitmez ama CSP'de İZİNLİ olmalı).
+      EMAIL_PROVIDER: memory
+      BILLING_PROVIDER: fake
+      OBJECT_STORAGE_ENDPOINT_URL: http://127.0.0.1:9
+      OBJECT_STORAGE_BUCKET: tenderiq-a11y
+      OBJECT_STORAGE_ACCESS_KEY_ID: a11y-key
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: a11y-secret
+      AUTH_SECRET: ci-a11y-secret-en-az-otuz-iki-karakter-uzunlugunda
+      ENVIRONMENT: development
+    steps:
+      - uses: actions/checkout@v4
+      - name: uv kurulumu
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - name: pnpm kurulumu
+        uses: pnpm/action-setup@v4
+      - name: Node kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: uv sync --frozen
+      - run: pnpm install --frozen-lockfile
+      - name: Migration (ayrıcalıklı rolle)
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: ${{ env.DATABASE_ADMIN_URL }}
+      - name: Uygulama rolü (RLS'ye tabi)
+        run: |
+          psql "postgresql://tenderiq:tenderiq@localhost:5432/tenderiq" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE tenderiq_app LOGIN PASSWORD 'tenderiq_app';
+          GRANT USAGE ON SCHEMA public TO tenderiq_app;
+          GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO tenderiq_app;
+          GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO tenderiq_app;
+          SQL
+      - name: Tohum verisi (dinamik rotalar için gerçek ihale kimliği)
+        run: uv run python scripts/seed_e2e.py
+      - name: Web derlemesi (ÜRETİM derlemesi ölçülür; dev sunucusu skoru bozar)
+        run: pnpm --filter @tenderiq/web build
+        env:
+          NEXT_PUBLIC_STORAGE_ORIGIN: http://127.0.0.1:9
+      - name: Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Yığını kaldır
+        run: |
+          uv run uvicorn tenderiq_api.main:app --host 127.0.0.1 --port 8020 &
+          API_URL=http://127.0.0.1:8020 pnpm --filter @tenderiq/web start --port 3200 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8020/healthz >/dev/null \
+              && curl -sf http://127.0.0.1:3200/login >/dev/null && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8020/healthz >/dev/null
+          curl -sf http://127.0.0.1:3200/login >/dev/null
+      - name: Lighthouse — erişilebilirlik kapısı
+        # Kapı DÜŞEN DENETİM listesidir, yalnız skor değil: Tur 10'da üç gerçek
+        # kusur 95–100 aralığında saklanıyordu (ağırlığı 0 olan denetimler skoru
+        # düşürmüyor). Skor eşiği ek koruma olarak duruyor.
+        run: node scripts/lighthouse-a11y.mjs --base http://127.0.0.1:3200 --json a11y-rapor.json
+      - name: Rapor (her hâlde)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-a11y
+          path: a11y-rapor.json
+          retention-days: 7
+          if-no-files-found: warn
 
   security:
     name: Güvenlik taraması

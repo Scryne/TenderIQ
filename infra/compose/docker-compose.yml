@@ -117,6 +117,12 @@ services:
       dockerfile: infra/docker/web.Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        # CSP `connect-src`e giren depolama origin'i. Derleme argümanı olmak
+        # ZORUNDA: middleware edge çalışma zamanında koşuyor ve orada
+        # `process.env` derleme sırasında sabite çevriliyor (çalışma anı değeri
+        # görünmez). Boş kalırsa zorlayıcı politika imzalı PDF URL'ini engeller
+        # ve doküman tuvali sessizce boş kalır.
+        NEXT_PUBLIC_STORAGE_ORIGIN: ${STORAGE_ORIGIN:-${OBJECT_STORAGE_ENDPOINT_URL:-}}
     environment:
       API_URL: http://api:8000
     ports:

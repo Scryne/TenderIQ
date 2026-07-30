@@ -80,6 +80,12 @@ warn_unused_configs = true
 plugins = ["pydantic.mypy"]
 mypy_path = ["packages/core/src", "apps/api/src", "apps/worker/src"]
 
+# Tipsiz ya da OPSİYONEL bağımlılıklar. Opsiyonel olanların burada olması
+# zorunludur: CI `uv sync --frozen` ile yalnız varsayılan grubu kurar, yani
+# `parsing`/`ocr`/`embedding` gruplarındaki paketler orada YOKTUR. Override
+# eksik olursa mypy CI'da "Cannot find implementation or library stub" der ama
+# grupları kurulu olan geliştirici makinesinde SESSİZ kalır — bu fark Tur 11'de
+# `pypdf` yüzünden CI'ı kırdı.
 [[tool.mypy.overrides]]
 module = [
     "celery.*",
@@ -90,6 +96,7 @@ module = [
     "langfuse.*",
     "openpyxl.*",
     "pgvector.*",
+    "pypdf.*",
     "sentence_transformers.*",
 ]
 ignore_missing_imports = true

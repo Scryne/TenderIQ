@@ -52,7 +52,14 @@ const CHROME_PATH = process.env.CHROME_PATH ?? chromium.executablePath();
 const SEED_EMAIL = process.env.E2E_EMAIL ?? "e2e@tenderiq-e2e.com";
 const SEED_PASSWORD = process.env.E2E_PASSWORD ?? "e2e-password-123";
 
-/** `auth: true` olanlar oturum çerezi ile ölçülür. */
+/**
+ * Ölçülen rotalar. `auth: true` olanlar oturum çerezi ile ölçülür.
+ *
+ * `:tenderId` yer tutucusu koşum sırasında GERÇEK bir kimlikle doldurulur
+ * (`discoverTenderId`): inceleme ekranı ürünün çekirdek çalışma alanıdır ve
+ * dinamik rota olduğu için sabit listeye yazılamaz. Tur 10'da tam bu yüzden
+ * ölçülmemiş kalmıştı.
+ */
 const ROUTES = [
   { path: "/", auth: false },
   { path: "/login", auth: false },
@@ -67,13 +74,29 @@ const ROUTES = [
   { path: "/dpa", auth: false },
   { path: "/panel", auth: true },
   { path: "/tenders", auth: true },
+  { path: "/tenders/:tenderId", auth: true },
+  { path: "/tenders/:tenderId/review", auth: true },
   { path: "/usage", auth: true },
   { path: "/settings", auth: true },
   { path: "/capability", auth: true },
 ];
 
-/** Oturum açıp `Cookie` başlığı üretir. */
-async function sessionCookieHeader() {
+/** Ölçülecek Lighthouse kategorileri (`--categories` ile değiştirilir). */
+const CATEGORIES = (arg("--categories", "accessibility") ?? "accessibility")
+  .split(",")
+  .map((c) => c.trim())
+  .filter(Boolean);
+
+/** DESIGN.md §12 eşiği yalnız erişilebilirlik için geçerlidir. */
+const A11Y_MIN_SCORE = Number(arg("--min-a11y", "95"));
+
+/**
+ * Oturum açar; `Cookie` başlığını ve tohumdaki ilk ihale kimliğini döndürür.
+ *
+ * İkisi tek tarayıcı oturumunda alınır: kimlik keşfi için ayrı bir giriş,
+ * oran-sınırı sayacını gereksizce tüketirdi (kayıt/giriş uçları sınırlı).
+ */
+async function loginAndDiscover() {
   const browser = await chromium.launch();
   try {
     const context = await browser.newContext({ baseURL: BASE });
@@ -85,7 +108,22 @@ async function sessionCookieHeader() {
     await page.waitForURL(/\/(panel|tenders)/, { timeout: 30_000 });
     const cookies = await context.cookies();
     if (cookies.length === 0) throw new Error("oturum çerezi alınamadı");
-    return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+
+    // İhale kimliği LİSTEDEN okunur, ortam değişkeninden değil: tohum yeniden
+    // koşulduğunda kimlik değişir ve elle verilen bir değer sessizce 404'e
+    // düşerdi (Lighthouse 404 sayfasını ölçer, skor "iyi" görünür).
+    await page.goto("/tenders");
+    const href = await page
+      .locator('a[href^="/tenders/"]')
+      .first()
+      .getAttribute("href", { timeout: 15_000 });
+    const tenderId = href?.split("/")[2] ?? null;
+    if (!tenderId) {
+      throw new Error("tohumda ihale bulunamadı — `uv run python scripts/seed_e2e.py` koştu mu?");
+    }
+
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    return { cookieHeader, tenderId };
   } finally {
     await browser.close();
   }
@@ -97,7 +135,7 @@ function runLighthouse(url, extraHeaders) {
   const cliArgs = [
     LIGHTHOUSE_CLI,
     url,
-    "--only-categories=accessibility",
+    `--only-categories=${CATEGORIES.join(",")}`,
     "--output=json",
     `--output-path=${outPath}`,
     "--chrome-flags=--headless=new --no-sandbox",
@@ -134,9 +172,25 @@ function runLighthouse(url, extraHeaders) {
       }
     }
     const report = JSON.parse(readFileSync(outPath, "utf-8"));
-    const score = Math.round(report.categories.accessibility.score * 100);
+    const scores = {};
+    for (const [name, category] of Object.entries(report.categories)) {
+      scores[name] = category.score === null ? null : Math.round(category.score * 100);
+    }
+
+    // Erişilebilirlik denetimleri yalnız a11y kategorisinden alınır: performans
+    // "denetimleri" (LCP, TTFB…) ölçüm değerleridir, düzeltilecek kusur değil —
+    // ikisini aynı listede toplamak kapıyı anlamsızlaştırırdı.
+    const a11yAuditIds = new Set(
+      (report.categories.accessibility?.auditRefs ?? []).map((ref) => ref.id),
+    );
     const failed = Object.values(report.audits)
-      .filter((a) => a.score !== null && a.score < 1 && a.scoreDisplayMode !== "informative")
+      .filter(
+        (a) =>
+          a11yAuditIds.has(a.id) &&
+          a.score !== null &&
+          a.score < 1 &&
+          a.scoreDisplayMode !== "informative",
+      )
       .map((a) => ({
         id: a.id,
         title: a.title,
@@ -147,7 +201,18 @@ function runLighthouse(url, extraHeaders) {
           .map((item) => item.node?.snippet ?? item.node?.selector)
           .filter(Boolean),
       }));
-    return { score, failed };
+
+    // Performans metrikleri (ms). Skorun kendisi ortama çok duyarlıdır; ham
+    // değerler karşılaştırma için skordan daha kullanışlı.
+    const metrics = {};
+    for (const id of ["largest-contentful-paint", "server-response-time", "first-contentful-paint",
+      "total-blocking-time", "cumulative-layout-shift", "speed-index"]) {
+      const audit = report.audits[id];
+      if (audit && audit.numericValue !== undefined) {
+        metrics[id] = Math.round(audit.numericValue * 100) / 100;
+      }
+    }
+    return { scores, failed, metrics };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -164,37 +229,116 @@ if (routes.length === 0) {
 }
 
 let cookieHeader = null;
+let tenderId = null;
 if (routes.some((r) => r.auth)) {
-  cookieHeader = await sessionCookieHeader();
-  console.log("[a11y] oturum çerezi alındı\n");
+  ({ cookieHeader, tenderId } = await loginAndDiscover());
+  console.log(`[lh] oturum alındı · ihale kimliği: ${tenderId}`);
 }
+console.log(`[lh] kategoriler: ${CATEGORIES.join(", ")}\n`);
 
 const results = [];
 for (const route of routes) {
-  const url = `${BASE}${route.path}`;
+  // Dinamik rota yer tutucusu gerçek kimlikle doldurulur; kimlik yoksa rota
+  // ATLANIR (uydurma kimlikle ölçmek 404 sayfasını ölçmek olurdu).
+  if (route.path.includes(":tenderId") && !tenderId) {
+    console.log(`ATLA      ${route.path} (ihale kimliği yok)`);
+    continue;
+  }
+  const path = route.path.replace(":tenderId", tenderId ?? "");
+  const url = `${BASE}${path}`;
   let outcome;
   try {
     outcome = runLighthouse(url, route.auth ? cookieHeader : null);
   } catch (error) {
-    console.log(`HATA ${route.path}: ${error.message.split("\n")[0]}`);
-    results.push({ path: route.path, score: null, failed: [] });
+    console.log(`HATA      ${path}: ${error.message.split("\n")[0]}`);
+    results.push({ path, scores: {}, failed: [], metrics: {} });
     continue;
   }
-  results.push({ path: route.path, ...outcome });
-  const mark = outcome.score >= 95 ? "OK  " : outcome.score >= 90 ? "ORTA" : "DUSUK";
-  console.log(`${mark} ${String(outcome.score).padStart(3)}  ${route.path}`);
+  results.push({ path, ...outcome });
+
+  const a11y = outcome.scores.accessibility;
+  const perf = outcome.scores.performance;
+  const mark =
+    a11y === undefined ? "    " : a11y >= A11Y_MIN_SCORE ? "OK  " : a11y >= 90 ? "ORTA" : "DUSUK";
+  const parts = [];
+  if (a11y !== undefined) parts.push(`a11y=${String(a11y).padStart(3)}`);
+  if (perf !== undefined) parts.push(`perf=${String(perf).padStart(3)}`);
+  const lcp = outcome.metrics["largest-contentful-paint"];
+  const ttfb = outcome.metrics["server-response-time"];
+  if (lcp !== undefined) parts.push(`LCP=${Math.round(lcp)}ms`);
+  if (ttfb !== undefined) parts.push(`TTFB=${Math.round(ttfb)}ms`);
+  console.log(`${mark} ${parts.join("  ")}  ${path}`);
   for (const audit of outcome.failed) {
     console.log(`         ✗ ${audit.id} — ${audit.title} (${audit.items} öğe)`);
   }
 }
 
-const lowest = results.filter((r) => r.score !== null).sort((a, b) => a.score - b.score)[0];
-console.log(`\nEn düşük: ${lowest?.path} = ${lowest?.score}`);
+// ── Özet ve kapı ─────────────────────────────────────────────────────────────
+
+const measured = results.filter((r) => r.scores.accessibility !== undefined);
+const lowest = [...measured].sort(
+  (a, b) => a.scores.accessibility - b.scores.accessibility,
+)[0];
+if (lowest) {
+  console.log(`\nEn düşük a11y: ${lowest.path} = ${lowest.scores.accessibility}`);
+}
+
+if (CATEGORIES.includes("performance")) {
+  const perfRows = results.filter((r) => r.metrics["largest-contentful-paint"] !== undefined);
+  if (perfRows.length > 0) {
+    const median = (values) => {
+      const sorted = [...values].sort((a, b) => a - b);
+      return sorted[Math.floor(sorted.length / 2)];
+    };
+    const lcpMedian = median(perfRows.map((r) => r.metrics["largest-contentful-paint"]));
+    const ttfbMedian = median(
+      perfRows.map((r) => r.metrics["server-response-time"] ?? 0).filter(Boolean),
+    );
+    console.log(
+      `Performans ortancası: LCP=${Math.round(lcpMedian)}ms · TTFB=${Math.round(ttfbMedian)}ms ` +
+        `(${perfRows.length} rota)`,
+    );
+  }
+}
+
 if (JSON_OUT) {
-  writeFileSync(JSON_OUT, JSON.stringify({ base: BASE, measuredAt: new Date().toISOString(), results }, null, 2));
+  writeFileSync(
+    JSON_OUT,
+    JSON.stringify(
+      { base: BASE, measuredAt: new Date().toISOString(), categories: CATEGORIES, results },
+      null,
+      2,
+    ),
+  );
   console.log(`JSON: ${JSON_OUT}`);
 }
 
-// DESIGN.md §12: skor ≥95 olmadan UI görevi kapanmaz.
-const failing = results.filter((r) => r.score === null || r.score < 95);
-process.exit(failing.length === 0 ? 0 : 1);
+// ── Çıkış kapısı ─────────────────────────────────────────────────────────────
+//
+// **Asıl kapı DÜŞEN DENETİM listesidir, skor değil.** Tur 10'da üç gerçek
+// erişilebilirlik kusuru 95–100 skor aralığında saklanıyordu: bazı denetimlerin
+// kategori ağırlığı 0 olduğu için skoru hiç düşürmüyorlar. Skor eşiği yalnız EK
+// koruma olarak duruyor (bir denetim listede olmasa da skoru düşürebilir).
+//
+// Performans skoru kapıya GİRMEZ: değeri çalıştığı makineye çok duyarlı,
+// eşik koymak CI'da gürültülü kırmızı üretirdi. Ham metrikler JSON'a yazılır ve
+// karşılaştırma elle yapılır.
+const auditFailures = results.filter((r) => r.failed.length > 0);
+const scoreFailures = measured.filter((r) => r.scores.accessibility < A11Y_MIN_SCORE);
+const unmeasured = results.filter((r) => r.scores.accessibility === undefined);
+
+if (auditFailures.length > 0) {
+  console.log(`\nKAPI: ${auditFailures.length} rotada düşen erişilebilirlik denetimi var.`);
+}
+if (scoreFailures.length > 0) {
+  console.log(`KAPI: ${scoreFailures.length} rota a11y skoru < ${A11Y_MIN_SCORE}.`);
+}
+if (unmeasured.length > 0 && CATEGORIES.includes("accessibility")) {
+  console.log(`KAPI: ${unmeasured.length} rota ölçülemedi: ${unmeasured.map((r) => r.path).join(", ")}`);
+}
+
+const gateOpen =
+  auditFailures.length === 0 &&
+  scoreFailures.length === 0 &&
+  (unmeasured.length === 0 || !CATEGORIES.includes("accessibility"));
+process.exit(gateOpen ? 0 : 1);

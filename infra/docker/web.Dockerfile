@@ -24,7 +24,14 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 # NEXT_PUBLIC_* değişkenleri build anında gömülür; tarayıcı host'ta çalıştığından
 # API'nin host adresi (localhost:8000) varsayılandır.
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+# CSP `connect-src`e giren nesne depolama origin'i. Build argümanı olmak ZORUNDA:
+# politikayı üreten middleware edge çalışma zamanında koşuyor ve orada
+# `process.env` derleme sırasında sabite çevriliyor — çalışma anında verilen
+# değer görünmez. Boş kalırsa zorlayıcı politika imzalı PDF URL'ini engeller ve
+# doküman tuvali sessizce boş kalır (bkz. apps/web/src/lib/security/csp.ts).
+ARG NEXT_PUBLIC_STORAGE_ORIGIN=
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    NEXT_PUBLIC_STORAGE_ORIGIN=$NEXT_PUBLIC_STORAGE_ORIGIN \
     NEXT_OUTPUT=standalone
 COPY packages/api-client packages/api-client
 COPY apps/web apps/web

@@ -42,10 +42,28 @@ const API_WAITLIST = process.env.E2E_API_WAITLIST ?? "http://127.0.0.1:8101";
 const WEB_OPEN = process.env.E2E_WEB_OPEN ?? "http://127.0.0.1:3100";
 const WEB_WAITLIST = process.env.E2E_WEB_WAITLIST ?? "http://127.0.0.1:3101";
 
+/**
+ * Nesne depolama origin'i — E2E'de YEREL BİR ÖLÜ PORT.
+ *
+ * İmzalı PDF URL'ini tarayıcı DOĞRUDAN depolamadan çeker. Gerçek R2 origin'i
+ * kullanılsaydı E2E her koşuda Cloudflare'a çıkardı (hermetik değil). Ölü bir
+ * yerel port, hem dışa çıkışı önler hem de politikanın DOĞRU origin'i içerdiğini
+ * sınamayı sürdürür: `connect-src` bu origin'i taşımazsa tarayıcı CSP ihlali
+ * üretir ve `e2e/csp.spec.ts` kırılır. (Tur 11'de tam bu ihlal, üretimde ölü
+ * kalmış bir doküman tuvalini ortaya çıkardı.)
+ */
+const STORAGE_ORIGIN = "http://127.0.0.1:9";
+
 /** Her iki API örneğinin paylaştığı, dışa çıkışı kapatan ortam. */
 const apiEnv: Record<string, string> = {
   EMAIL_PROVIDER: "memory",
   BILLING_PROVIDER: "fake",
+  // İmzalı URL'ler bu endpoint'e göre üretilir; web tarafındaki
+  // `STORAGE_ORIGIN` ile AYNI olmak zorunda (yoksa CSP ihlali doğar).
+  OBJECT_STORAGE_ENDPOINT_URL: STORAGE_ORIGIN,
+  OBJECT_STORAGE_BUCKET: "tenderiq-e2e",
+  OBJECT_STORAGE_ACCESS_KEY_ID: "e2e-key",
+  OBJECT_STORAGE_SECRET_ACCESS_KEY: "e2e-secret",
   BILLING_WEBHOOK_SECRET: "e2e-webhook-secret",
   BILLING_ENV: "sandbox",
   ENVIRONMENT: "development",
@@ -81,7 +99,7 @@ function webServer(port: number, apiUrl: string) {
     url: `http://127.0.0.1:${port}/login`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
-    env: { API_URL: apiUrl, PORT: String(port) },
+    env: { API_URL: apiUrl, PORT: String(port), STORAGE_ORIGIN },
   };
 }
 
