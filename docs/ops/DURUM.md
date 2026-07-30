@@ -34,7 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
-| 11 | CI yeşile alındı (gitleaks + mypy) · bağlanmamış artefakt denetimi (router/beat/webhook/adaptör) · dinamik rotalar Lighthouse'a girdi · performans tabanı · Lighthouse CI job'ı · **CSP'nin öldürdüğü doküman tuvali bulundu** | `e77ee20` |
+| 11 | CI yeşile alındı (gitleaks + mypy) · bağlanmamış artefakt denetimi (router/beat/webhook/adaptör) · dinamik rotalar Lighthouse'a girdi · performans tabanı · Lighthouse CI job'ı · **CSP'nin öldürdüğü doküman tuvali bulundu** | `e77ee20`…`61a0274` |
 
 Ayrıntılı gerekçeler commit gövdelerindedir (`git show <hash>`); buraya
 kopyalanmaz.
@@ -213,7 +213,7 @@ kopyalanmaz.
    `email_suppression`dan adres çıkarmanın operatör ucu yok (ADR-0015 "Ödünler").
 
 > **CI sonucu nasıl okunur** (`gh` CLI kurulu değil, gerek de yok — repo
-> herkese açık):
+> herkese açık). Son durum Bölüm 3'te; ilk yeşil koşum `61a0274`:
 > ```bash
 > curl -s "https://api.github.com/repos/Scryne/TenderIQ/actions/runs?branch=main&per_page=5"
 > curl -s "https://api.github.com/repos/Scryne/TenderIQ/actions/runs/<id>/jobs"
@@ -245,7 +245,7 @@ trivy), `image-scan`.
 | Ne | Durum | Nasıl / ne zaman ölçüldü |
 |---|---|---|
 | CI koşumu (Tur 10 push'u, `7274618`) | `e2e` ✅ · `image-scan` ✅ (3 imaj) · `frontend` ✅ · `contract` ✅ · **`security` ❌ (gitleaks)** · **`backend` ❌ (mypy)** | 2026-07-30, Actions REST API'sinden okundu (run #12, id 30516757650). İki arıza Tur 11'de yerelde üretilip düzeltildi |
-| CI koşumu (Tur 11 push'u) | push edildi; **sonucu bu dosya BİLMİYOR** | Bölüm 2.1'deki komutla okunacak |
+| CI koşumu (Tur 11, `61a0274`) | **9 job'ın TAMAMI yeşil** (`backend` · `contract` · `frontend` · `e2e` · `a11y` · `security` · `image-scan`×3) | 2026-07-30, Actions REST API'sinden okundu (run id 30537772592). CI ilk kez uçtan uca yeşil |
 | Yerel tam koşum (Tur 11 commit'i) | geçti | 2026-07-30 · `ruff check` + `ruff format --check` (240 dosya) · `mypy` strict **iki ortamda** (yerel `.venv` + CI eşi `.venv-ci --frozen`), 139 dosya · `pytest` 368 · `pytest -m integration` 157 · `playwright test` 17 · `replay_billing_webhook.py` 8/8 · eslint + tsc (web & api-client) + `next build` · OpenAPI ve api-client drift yok |
 | Lighthouse erişilebilirlik | **18 rota × 100/100** (dinamik rotalar dâhil), düşen denetim yok | 2026-07-30 · `docs/ops/lighthouse-erisilebilirlik.md`; artık CI'da `a11y` job'ı olarak da koşar |
 | Nonce CSP'nin performans bedeli | ortanca TTFB +6 ms · LCP +25 ms · skor değişmedi | 2026-07-30 · aynı makinede statik-prerender taban derlemesiyle karşılaştırıldı; localhost olduğu için CDN/önbellek kaybını ÖLÇMEZ |
