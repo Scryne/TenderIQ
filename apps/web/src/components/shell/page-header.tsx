@@ -52,11 +52,14 @@ export function PageHeader({
 
 /** Bölüm başlığı — kart gruplarının üstünde (§9.1 seviye 2). */
 export function SectionHeader({
+  id,
   title,
   description,
   actions,
   className,
 }: {
+  /** Sayfa içi çapa — bölüme bağlantı verilebilsin diye (ör. "planlar"). */
+  id?: string;
   title: string;
   description?: string;
   actions?: ReactNode;
@@ -65,7 +68,11 @@ export function SectionHeader({
   return (
     <div className={cn("mb-3 flex flex-wrap items-end justify-between gap-3", className)}>
       <div className="min-w-0">
-        <h2 className="font-display text-lg font-semibold text-ink-1">{title}</h2>
+        {/* Çapa başlığın KENDİSİNDE: `#planlar` bağlantısı bölüm başlığına
+            odaklanır, üstündeki boşluğa değil (klavye/ekran okuyucu sırası). */}
+        <h2 id={id} className="scroll-mt-6 font-display text-lg font-semibold text-ink-1">
+          {title}
+        </h2>
         {description !== undefined && (
           <p className="mt-0.5 max-w-[68ch] text-sm text-ink-2">{description}</p>
         )}

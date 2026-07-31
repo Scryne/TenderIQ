@@ -16,10 +16,18 @@ const number1 = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
 });
+/** En fazla bir hane — tam sayıda kuruş hanesi YAZILMAZ ("500 MB", "2,4 MB"). */
+const numberUpTo1 = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 });
 const currency = new Intl.NumberFormat(LOCALE, {
   style: "currency",
   currency: "TRY",
   maximumFractionDigits: 0,
+});
+const currencyPrecise = new Intl.NumberFormat(LOCALE, {
+  style: "currency",
+  currency: "TRY",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 const dateShort = new Intl.DateTimeFormat(LOCALE, {
   day: "2-digit",
@@ -49,6 +57,36 @@ export function formatNumber(value: number): string {
 /** `₺184.392` — sembol sayının solunda, Intl'in tr-TR çıktısı budur. */
 export function formatCurrency(value: number): string {
   return currency.format(value);
+}
+
+/**
+ * `₺8,40` — kuruş görünür. `formatCurrency` tam TL'ye yuvarlar (plan fiyatları
+ * için doğru); LLM bütçesi gibi küçük tutarlarda o yuvarlama bilgi kaybıdır —
+ * ₺8,40 harcamayı "₺8" göstermek, tavana ne kadar yaklaşıldığını gizler.
+ */
+export function formatCurrencyPrecise(value: number): string {
+  return currencyPrecise.format(value);
+}
+
+/**
+ * `₺8,40` → `{ symbol: "₺", amount: "8,40" }` — §6.5: para birimi sayıdan
+ * **daha küçük ve muted** olur.
+ *
+ * Ayırma elle yapılmaz, Intl'in kendi parçalarından okunur: sembolün sayının
+ * solunda mı sağında mı durduğu ve arada boşluk olup olmadığı locale kararıdır,
+ * bizim değil (Ek B.1 "elle biçimlendirme yasak").
+ */
+export function splitCurrency(value: number): { symbol: string; amount: string } {
+  const parts = currencyPrecise.formatToParts(value);
+  const symbol = parts
+    .filter((part) => part.type === "currency")
+    .map((part) => part.value)
+    .join("");
+  const amount = parts
+    .filter((part) => part.type !== "currency" && part.type !== "literal")
+    .map((part) => part.value)
+    .join("");
+  return { symbol, amount };
 }
 
 /** `%12,4` — işaret ÖNDE (Ek B.1). Intl'in `style: percent` çıktısı sona koyar. */
@@ -178,12 +216,17 @@ export function parseTrDate(text: string): Date | null {
   return null;
 }
 
-/** `2,4 MB` — dosya boyutu. */
+/**
+ * `2,4 MB` · `500 MB` — dosya boyutu.
+ *
+ * Ondalık hane **zorunlu değil**: kota gibi yuvarlak değerlerde "500,0 MB"
+ * yazmak özensiz durur ve okunurluğu düşürür. Sıfır olmayan hane varsa yazılır.
+ */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${number.format(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${number1.format(bytes / 1024)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${number1.format(bytes / 1024 / 1024)} MB`;
-  return `${number1.format(bytes / 1024 / 1024 / 1024)} GB`;
+  if (bytes < 1024 * 1024) return `${numberUpTo1.format(bytes / 1024)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${numberUpTo1.format(bytes / 1024 / 1024)} MB`;
+  return `${numberUpTo1.format(bytes / 1024 / 1024 / 1024)} GB`;
 }
 
 /**
