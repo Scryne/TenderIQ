@@ -22,6 +22,7 @@ from tenderiq_api.routers.v1 import api_v1_router
 from tenderiq_core.config import Environment, get_settings
 from tenderiq_core.db import create_engine, create_session_factory
 from tenderiq_core.email import create_email_provider
+from tenderiq_core.llm.pricing_posture import log_pricing_posture
 from tenderiq_core.logging import configure_logging
 from tenderiq_core.observability import init_sentry
 from tenderiq_core.storage import StorageNotConfiguredError, StorageService
@@ -48,6 +49,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.storage = StorageService.from_settings(settings)
     except StorageNotConfiguredError:
         app.state.storage = None
+    # Tavanın dayandığı fiyat zeminini AÇILIŞTA raporla: kur yoksa tutar hep
+    # 0 TL yazılır ve bütçe tavanı hiç dolmaz — bu, hata üretmeyen bir arızadır.
+    log_pricing_posture()
     try:
         yield
     finally:
