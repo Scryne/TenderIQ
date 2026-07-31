@@ -192,6 +192,30 @@ def record_llm_budget_degraded(*, reason: str) -> None:
         logger.debug("ops_llm_butce_metrigi_yazilamadi", error=str(exc))
 
 
+def record_llm_pricing_posture(
+    *, unverified_models: int, fx_rate_missing: bool, fx_rate_stale: bool
+) -> None:
+    """Tavanın dayandığı fiyat zemininin durumu (J.6 madde 1, Tur 15).
+
+    Doğrulanmamış fiyat ve bayat/eksik kur "hata" üretmez ama tavanı sessizce
+    zayıflatır — kur yoksa tutar hep 0 TL yazılır ve tavan HİÇ dolmaz. Bu
+    sayaçlar o hâli görünür kılar. Açılışta bir kez yazılır; gösterge, süreç
+    yeniden başladıkça tazelenir.
+    """
+    key = _minute_key(_JOB_PREFIX, _utcnow())
+    try:
+        client = _sync_redis()
+        pipe = client.pipeline(transaction=False)
+        # `hset` str bekler; sayaçlar okuma tarafında `_decode` ile int'e döner.
+        pipe.hset(key, "llm_pricing_unverified", str(unverified_models))
+        pipe.hset(key, "llm_pricing_fx_missing", str(int(fx_rate_missing)))
+        pipe.hset(key, "llm_pricing_fx_stale", str(int(fx_rate_stale)))
+        pipe.expire(key, _BUCKET_TTL_SECONDS)
+        pipe.execute()
+    except Exception as exc:  # ölçüm, açılışı ASLA bozmaz
+        logger.debug("ops_llm_fiyat_durusu_yazilamadi", error=str(exc))
+
+
 # ── Okuma tarafı ─────────────────────────────────────────────────────────────
 
 

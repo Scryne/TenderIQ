@@ -12,27 +12,63 @@
     "(bkz. docs/ops/yapilandirma.md kontrol listesi).",
     "",
     "Bilinmeyen model adı SESSİZCE 0 TL sayılmaz: kayıt `pricing_status='unknown_model'`",
-    "ile yazılır, uyarı loglanır ve ops metriğine düşer."
+    "ile yazılır, uyarı loglanır ve ops metriğine düşer.",
+    "",
+    "DOĞRULAMA KURALI (Tur 15): `verified: true` yapan kişi `source` (sağlayıcının",
+    "KENDİ fiyat sayfası) ve `verified_at` (YYYY-AA-GG) alanlarını doldurmak",
+    "ZORUNDADIR. Kaynağa ulaşılamıyorsa fiyat UYDURULMAZ — `verified: false`",
+    "bırakılır ve sebebi `note`a yazılır. Açılışta doğrulanmamış model kalırsa",
+    "uyarı üretilir ve `ops`ta llm_pricing_unverified sayılır."
   ],
   "currency": "USD",
   "models": {
     "claude-opus-4-8": {
       "input_per_mtok": 5.0,
       "output_per_mtok": 25.0,
-      "verified": false,
-      "note": "Yayın birincil modeli. Fiyat dağıtımdan önce doğrulanmalı."
+      "verified": true,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing.md",
+      "verified_at": "2026-07-31",
+      "note": "Yayın birincil modeli (LLM_PRIMARY_MODEL). Sağlayıcının resmî fiyat sayfasındaki 'Model pricing' tablosundan birebir okundu: Base Input $5/MTok, Output $25/MTok. Prompt cache ve batch indirimleri bu tabloya GİRMEZ — ölçüm ham girdi/çıktı token'ı üzerinden yapılıyor, yani hesaplanan tutar cache/batch kullanıldığında gerçeğin ÜSTÜNDE kalır (muhafazakâr yön; tavan erken kapanır, geç değil)."
+    },
+    "claude-opus-5": {
+      "input_per_mtok": 5.0,
+      "output_per_mtok": 25.0,
+      "verified": true,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing.md",
+      "verified_at": "2026-07-31",
+      "note": "Opus 4.8 ile AYNI fiyat. Tabloda bulunması bilinçli: birincil model yükseltilirse fiyat satırı eksik kalıp kayıtlar sessizce 'unknown_model'a düşmesin — fiyatlandırılamayan model tavanı işlevsizleştirir."
+    },
+    "claude-sonnet-5": {
+      "input_per_mtok": 3.0,
+      "output_per_mtok": 15.0,
+      "verified": true,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing.md",
+      "verified_at": "2026-07-31",
+      "note": "STANDART fiyat (1 Eylül 2026'dan itibaren). 31 Ağustos 2026'ya kadar tanıtım fiyatı $2/$10. Bilinçli olarak STANDART yazıldı: tanıtım fiyatını yazmak, tanıtım bitince tavanı sessizce olduğundan DÜŞÜK hesaplardı."
+    },
+    "claude-haiku-4-5": {
+      "input_per_mtok": 1.0,
+      "output_per_mtok": 5.0,
+      "verified": true,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing.md",
+      "verified_at": "2026-07-31",
+      "note": "Şu an üretimde kullanılmıyor; tablo eksikliği 'unknown_model' üretmesin diye burada."
     },
     "qwen/qwen3.5-122b-a10b": {
       "input_per_mtok": 0.0,
       "output_per_mtok": 0.0,
       "verified": false,
-      "note": "NVIDIA NIM dev katmanı; kota ücretsiz olabilir, hesaba göre değişir."
+      "source": null,
+      "verified_at": null,
+      "note": "DOĞRULANAMADI (denendi 2026-07-31). NVIDIA'nın build.nvidia.com barındırılan katalogu için token başına YAYIMLANMIŞ fiyat bulunamadı: build.nvidia.com/pricing bağlantıyı düşürdü (ECONNRESET), www.nvidia.com/en-us/ai/nim-pricing/ 404 döndü, build.nvidia.com zaman aşımına uğradı. Üçüncü taraf toplayıcılar $0.04-$1.20/Mtok aralığı bildiriyor ama bunlar SAĞLAYICI KAYNAĞI DEĞİL, o yüzden yazılmadı. 0.0 değeri 'ücretsiz olduğu doğrulandı' DEMEK DEĞİLDİR; verified=false olduğu için kayıtlar 'unverified' işaretlenir ve tutar TAHMİNDİR. Bu model DEV katmanıdır (üretim birincil modeli claude-opus-4-8); üretimde kullanılacaksa fiyat ÖNCE doğrulanmalıdır."
     },
     "qwen2.5:7b-instruct-q5_K_M": {
       "input_per_mtok": 0.0,
       "output_per_mtok": 0.0,
       "verified": true,
-      "note": "Ollama YEREL: token başına sağlayıcı ücreti yok (donanım maliyeti bu tabloya girmez)."
+      "source": "https://ollama.com/library/qwen2.5",
+      "verified_at": "2026-07-31",
+      "note": "Ollama YEREL: model kendi donanımında koşar, token başına SAĞLAYICI ücreti yoktur — doğrulanacak bir fiyat sayfası da yoktur, 0.0 tanımı gereği doğrudur. Donanım/elektrik maliyeti bu tabloya girmez (token başına faturalanmaz)."
     }
   }
 }

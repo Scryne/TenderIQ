@@ -9,6 +9,7 @@ from __future__ import annotations
 from celery import Celery
 
 from tenderiq_core.config import Environment, get_settings
+from tenderiq_core.llm.pricing_posture import log_pricing_posture
 from tenderiq_core.logging import configure_logging
 from tenderiq_core.observability import init_sentry
 from tenderiq_core.queueing import (
@@ -27,6 +28,9 @@ def create_celery_app() -> Celery:
     # log biçimi olmadan production'da parse/index/extract kayıtları aranamaz.
     configure_logging(json_logs=settings.environment is not Environment.DEVELOPMENT)
     init_sentry(settings)  # DSN yoksa no-op; CeleryIntegration task hatalarını yakalar
+    # Tavanın dayandığı fiyat zemini worker'da da raporlanır: maliyet kaydını
+    # YAZAN taraf burasıdır, dolayısıyla kursuz/bayat kur en çok burada görünür.
+    log_pricing_posture()
     app = Celery(
         "tenderiq",
         broker=settings.redis_url,

@@ -59,6 +59,10 @@ class ModelPrice:
     input_per_mtok_usd: float
     output_per_mtok_usd: float
     verified: bool
+    #: Doğrulamanın dayandığı SAĞLAYICI fiyat sayfası (verified ise zorunlu).
+    source: str | None = None
+    #: Doğrulama tarihi, YYYY-AA-GG (verified ise zorunlu).
+    verified_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,10 +123,25 @@ def load_pricing(settings: Settings | None = None, *, refresh: bool = False) -> 
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         for name, entry in raw.get("models", {}).items():
+            source = entry.get("source")
+            verified_at = entry.get("verified_at")
+            # `verified: true` ama kaynak/tarih yoksa DOĞRULANMAMIŞ sayılır:
+            # "doğrulandı" iddiasının denetlenebilir olması şart, aksi hâlde
+            # bayrağı elle çevirmek tavanı sessizce uydurma bir sayının
+            # üstüne oturtur (Tur 15 kuralı).
+            verified = bool(entry.get("verified", False)) and bool(source) and bool(verified_at)
+            if bool(entry.get("verified", False)) and not verified:
+                logger.warning(
+                    "llm_fiyat_dogrulama_kaynaksiz",
+                    model=name,
+                    hint="verified=true için source + verified_at zorunlu",
+                )
             models[name] = ModelPrice(
                 input_per_mtok_usd=float(entry["input_per_mtok"]),
                 output_per_mtok_usd=float(entry["output_per_mtok"]),
-                verified=bool(entry.get("verified", False)),
+                verified=verified,
+                source=str(source) if source else None,
+                verified_at=str(verified_at) if verified_at else None,
             )
     except (OSError, ValueError, KeyError, TypeError) as exc:
         logger.warning("llm_fiyat_tablosu_okunamadi", path=str(path), error=str(exc))
