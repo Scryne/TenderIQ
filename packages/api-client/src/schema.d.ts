@@ -1680,6 +1680,8 @@ export interface components {
             filename: string;
             /** @default other */
             kind: components["schemas"]["DocumentKind"];
+            /** Size Bytes */
+            size_bytes?: number | null;
         };
         /**
          * DocumentFileResponse

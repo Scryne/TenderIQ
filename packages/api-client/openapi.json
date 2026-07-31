@@ -729,6 +729,18 @@
           "kind": {
             "$ref": "#/components/schemas/DocumentKind",
             "default": "other"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
           }
         },
         "required": [
