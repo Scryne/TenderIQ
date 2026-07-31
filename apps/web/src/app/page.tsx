@@ -158,7 +158,7 @@ function Hero() {
           </div>
 
           <p className="mt-5 text-sm text-ink-3">
-            Kredi kartı istenmez · Ücretsiz planda ayda 5 doküman · KVKK-uyumlu
+            Kredi kartı istenmez · Ücretsiz planda ayda 3 doküman · KVKK-uyumlu
           </p>
         </div>
 
@@ -504,8 +504,8 @@ const PLANS = [
     period: "/ ay",
     tagline: "Denemek ve tekil ihaleler için.",
     features: [
-      "5 doküman / ay",
-      "150 sayfa / ay",
+      "3 doküman / ay",
+      "35 sayfa / ay",
       "Gereksinim, risk, belge ve takvim çıkarımı",
       "Kaynak vurgulu inceleme",
       "Word ve Excel çıktısı",
@@ -520,8 +520,8 @@ const PLANS = [
     period: "/ ay",
     tagline: "Aktif teklif ekipleri için.",
     features: [
-      "100 doküman / ay",
-      "5.000 sayfa / ay",
+      "60 doküman / ay",
+      "390 sayfa / ay",
       "Uygunluk analizi dahil tüm ajanlar",
       "Ekip üyeleri ve roller",
       "Öncelikli işleme kuyruğu",

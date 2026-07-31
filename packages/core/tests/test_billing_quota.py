@@ -8,8 +8,11 @@ import pytest
 
 from tenderiq_core.billing.plans import (
     DEFAULT_PLAN_TIER,
+    MEASURED_AVERAGE_ANALYSIS_COST_TRY,
     PLANS,
+    TYPICAL_LARGE_DOCUMENT_PAGES,
     PlanTier,
+    documents_for_budget,
     get_plan,
 )
 from tenderiq_core.services.quota import (
@@ -21,17 +24,52 @@ from tenderiq_core.services.quota import (
 
 def test_plan_registry_kademeler_ve_limitler() -> None:
     assert set(PLANS) == {PlanTier.FREE, PlanTier.PRO, PlanTier.ENTERPRISE}
-    assert (PLANS[PlanTier.FREE].documents_per_month, PLANS[PlanTier.FREE].pages_per_month) == (
-        5,
-        150,
+    # Kotalar BÜTÇEDEN türetilir (Tur 16 kalibrasyonu); sayılar burada
+    # tekrarlanmaz — tekrarlamak, kalibrasyon sabiti değiştiğinde testi
+    # "kotayı koruyan" değil "kotayı donduran" bir bekçiye çevirirdi.
+    assert PLANS[PlanTier.FREE].documents_per_month == documents_for_budget(
+        PLANS[PlanTier.FREE].llm_budget_try_per_month
     )
-    assert (PLANS[PlanTier.PRO].documents_per_month, PLANS[PlanTier.PRO].pages_per_month) == (
-        100,
-        5000,
+    assert PLANS[PlanTier.PRO].documents_per_month == documents_for_budget(
+        PLANS[PlanTier.PRO].llm_budget_try_per_month
     )
     # Kurumsal sınırsız (None) — enforcement bu boyutları hiç denetlemez.
     assert PLANS[PlanTier.ENTERPRISE].documents_per_month is None
     assert PLANS[PlanTier.ENTERPRISE].pages_per_month is None
+
+
+@pytest.mark.parametrize("tier", [PlanTier.FREE, PlanTier.PRO])
+def test_kotanin_tamami_ortalama_maliyette_butceyi_asmaz(tier: PlanTier) -> None:
+    """Kota, bütçenin finanse ettiğinden FAZLA söz vermemeli.
+
+    Tur 15'te bulunan uyuşmazlık buydu: ücretsiz kademe 5 doküman vaat
+    ediyordu, 25 TL bütçesi ~3 doküman finanse ediyordu. Kullanıcı sözün
+    ortasında ret görüyordu. Bu test o uyuşmazlığın geri gelmesini engeller —
+    biri kotayı elle yükseltirse burada kırılır.
+    """
+    plan = PLANS[tier]
+    assert plan.documents_per_month is not None
+    assert plan.llm_budget_try_per_month is not None
+
+    kotanin_maliyeti = plan.documents_per_month * MEASURED_AVERAGE_ANALYSIS_COST_TRY
+    assert kotanin_maliyeti <= plan.llm_budget_try_per_month, (
+        f"{tier.value}: kotanın tamamı ({plan.documents_per_month} doküman × "
+        f"{MEASURED_AVERAGE_ANALYSIS_COST_TRY} TL = {kotanin_maliyeti:.1f} TL) "
+        f"bütçeyi ({plan.llm_budget_try_per_month} TL) aşıyor — kullanıcıya "
+        "tutulamayacak bir söz veriliyor."
+    )
+
+
+@pytest.mark.parametrize("tier", [PlanTier.FREE, PlanTier.PRO])
+def test_sayfa_kotasi_tek_bir_tipik_sartnameyi_engellemez(tier: PlanTier) -> None:
+    """Sayfa limiti, bütçenin izin verdiği işi bloke etmemeli.
+
+    Ortalamadan türetilen sayfa kotası ücretsiz kademede ~20 sayfa veriyordu ve
+    29 sayfalık tipik bir şartnameyi reddediyordu — kotanın kotayı bloke etmesi.
+    """
+    pages = PLANS[tier].pages_per_month
+    assert pages is not None
+    assert pages >= TYPICAL_LARGE_DOCUMENT_PAGES
 
 
 def test_default_plan_ucretsizdir() -> None:

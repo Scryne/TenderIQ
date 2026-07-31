@@ -189,7 +189,7 @@ function RegisterForm() {
   return (
     <AuthLayout
       title="Hesap oluştur"
-      description="Ücretsiz planla başlayın: ayda 5 doküman, kredi kartı istenmez."
+      description="Ücretsiz planla başlayın: ayda 3 doküman, kredi kartı istenmez."
       footer={
         <span>
           Hesabınız var mı?{" "}

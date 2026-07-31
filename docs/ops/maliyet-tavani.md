@@ -109,31 +109,72 @@ tahmin = min(TABAN + sayfa × SAYFA_BASINA, TAVAN)
 `page_count` yoksa tahmin **tavana** çıkar: bilinmeyen boyutu ucuz saymak, tam
 da korunmak istenen aşımı üretirdi (fail-closed).
 
-## 4. Açık sorun: plan kotaları kendi bütçeleriyle tutarsız
+## 4. Kota kalibrasyonu — kotalar bütçeden TÜRETİLİR (Tur 16)
 
-**Bu bir ürün/fiyatlandırma kararıdır ve henüz verilmemiştir.**
+**Karar verildi: kotalar bütçeye indirildi.** Gerekçe: kota kullanıcıya verilen
+**sözdür**, bütçe **gerçek kısıttır**; tutulamayan söz iptal ve iade olarak geri
+döner. "Bütçeleri kotaya çıkar" seçeneği kapatıldı çünkü ücretsiz kademede
+doğrudan zarar tavanını 4,6 katına çıkarıyor, Pro'da ise 1560 TL maliyet
+1500 TL gelirin üstünde kalıyordu (negatif marj).
 
-| Plan | Doküman kotası | LLM bütçesi | Bütçenin fiilen finanse ettiği |
-|---|---|---|---|
-| Ücretsiz | 5 doküman / 150 sayfa | 25 TL | **~1 tipik analiz** |
-| Pro | 100 doküman / 5000 sayfa | 500 TL | **~30 analiz** |
+### Ölçülen ortalama
 
-Yani her iki planda da **bütçe, doküman kotasından ~3–5 kat önce dolar**.
-Kullanıcıya "ayda 5 doküman" denip 1 doküman sonrası ret görmesi, tavanın
-davranışı doğru olsa bile bir **vaat uyuşmazlığıdır**.
+Tur 15 ölçümündeki, **metni çıkarılabilen 11 gerçek doküman** (şartname +
+sözleşme + teklif formları — gerçekçi bir ihale dosya seti) üzerinden, kur 42
+ve muhafazakâr tokenizer oranıyla:
 
-Seçenekler (biri seçilmeli):
+```
+ortalama maliyet : 8,28 TL / doküman   (medyan 5,49)
+ortalama uzunluk : 6,5 sayfa           (medyan 2,0)
+```
 
-1. **Kotaları bütçeye indir** — ücretsiz: 1 doküman / ~30 sayfa; Pro: ~30
-   doküman. Dürüst, gelir etkisi yok, pazarlama vaadi küçülür.
-2. **Bütçeleri kotaya çıkar** — ücretsiz ~115 TL, Pro ~1560 TL. Ücretsiz
-   kademede kayıt açık olduğu için bu **doğrudan zarar tavanını 4,6 katına**
-   çıkarır; Pro'da 1560 TL maliyet 1500 TL gelirin ÜSTÜNDE (negatif marj).
-3. **Karma** — kotayı bir miktar indir, bütçeyi bir miktar çıkar.
+Ortalama medyandan yüksek: set birkaç uzun şartname (29, 15, 12 sayfa) ile çok
+sayıda 1–2 sayfalık form içeriyor. **Ortalama kullanıldı**, çünkü kota her
+dokümanı sayar ve kullanıcı karışık bir set yükler.
 
-Ölçüm 1 numaralı seçeneği destekliyor; ancak karar fiyatlandırmadır ve
-bu turda **verilmedi**. Tavanın davranışı her hâlükârda doğrudur: ret açıktır,
-bildirim gider, `/usage` ekranı (J.6 madde 3) kalan bütçeyi gösterir.
+### Türetme
+
+`billing/plans.py` kotayı artık **hesaplar**:
+
+```
+doküman kotası = ⌊bütçe ÷ ORTALAMA_MALİYET⌋
+sayfa kotası   = max(doküman × ORTALAMA_SAYFA, TİPİK_ŞARTNAME_SAYFASI)
+```
+
+| Plan | Bütçe | Doküman | Sayfa | Kotanın tam maliyeti |
+|---|---|---|---|---|
+| Ücretsiz | 25 TL | **3** | **35** | 24,9 TL ✅ |
+| Pro | 500 TL | **60** | **390** | 498,0 TL ✅ |
+| Kurumsal | sınırsız | sınırsız | sınırsız | — |
+
+Aşağı yuvarlama bilinçli: yukarı yuvarlamak kotayı yeniden bütçenin üstüne
+çıkarırdı.
+
+**Sayfa kotasının tabanı neden var.** Ortalamadan türetilen sayfa kotası
+ücretsiz kademede ~20 sayfa veriyordu ve 29 sayfalık tipik bir şartnameyi
+reddediyordu — bütçesinin (24,7 TL < 25 TL) finanse ettiği tek işi sayfa limiti
+bloke ediyordu. Bu yüzden sayfa kotası `TYPICAL_LARGE_DOCUMENT_PAGES` (35)
+altına inemez.
+
+**Kota bir TAVAN, bütçe BAĞLAYICI kısıttır.** Doğrusal bir (doküman, sayfa)
+kotası, sabit + değişken bileşenli bir maliyeti tam olarak temsil edemez:
+ücretsiz kullanıcı ya ~3 küçük doküman ya ~1 orta şartname işleyebilir, ikisini
+birden değil. Bu ödünü kota sayıları değil **bütçe** çözer; arayüz (`/usage`)
+ikisini birlikte gösterir.
+
+### Bu GEÇİCİ bir kalibrasyondur
+
+Sayılar `billing/plans.py`de sabit yazılı DEĞİL, `MEASURED_AVERAGE_ANALYSIS_
+COST_TRY` sabitinden türetilir. Maliyet düştüğünde (§6'daki keşif: ucuz modele
+inme, istem önbellekleme) **yalnız o sabit düşürülür** ve üç planın kotası da
+birlikte yükselir. Kotayı plan tablosuna elle yazmak, o günü üç ayrı yerde
+güncellemek demekti.
+
+İki test bu hizalamayı korur (`test_billing_quota.py`): kotanın tamamı ortalama
+maliyette bütçeyi aşamaz, ve sayfa kotası tek bir tipik şartnamenin altına
+inemez. Üçüncü bir test (`test_kota_metni_denetimi.py`) landing ve kayıt
+ekranındaki sayıların plan kaydıyla aynı kalmasını zorlar — kota hukuki
+metinlerin dayandığı bir vaattir, eski sayı tutulmayan bir taahhüttür.
 
 ## 5. Kur (`LLM_USD_TRY_RATE`) — statik, elle, izlenen
 
