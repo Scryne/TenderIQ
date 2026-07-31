@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import tenderiq_worker.db as worker_db
+from tenderiq_core.billing.plans import PLANS, PlanTier
 from tenderiq_core.findings import (
     ComplianceStatus,
     GroundingResolution,
@@ -251,8 +252,8 @@ def test_panel_sayimlari_ve_kotayi_dondurur(panel_env: PanelEnv) -> None:
     # Yeni kiracı → varsayılan FREE plan; kullanım henüz yok.
     assert body["plan"] == "free"
     assert body["documents"]["used"] == 0
-    assert body["documents"]["limit"] == 5
-    assert body["pages"]["limit"] == 150
+    assert body["documents"]["limit"] == PLANS[PlanTier.FREE].documents_per_month
+    assert body["pages"]["limit"] == PLANS[PlanTier.FREE].pages_per_month
     assert body["period_end"] is not None
 
     # Analizdeki ihale "işleniyor" listesinde, hazır olan değil.

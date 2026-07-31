@@ -31,7 +31,7 @@ from sqlalchemy import create_engine as create_sync_engine
 from sqlalchemy.orm import Session
 
 from tenderiq_core.billing.fake import FakeBillingProvider
-from tenderiq_core.billing.plans import PlanTier
+from tenderiq_core.billing.plans import PLANS, PlanTier
 from tenderiq_core.config import get_settings
 from tenderiq_core.db import create_engine, create_session_factory
 from tenderiq_core.db.tenant import set_tenant_context
@@ -149,7 +149,7 @@ def test_iptal_erisimi_hemen_kesmez_donem_sonuna_kadar_surer(
     # Kota katmanı da hâlâ PRO limitlerini veriyor.
     usage = lifecycle_client.get("/api/v1/usage", headers=_auth(token)).json()
     assert usage["plan"] == "pro"
-    assert usage["documents"]["limit"] == 100
+    assert usage["documents"]["limit"] == PLANS[PlanTier.PRO].documents_per_month
 
 
 def test_iptal_geri_alinabilir(lifecycle_client: TestClient) -> None:
@@ -424,7 +424,7 @@ async def test_donem_sonunda_iptal_erisimi_keser(lifecycle_client: TestClient) -
     # Kota da düştü.
     usage = lifecycle_client.get("/api/v1/usage", headers=_auth(token)).json()
     assert usage["plan"] == "free"
-    assert usage["documents"]["limit"] == 5
+    assert usage["documents"]["limit"] == PLANS[PlanTier.FREE].documents_per_month
 
 
 async def test_donem_sonunda_dusurme_uygulanir(lifecycle_client: TestClient) -> None:

@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from tenderiq_core.billing.plans import DEFAULT_PLAN_TIER, PlanTier, get_plan
@@ -79,6 +80,40 @@ def record_llm_calls_sync(
     return len(calls)
 
 
+def _spend_queries(now: datetime) -> tuple[datetime, datetime, Any, Any, Any]:
+    """Harcama sorgularının tek kaynağı (senkron ve async yollar paylaşır).
+
+    İki ayrı yerde yazılsaydı biri güncellenip diğeri kalabilirdi ve worker'ın
+    tavan için gördüğü harcama ile kullanıcının ekranda gördüğü SESSİZCE
+    ayrışırdı — "tavan neden doldu, ben az harcadım" sorusunun kaynağı bu olurdu.
+    """
+    start, end = current_period_bounds(now)
+    window = (LlmUsage.recorded_at >= start, LlmUsage.recorded_at < end)
+    priced = (PricingStatus.PRICED.value, PricingStatus.UNVERIFIED.value)
+    spent = select(func.coalesce(func.sum(LlmUsage.cost_micros_try), 0)).where(
+        *window, LlmUsage.pricing_status.in_(priced)
+    )
+    unpriced = (
+        select(func.count())
+        .select_from(LlmUsage)
+        .where(*window, LlmUsage.pricing_status.notin_(priced))
+    )
+    total = select(func.count()).select_from(LlmUsage).where(*window)
+    return start, end, spent, unpriced, total
+
+
+async def compute_spend(session: AsyncSession, *, now: datetime | None = None) -> SpendSnapshot:
+    """`compute_spend_sync`in async ikizi — API tarafı için (RLS'ye tabi oturum)."""
+    start, end, spent_q, unpriced_q, total_q = _spend_queries(now or datetime.now(UTC))
+    return SpendSnapshot(
+        period_start=start,
+        period_end=end,
+        spent_micros_try=int(await session.scalar(spent_q) or 0),
+        unpriced_calls=int(await session.scalar(unpriced_q) or 0),
+        calls=int(await session.scalar(total_q) or 0),
+    )
+
+
 def compute_spend_sync(session: Session, *, now: datetime | None = None) -> SpendSnapshot:
     """Aktif kiracının dönem içi harcamasını hesaplar (RLS'ye tabi oturum).
 
@@ -86,29 +121,13 @@ def compute_spend_sync(session: Session, *, now: datetime | None = None) -> Spen
     kayıtları 0 TL taşır; bunları toplamaya katmak "harcama yok" demek olurdu.
     Sayıları ayrıca döndürülür ki tavanın neden gevşek davrandığı sorulabilsin.
     """
-    now = now or datetime.now(UTC)
-    start, end = current_period_bounds(now)
-    window = (LlmUsage.recorded_at >= start, LlmUsage.recorded_at < end)
-    priced = (PricingStatus.PRICED.value, PricingStatus.UNVERIFIED.value)
-
-    spent = session.scalar(
-        select(func.coalesce(func.sum(LlmUsage.cost_micros_try), 0)).where(
-            *window, LlmUsage.pricing_status.in_(priced)
-        )
-    )
-    unpriced = session.scalar(
-        select(func.count())
-        .select_from(LlmUsage)
-        .where(*window, LlmUsage.pricing_status.notin_(priced))
-    )
-    total = session.scalar(select(func.count()).select_from(LlmUsage).where(*window))
-
+    start, end, spent_q, unpriced_q, total_q = _spend_queries(now or datetime.now(UTC))
     return SpendSnapshot(
         period_start=start,
         period_end=end,
-        spent_micros_try=int(spent or 0),
-        unpriced_calls=int(unpriced or 0),
-        calls=int(total or 0),
+        spent_micros_try=int(session.scalar(spent_q) or 0),
+        unpriced_calls=int(session.scalar(unpriced_q) or 0),
+        calls=int(session.scalar(total_q) or 0),
     )
 
 

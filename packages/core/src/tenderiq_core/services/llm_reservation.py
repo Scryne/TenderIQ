@@ -124,11 +124,10 @@ def release(redis: Any, *, tenant_id: uuid.UUID, period_key: str, job_id: uuid.U
         logger.warning("llm_rezervasyon_birakilamadi", error=str(exc), job_id=str(job_id))
 
 
-def reserved_total(redis: Any, *, tenant_id: uuid.UUID, period_key: str) -> int:
-    """Süresi geçmemiş rezervasyonların toplamı (mikro-TL). Yönetici görünürlüğü."""
-    now = int(time.time())
+def _sum_unexpired(values: Any, now: int) -> int:
+    """Hash değerlerinden süresi geçmemiş rezervasyonları toplar (mikro-TL)."""
     total = 0
-    for value in redis.hgetall(_key(tenant_id, period_key)).values():
+    for value in values:
         raw = value.decode() if isinstance(value, bytes) else str(value)
         amount_text, _, expiry_text = raw.partition(":")
         try:
@@ -137,3 +136,18 @@ def reserved_total(redis: Any, *, tenant_id: uuid.UUID, period_key: str) -> int:
         except ValueError:  # pragma: no cover - bozuk alan
             continue
     return total
+
+
+def reserved_total(redis: Any, *, tenant_id: uuid.UUID, period_key: str) -> int:
+    """Süresi geçmemiş rezervasyonların toplamı (mikro-TL). Senkron/worker."""
+    return _sum_unexpired(redis.hgetall(_key(tenant_id, period_key)).values(), int(time.time()))
+
+
+async def reserved_total_async(redis: Any, *, tenant_id: uuid.UUID, period_key: str) -> int:
+    """`reserved_total`ın async ikizi — API tarafı (yönetici görünürlüğü).
+
+    Ayrıştırma mantığı paylaşılır; yalnız Redis çağrısı farklıdır. Aksi hâlde
+    "süresi geçmişi sayma" kuralı iki yerde yaşar ve biri güncellenmeden kalır.
+    """
+    values = await redis.hgetall(_key(tenant_id, period_key))
+    return _sum_unexpired(values.values(), int(time.time()))

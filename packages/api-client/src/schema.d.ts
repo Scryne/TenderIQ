@@ -1299,6 +1299,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/usage/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admin Usage
+         * @description Yönetici teşhis görünümü — YALNIZ kiracı yöneticisi.
+         *
+         *     Kapsam kiracının KENDİsidir (RLS): bu bir operatör/çapraz-kiracı ucu
+         *     değildir. Başka kiracının harcaması buradan görünmez.
+         */
+        get: operations["get_admin_usage_api_v1_usage_admin_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1368,6 +1391,59 @@ export interface components {
              */
             organization_id: string;
             tokens?: components["schemas"]["TokenResponse"] | null;
+        };
+        /**
+         * AdminUsageResponse
+         * @description Yönetici teşhis görünümü — "tavan neden gevşek davrandı" sorusu.
+         *
+         *     `unpriced_calls` bu sorunun asıl yanıtıdır: tutarı hesaplanamamış her çağrı
+         *     harcama toplamına GİRMEZ, yani tavan olduğundan gevşek davranır.
+         */
+        AdminUsageResponse: {
+            /** Calls */
+            calls: number;
+            /** Fx Rate Age Days */
+            fx_rate_age_days: number | null;
+            /** Fx Rate Missing */
+            fx_rate_missing: boolean;
+            /** Fx Rate Stale */
+            fx_rate_stale: boolean;
+            /** Limit Try */
+            limit_try: number | null;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /** Reserved Try */
+            reserved_try: number;
+            /** Spent Try */
+            spent_try: number;
+            /** Unpriced Calls */
+            unpriced_calls: number;
+            /** Unverified Models */
+            unverified_models: string[];
+        };
+        /**
+         * BudgetUsage
+         * @description Dönem içi LLM harcaması (TL) — tavan, kalan ve REZERVE ayrı ayrı.
+         */
+        BudgetUsage: {
+            /** Limit Try */
+            limit_try: number | null;
+            /** Remaining Try */
+            remaining_try: number | null;
+            /** Reserved Try */
+            reserved_try: number;
+            /** Soft Exceeded */
+            soft_exceeded: boolean;
+            /** Spent Try */
+            spent_try: number;
         };
         /**
          * BulkReviewAction
@@ -2547,6 +2623,20 @@ export interface components {
             role: components["schemas"]["Role"];
         };
         /**
+         * StorageUsageResponse
+         * @description Depolama kullanımı (bayt). Biçimlendirme arayüzün işi (Intl.*).
+         */
+        StorageUsageResponse: {
+            /** Limit Bytes */
+            limit_bytes: number | null;
+            /** Remaining Bytes */
+            remaining_bytes: number | null;
+            /** Soft Exceeded */
+            soft_exceeded: boolean;
+            /** Used Bytes */
+            used_bytes: number;
+        };
+        /**
          * SubscriptionResponse
          * @description Kiracının abonelik durumu — iptal/geri alma arayüzünün tek kaynağı.
          */
@@ -2694,6 +2784,7 @@ export interface components {
          * @description Kiracının içinde bulunulan dönemdeki kullanımı ve plan limitleri.
          */
         UsageResponse: {
+            budget: components["schemas"]["BudgetUsage"];
             documents: components["schemas"]["QuotaUsage"];
             pages: components["schemas"]["QuotaUsage"];
             /**
@@ -2710,6 +2801,7 @@ export interface components {
             /** Plan Name */
             plan_name: string;
             status: components["schemas"]["SubscriptionStatus"];
+            storage: components["schemas"]["StorageUsageResponse"];
         };
         /**
          * UserResponse
@@ -4817,6 +4909,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UsageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_usage_api_v1_usage_admin_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUsageResponse"];
                 };
             };
             /** @description Validation Error */
