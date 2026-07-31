@@ -194,7 +194,97 @@ bayatlamasıdır; bu bedel şöyle görünür kılındı:
 harcama toplamı sıfır kalır ve **tavan hiç dolmaz** — açılışta `error`
 seviyesinde uyarı üretilir (`llm_kuru_tanimsiz_tavan_fiilen_yok`).
 
-## 6. Ölçümü yeniden üretmek
+## 6. Maliyet düşürme keşfi (Tur 16 — ÖLÇÜM, uygulama YOK)
+
+29 sayfalık şartname (~18,7 TL, kur 42, muhafazakâr oran) beş LLM çağrısına
+ayrıştırıldı. **Hiçbir değişiklik uygulanmadı**; bu bölüm sonraki turun girdisi.
+
+### 6.1 Çağrı bazında dağılım
+
+| Çağrı | Girdi token | Çıktı token | TL | Pay |
+|---|---|---|---|---|
+| requirements | 5.122 | 2.200 | 3,39 | %18 |
+| deliverables | 5.047 | 2.200 | 3,37 | %18 |
+| risks | 5.133 | 2.200 | 3,39 | %18 |
+| timeline | 5.056 | 2.200 | 3,37 | %18 |
+| **compliance** | 3.827 | **4.160** | **5,17** | **%28** |
+| **Toplam** | 24.185 | 12.960 | **18,69** | |
+
+### 6.2 En önemli bulgu: maliyetin %73'ü ÇIKTI
+
+```
+GİRDİ : 24.185 token → 5,08 TL (%27)
+ÇIKTI : 12.960 token → 13,61 TL (%73)
+```
+
+Çıktı, token sayısının yalnız %35'i ama maliyetin %73'ü — çünkü çıktı token'ı
+girdinin **5 katı** fiyatlanıyor ($25 vs $5 / Mtok). Bu, optimizasyon
+sıralamasını tersine çevirir: bağlamı kısmak (girdi) en fazla %27'lik bir
+havuza dokunur, çıktıyı kısmak %73'lük havuza.
+
+`compliance` tek başına en pahalı çağrı çünkü çıktısı **bulgu sayısıyla
+ölçekleniyor** (her gereksinim için durum + gerekçe metni).
+
+### 6.3 İstem önbellekleme: UYGULANAMAZ
+
+Girdinin tek gerçekten sabit parçası `SYSTEM_PROMPT` — 826 karakter ≈ **330
+token**. Dört ajanda tekrarlanıyor, azami kazanç **~0,19 TL (%1)**.
+
+Dahası **eşik altında kalıyor**: en düşük önbelleklenebilir önek 512 token
+(Claude Opus 5) / 1024 token (Opus 4.8). 330 token'lık bir önek **hiç
+önbelleklenmez** — `cache_control` konsa bile sessizce etkisiz kalır.
+
+Ajan bağlamları önbelleklenemez çünkü her ajan kendi sorgularıyla **farklı**
+chunk'lar getiriyor; ortak önek yok. **Bu yol kapalı; uğraşmayın.**
+
+### 6.4 Ucuz modele inme (asıl kazanç)
+
+Aynı token sayılarıyla, yalnız fiyat değiştirilerek:
+
+| Model | Analiz maliyeti | Kazanç | Ücretsiz kota | Pro kota |
+|---|---|---|---|---|
+| `claude-opus-4-8` (bugün) | 18,69 TL | — | 3 doküman | 60 doküman |
+| `claude-sonnet-5` | 11,21 TL | **%40** | **5 doküman** | **100 doküman** |
+| `claude-haiku-4-5` | 3,74 TL | **%80** | **15 doküman** | **301 doküman** |
+
+Sonnet 5, Pro'yu **başlangıçta vaat edilen 100 dokümana** geri getiriyor —
+kota kalibrasyonunu tek sabitten (`MEASURED_AVERAGE_ANALYSIS_COST_TRY`)
+düşürmek yeterli.
+
+### 6.5 Kalite riski nerede
+
+Risk **düzgün dağılmıyor**; fazların hassasiyeti farklı:
+
+- **Grounding (birebir alıntı)** en kırılgan yer. Ürünün temel vaadi
+  citation-first (ADR-0006) ve Faz 2 kalite kapısı **Claude ile** ölçüldü.
+  Küçük modellerin Türkçe birebir alıntıda zayıfladığı zaten yaşandı
+  (`project-qwen-context-budget-risk`). Haiku'ya inmek bu vaadi doğrudan
+  riske atar.
+- **`compliance`** en pahalı çağrı ama **muhakeme yoğun** (profil ↔ gereksinim
+  eşleştirmesi + gerekçe). Ucuzlatmaya en uygun görünen çağrı, kalite açısından
+  en az uygun olanı.
+- **`timeline`** en mekanik çağrı (tarih/süre çıkarma, ham ifadeyi kopyalama);
+  ucuz modele inmeye **en uygun aday**.
+
+Önerilen sıra: **karma model**. Önce `timeline` (ve muhtemelen `deliverables`)
+ucuz modele alınır, `requirements`/`risks`/`compliance` güçlü modelde kalır;
+kazanç ~%15-20 ile sınırlı ama grounding riski alınmaz. Tam Sonnet 5 geçişi
+**ancak golden-set kalite kapısı yeniden koşulduktan sonra** yapılmalıdır.
+
+### 6.6 Çıktıyı kısmak — ölçülmedi, en büyük havuz
+
+%73'lük havuza dokunan ve kalite riski taşımayan adaylar (hiçbiri denenmedi):
+
+- `compliance.rationale` uzunluk sınırı — çıktının en büyük tek kalemi.
+- Şema alanlarının kısaltılması (uzun `text` alanları yerine alıntı + referans).
+- `LLM_MAX_OUTPUT_TOKENS` (16000) faz bazında kısılması: ölçülen gerçek çıktı
+  ~2.200 token, yani tavan 7 kat fazla. Tavan maliyeti doğrudan etkilemez ama
+  **rezervasyon tahmininin en kötü hâlini** (94 TL) şişiriyor.
+
+**Sonraki tur için:** önce 6.6 (risksiz, en büyük havuz), sonra 6.5'teki karma
+model. 6.3'e (önbellekleme) hiç girilmemeli.
+
+## 7. Ölçümü yeniden üretmek
 
 Ölçüm betiği bu turda geçici çalışma alanında koştu (repoya girmedi; girdisi
 `spike-docs/` altındaki gerçek şartnamelerdir). Yeniden üretmek için: gerçek
