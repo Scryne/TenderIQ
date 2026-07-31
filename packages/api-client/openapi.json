@@ -72,6 +72,137 @@
         "title": "AcceptInvitationResponse",
         "type": "object"
       },
+      "AdminUsageResponse": {
+        "description": "Yönetici teşhis görünümü — \"tavan neden gevşek davrandı\" sorusu.\n\n`unpriced_calls` bu sorunun asıl yanıtıdır: tutarı hesaplanamamış her çağrı\nharcama toplamına GİRMEZ, yani tavan olduğundan gevşek davranır.",
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "fx_rate_age_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Rate Age Days"
+          },
+          "fx_rate_missing": {
+            "title": "Fx Rate Missing",
+            "type": "boolean"
+          },
+          "fx_rate_stale": {
+            "title": "Fx Rate Stale",
+            "type": "boolean"
+          },
+          "limit_try": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Try"
+          },
+          "period_end": {
+            "format": "date-time",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date-time",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "reserved_try": {
+            "title": "Reserved Try",
+            "type": "number"
+          },
+          "spent_try": {
+            "title": "Spent Try",
+            "type": "number"
+          },
+          "unpriced_calls": {
+            "title": "Unpriced Calls",
+            "type": "integer"
+          },
+          "unverified_models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unverified Models",
+            "type": "array"
+          }
+        },
+        "required": [
+          "period_start",
+          "period_end",
+          "spent_try",
+          "limit_try",
+          "reserved_try",
+          "calls",
+          "unpriced_calls",
+          "fx_rate_missing",
+          "fx_rate_stale",
+          "fx_rate_age_days",
+          "unverified_models"
+        ],
+        "title": "AdminUsageResponse",
+        "type": "object"
+      },
+      "BudgetUsage": {
+        "description": "Dönem içi LLM harcaması (TL) — tavan, kalan ve REZERVE ayrı ayrı.",
+        "properties": {
+          "limit_try": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Try"
+          },
+          "remaining_try": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Try"
+          },
+          "reserved_try": {
+            "title": "Reserved Try",
+            "type": "number"
+          },
+          "soft_exceeded": {
+            "title": "Soft Exceeded",
+            "type": "boolean"
+          },
+          "spent_try": {
+            "title": "Spent Try",
+            "type": "number"
+          }
+        },
+        "required": [
+          "spent_try",
+          "limit_try",
+          "reserved_try",
+          "remaining_try",
+          "soft_exceeded"
+        ],
+        "title": "BudgetUsage",
+        "type": "object"
+      },
       "BulkReviewAction": {
         "description": "Toplu inceleme eylemi (yalnız onay/red — geri alma tekildir).",
         "enum": [
@@ -2563,6 +2694,49 @@
         "title": "RoleUpdate",
         "type": "object"
       },
+      "StorageUsageResponse": {
+        "description": "Depolama kullanımı (bayt). Biçimlendirme arayüzün işi (Intl.*).",
+        "properties": {
+          "limit_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Bytes"
+          },
+          "remaining_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Bytes"
+          },
+          "soft_exceeded": {
+            "title": "Soft Exceeded",
+            "type": "boolean"
+          },
+          "used_bytes": {
+            "title": "Used Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used_bytes",
+          "limit_bytes",
+          "remaining_bytes",
+          "soft_exceeded"
+        ],
+        "title": "StorageUsageResponse",
+        "type": "object"
+      },
       "SubscriptionResponse": {
         "description": "Kiracının abonelik durumu — iptal/geri alma arayüzünün tek kaynağı.",
         "properties": {
@@ -2913,6 +3087,9 @@
       "UsageResponse": {
         "description": "Kiracının içinde bulunulan dönemdeki kullanımı ve plan limitleri.",
         "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/BudgetUsage"
+          },
           "documents": {
             "$ref": "#/components/schemas/QuotaUsage"
           },
@@ -2938,6 +3115,9 @@
           },
           "status": {
             "$ref": "#/components/schemas/SubscriptionStatus"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/StorageUsageResponse"
           }
         },
         "required": [
@@ -2947,7 +3127,9 @@
           "period_start",
           "period_end",
           "documents",
-          "pages"
+          "pages",
+          "budget",
+          "storage"
         ],
         "title": "UsageResponse",
         "type": "object"
@@ -6601,6 +6783,56 @@
           }
         },
         "summary": "Get Usage",
+        "tags": [
+          "usage"
+        ]
+      }
+    },
+    "/api/v1/usage/admin": {
+      "get": {
+        "description": "Yönetici teşhis görünümü — YALNIZ kiracı yöneticisi.\n\nKapsam kiracının KENDİsidir (RLS): bu bir operatör/çapraz-kiracı ucu\ndeğildir. Başka kiracının harcaması buradan görünmez.",
+        "operationId": "get_admin_usage_api_v1_usage_admin_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUsageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admin Usage",
         "tags": [
           "usage"
         ]

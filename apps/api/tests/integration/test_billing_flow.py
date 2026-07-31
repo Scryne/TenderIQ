@@ -17,6 +17,8 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+from tenderiq_core.billing.plans import PLANS, PlanTier
+
 pytestmark = pytest.mark.integration
 
 WEBHOOK_SECRET = "test-webhook-secret"
@@ -87,7 +89,7 @@ def test_checkout_test_modu_plani_aninda_yukseltir(billing_client: TestClient) -
     # Yükseltmeden önce FREE limitleri.
     before = billing_client.get("/api/v1/usage", headers=_auth(token)).json()
     assert before["plan"] == "free"
-    assert before["documents"]["limit"] == 5
+    assert before["documents"]["limit"] == PLANS[PlanTier.FREE].documents_per_month
 
     checkout = billing_client.post(
         "/api/v1/billing/checkout", json={"plan": "pro"}, headers=_auth(token)
@@ -101,8 +103,8 @@ def test_checkout_test_modu_plani_aninda_yukseltir(billing_client: TestClient) -
     # /usage artık PRO limitlerini yansıtır.
     after = billing_client.get("/api/v1/usage", headers=_auth(token)).json()
     assert after["plan"] == "pro"
-    assert after["documents"]["limit"] == 100
-    assert after["pages"]["limit"] == 5000
+    assert after["documents"]["limit"] == PLANS[PlanTier.PRO].documents_per_month
+    assert after["pages"]["limit"] == PLANS[PlanTier.PRO].pages_per_month
 
 
 def test_webhook_imza_dogrular_ve_idempotent(billing_client: TestClient) -> None:
