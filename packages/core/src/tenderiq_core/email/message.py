@@ -30,6 +30,8 @@ class EmailKind(StrEnum):
     #: Aylık analiz bütçesi eşiğe yaklaştı / doldu (J.6).
     BUDGET_SOFT_THRESHOLD = "budget_soft_threshold"
     BUDGET_EXCEEDED = "budget_exceeded"
+    STORAGE_SOFT_THRESHOLD = "storage_soft_threshold"
+    STORAGE_EXCEEDED = "storage_exceeded"
 
 
 # NOT: Daha önce burada tür bazlı bir "bastırmayı aşan mesajlar" listesi vardı

@@ -419,3 +419,65 @@ def budget_exceeded(
         html=html,
         idempotency_key=f"budget-exceeded:{to}:{period_key}",
     )
+
+
+def storage_soft_threshold(
+    *, to: str, used: str, limit: str, period_key: str, link: str
+) -> EmailMessage:
+    """Depolama kotasının çoğu kullanıldı — UYARI (yükleme durmadı).
+
+    Kullanıcı kotasının dolduğunu ilk kez bir ret ekranında öğrenmemeli;
+    dosya silmek zaman alan bir iştir ve önceden haber vermek gerekir.
+    """
+    text = (
+        f"Depolama alanınızın büyük kısmını kullandınız: {used} / {limit}.\n\n"
+        "Alan dolarsa yeni dosya yükleyemezsiniz; mevcut dosyalarınız ve "
+        "analizleriniz etkilenmez. Kullanmadığınız dosyaları silerek yer "
+        "açabilirsiniz.\n\n"
+        f"Dosyalarınızı yönetmek için: {link}"
+    )
+    html = _wrap(
+        _paragraphs(
+            f"Depolama alanınızın büyük kısmını kullandınız: {used} / {limit}.",
+            "Alan dolarsa yeni dosya yükleyemezsiniz; mevcut dosyalarınız ve "
+            "analizleriniz etkilenmez. Kullanmadığınız dosyaları silerek yer açabilirsiniz.",
+        )
+        + _button(link, "Depolamayı yönet")
+    )
+    return EmailMessage(
+        kind=EmailKind.STORAGE_SOFT_THRESHOLD,
+        to=to,
+        subject=f"{_BRAND} — Depolama alanınızın çoğu kullanıldı",
+        text=text,
+        html=html,
+        # Dönem başına TEK uyarı (bütçe uyarısıyla aynı gerekçe).
+        idempotency_key=f"storage-soft:{to}:{period_key}",
+    )
+
+
+def storage_exceeded(*, to: str, used: str, limit: str, period_key: str, link: str) -> EmailMessage:
+    """Depolama kotası doldu — yeni yüklemeler REDDEDİLİYOR."""
+    text = (
+        f"Depolama alanınız doldu ({used} / {limit}) ve yeni dosya "
+        "yükleyemiyorsunuz.\n\n"
+        "Mevcut dosyalarınıza ve analiz sonuçlarınıza erişiminiz sürüyor. "
+        "Kullanmadığınız dosyaları silerek yer açabilir ya da planınızı "
+        "yükseltebilirsiniz.\n\n"
+        f"Dosyalarınızı yönetmek için: {link}"
+    )
+    html = _wrap(
+        _paragraphs(
+            f"Depolama alanınız doldu ({used} / {limit}) ve yeni dosya yükleyemiyorsunuz.",
+            "Mevcut dosyalarınıza ve analiz sonuçlarınıza erişiminiz sürüyor. "
+            "Kullanmadığınız dosyaları silerek yer açabilir ya da planınızı yükseltebilirsiniz.",
+        )
+        + _button(link, "Depolamayı yönet")
+    )
+    return EmailMessage(
+        kind=EmailKind.STORAGE_EXCEEDED,
+        to=to,
+        subject=f"{_BRAND} — Depolama alanınız doldu",
+        text=text,
+        html=html,
+        idempotency_key=f"storage-full:{to}:{period_key}",
+    )

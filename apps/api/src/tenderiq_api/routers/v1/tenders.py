@@ -41,6 +41,7 @@ from tenderiq_core.findings import (
     RiskSeverity,
     TimelineKind,
 )
+from tenderiq_core.formatting import format_bytes_tr
 from tenderiq_core.models import (
     AuditAction,
     ComplianceResult,
@@ -57,7 +58,7 @@ from tenderiq_core.models import (
     TenderStatus,
     TimelineEvent,
 )
-from tenderiq_core.services import quota
+from tenderiq_core.services import quota, storage_notifications, storage_quota
 from tenderiq_core.services.audit import record_audit
 from tenderiq_core.storage import safe_key_component
 from tenderiq_core.uploads import is_allowed_content_type
@@ -96,6 +97,11 @@ class DocumentCreate(BaseModel):
     filename: str = Field(min_length=1, max_length=1024)
     content_type: str = Field(min_length=1, max_length=255)
     kind: DocumentKind = DocumentKind.OTHER
+    #: İstemcinin BEYAN ETTİĞİ dosya boyutu (bayt) — depolama kotasının erken
+    #: reddi için. GÜVENİLMEZ: tamamlama anında nesnenin gerçek boyutuyla
+    #: yetkili denetim yapılır. Verilmezse erken red atlanır (eski istemciler
+    #: kırılmaz), yetkili denetim yine de uygulanır.
+    size_bytes: int | None = Field(default=None, ge=0)
 
 
 class DocumentResponse(BaseModel):
@@ -499,6 +505,50 @@ async def create_document(
             details=[{"limit_kind": exc.limit_kind, "used": exc.used, "limit": exc.limit}],
         ) from exc
 
+    # Depolama kotası: yükleme BAŞLAMADAN. Beyan edilen boyut güvenilmezdir —
+    # tamamlama anında gerçek boyutla yetkili denetim tekrarlanır. Bu kapının
+    # değeri kullanıcıyı 90 MB'ı boşuna yüklemekten kurtarmasıdır.
+    # Kilit (FOR UPDATE) bu transaction'ın sonuna kadar tutulur: eşzamanlı
+    # yüklemeler aynı boşluğu görüp kotayı birlikte aşamaz.
+    try:
+        storage_usage = await storage_quota.enforce_storage_quota(
+            session, principal.tenant_id, incoming_bytes=body.size_bytes or 0
+        )
+    except storage_quota.StorageQuotaExceededError as exc:
+        # Ret sessiz kalmaz: kullanıcı NE OLDUĞUNU ve ne yapabileceğini görmeli.
+        await storage_notifications.notify_storage_threshold(
+            session,
+            tenant_id=principal.tenant_id,
+            used_bytes=exc.used_bytes,
+            limit_bytes=exc.limit_bytes,
+            exceeded=True,
+        )
+        raise QuotaExceededError(
+            f"Depolama kotanız dolu ({format_bytes_tr(exc.used_bytes)} / "
+            f"{format_bytes_tr(exc.limit_bytes)}). Kullanılmayan dosyaları silin "
+            "veya planınızı yükseltin.",
+            details=[
+                {
+                    "limit_kind": "storage",
+                    "used": exc.used_bytes,
+                    "limit": exc.limit_bytes,
+                    "incoming": exc.incoming_bytes,
+                }
+            ],
+        ) from exc
+
+    # Yumuşak eşik: yükleme DURMAZ, kullanıcı yalnız uyarılır. Kotanın dolduğunu
+    # ilk kez bir ret ekranında öğrenmek kötü bir deneyimdir; dosya silmek
+    # zaman alır ve önceden haber vermek gerekir. Ay başına tek mesaj.
+    if storage_usage.soft_exceeded and storage_usage.limit_bytes is not None:
+        await storage_notifications.notify_storage_threshold(
+            session,
+            tenant_id=principal.tenant_id,
+            used_bytes=storage_usage.used_bytes,
+            limit_bytes=storage_usage.limit_bytes,
+            exceeded=False,
+        )
+
     document_id = uuid.uuid4()
     safe_filename = safe_key_component(body.filename)
     storage_key = f"{principal.tenant_id}/{tender_id}/{document_id}/{safe_filename}"
@@ -512,6 +562,11 @@ async def create_document(
         kind=body.kind,
         status=DocumentStatus.PENDING_UPLOAD,
         idempotency_key=idempotency_key,
+        # Beyan edilen boyut REZERVASYONDUR: taze pending satırlar kota
+        # toplamına girer, böylece aynı anda başlatılan yüklemeler birbirini
+        # görür. Tamamlamada gerçek boyutla değiştirilir; hiç tamamlanmazsa
+        # UPLOAD_PENDING_TTL_HOURS sonra sayımdan düşer (kalıcı şişirme yok).
+        size_bytes=body.size_bytes,
     )
     session.add(document)
     record_audit(

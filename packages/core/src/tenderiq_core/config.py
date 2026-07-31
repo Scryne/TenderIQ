@@ -272,6 +272,10 @@ class Settings(BaseSettings):
     # ── Yükleme sınırları (Sprint 1.1 güvenlik) ──────────────────────────────
     upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB; ileride plan kotasına bağlanır
     upload_pending_ttl_hours: int = 24  # yarım kalan yüklemeler bu süreden sonra failed olur
+    # Depolama kotasında yumuşak eşik: bu oranı aşınca uyarı + bildirim
+    # (reddetme YOK). Kullanıcı dolmadan ÖNCE haberdar olmalı; kotanın
+    # dolduğunu ilk kez bir ret ekranında öğrenmek kötü bir deneyimdir.
+    storage_soft_threshold: float = 0.8
 
     # ── Veri saklama / kalıcı silme (KVKK, §8.3 · Faz 4) ─────────────────────
     # Yumuşak silinen ihale/doküman bu süre sonunda KALICI olarak silinir (DB

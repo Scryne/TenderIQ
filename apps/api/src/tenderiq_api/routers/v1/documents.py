@@ -33,6 +33,7 @@ from tenderiq_api.errors import (
 from tenderiq_api.routers.v1.jobs import JobResponse
 from tenderiq_api.routers.v1.tenders import DocumentResponse
 from tenderiq_core.db.tenant import set_tenant_context
+from tenderiq_core.formatting import format_bytes_tr
 from tenderiq_core.models import (
     AuditAction,
     Document,
@@ -41,7 +42,7 @@ from tenderiq_core.models import (
     JobStatus,
     Role,
 )
-from tenderiq_core.services import quota
+from tenderiq_core.services import quota, storage_quota
 from tenderiq_core.services.audit import record_audit
 from tenderiq_core.uploads import MAGIC_PROBE_LENGTH, matches_magic_bytes
 
@@ -109,6 +110,7 @@ async def complete_upload(
     """
     rejection_reason: str | None = None
     quota_exceeded: quota.QuotaExceededError | None = None
+    storage_exceeded: storage_quota.StorageQuotaExceededError | None = None
     response: DocumentCompleteResponse | None = None
     job_to_enqueue: Job | None = None
 
@@ -164,6 +166,30 @@ async def complete_upload(
                     label = quota.LIMIT_LABELS_TR.get(exc.limit_kind, exc.limit_kind)
                     rejection_reason = f"Aylık {label} kotanız dolu ({exc.used}/{exc.limit})."
 
+            # Depolama kotası — YETKİLİ denetim. Kayıt anındaki erken red
+            # istemcinin BEYAN ettiği boyuta bakar; burada nesnenin GERÇEK
+            # boyutu bilinir. Tek kapı erken red olsaydı 1 bayt beyan edip
+            # 90 MB yüklemek kotayı tamamen atlardı.
+            #
+            # Bu dokümanın kendi rezervasyonu toplama dâhildir (satır taze bir
+            # PENDING_UPLOAD); `incoming_bytes` olarak GERÇEK boyut ile beyan
+            # edilen arasındaki FARK verilir — aksi hâlde aynı dosya iki kez
+            # sayılır ve kota haksız yere dolar.
+            if rejection_reason is None:
+                reserved = document.size_bytes or 0
+                try:
+                    await storage_quota.enforce_storage_quota(
+                        session,
+                        principal.tenant_id,
+                        incoming_bytes=info.size_bytes - reserved,
+                    )
+                except storage_quota.StorageQuotaExceededError as exc:
+                    storage_exceeded = exc
+                    rejection_reason = (
+                        f"Depolama kotanız dolu ({format_bytes_tr(exc.used_bytes)} / "
+                        f"{format_bytes_tr(exc.limit_bytes)})."
+                    )
+
             if rejection_reason is not None:
                 # Doğrulamayı geçemeyen nesne depoda bırakılmaz (depolama istismarı).
                 await asyncio.to_thread(storage.delete_object, document.storage_key)
@@ -215,6 +241,21 @@ async def complete_upload(
                     "limit_kind": quota_exceeded.limit_kind,
                     "used": quota_exceeded.used,
                     "limit": quota_exceeded.limit,
+                }
+            ],
+        )
+    if storage_exceeded is not None:
+        # Depolama aşımı da bir KOTA reddidir (402), içerik reddi (400) değil:
+        # dosyada bir sorun yok, kiracının yeri yok.
+        raise QuotaExceededError(
+            (rejection_reason or "Depolama kotanız dolu.")
+            + " Kullanılmayan dosyaları silin veya planınızı yükseltin.",
+            details=[
+                {
+                    "limit_kind": "storage",
+                    "used": storage_exceeded.used_bytes,
+                    "limit": storage_exceeded.limit_bytes,
+                    "incoming": storage_exceeded.incoming_bytes,
                 }
             ],
         )
