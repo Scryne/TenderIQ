@@ -34,6 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
+| 16 | CI sözleşme drift'i düzeltildi · kotalar bütçeden TÜRETİLİYOR · `/usage` bütçe+depolama + yönetici teşhis ucu · maliyet düşürme keşfi | `650b59e`…`1e72d60` |
 | 15 | J.6 madde 0-1-2: rezervasyon ölçeklemesi (**sabit tahmin 2-5 kat düşüktü**) · fiyat doğrulaması + kur/doğrulama görünürlüğü · depolama kotası zorlaması | `2a2b445`…`f45e34a` |
 | 14 | J.6 madde 2: LLM bütçe TAVANI (Redis rezervasyonu · sert ret · yumuşak eşik bildirimi) | `c07af86` |
 | 13 | J.6 madde 1: LLM kullanım/maliyet ÖLÇÜMÜ (tracer sarmalama · `llm_usage` RLS · fiyat tablosu yapılandırmadan) | `42e2138` |
@@ -130,6 +131,25 @@ kopyalanmaz.
   `UPLOAD_PENDING_TTL_HOURS` sonra sayımdan düşer — yarım kalan yükleme
   kiracıyı kendi kotasına kilitlemez. **Kurumsal "sınırsız"da toplam HİÇ
   hesaplanmaz** (karara girmeyen tarama maliyeti ödenmez).
+- **Plan kotaları BÜTÇEDEN TÜRETİLİR** (Tur 16). Elle yazılmış sayı yok:
+  `doküman = ⌊bütçe ÷ MEASURED_AVERAGE_ANALYSIS_COST_TRY⌋`,
+  `sayfa = max(doküman × ortalama, TYPICAL_LARGE_DOCUMENT_PAGES)`. Bugünkü
+  değerler: ücretsiz **3 doküman / 35 sayfa**, Pro **60 doküman / 390 sayfa**.
+  **Geçici kalibrasyon** — maliyet düşünce yalnız o SABİT düşürülür ve üç planın
+  kotası birlikte yükselir. Sayfa kotasının tabanı var çünkü ortalamadan
+  türetilen ~20 sayfa, bütçenin finanse ettiği 29 sayfalık şartnameyi
+  reddediyordu (kotanın kotayı bloke etmesi). Üç test korur: kotanın tamamı
+  bütçeyi aşamaz · sayfa kotası tipik şartnamenin altına inemez · landing ve
+  kayıt ekranındaki sayılar plan kaydıyla aynı kalır.
+- **Kota bir TAVAN, bütçe BAĞLAYICI kısıttır.** Doğrusal bir (doküman, sayfa)
+  kotası sabit+değişken maliyeti temsil edemez: ücretsiz kullanıcı ya ~3 küçük
+  doküman ya ~1 orta şartname işleyebilir, ikisini birden değil.
+- **Maliyetin %73'ü ÇIKTI token'ıdır** (Tur 16 ölçümü). Çıktı, token sayısının
+  %35'i ama maliyetin %73'ü ($25 vs $5/Mtok). Optimizasyon sırası bu yüzden
+  ters: bağlamı kısmak en fazla %27'lik havuza dokunur. **İstem önbellekleme
+  UYGULANAMAZ** — tek sabit önek `SYSTEM_PROMPT` (330 token) ve en düşük
+  önbellek eşiğinin (512) ALTINDA; ajan bağlamları farklı chunk'lar getirdiği
+  için ortak önek yok. Bu yola girilmemeli. Ayrıntı: `maliyet-tavani.md` §6.
 - **LLM maliyeti ÖLÇÜLÜYOR** (J.6 madde 1, Tur 13): `create_llm_tracer` çıktısı
   `CostTracer` ile sarmalanır — Langfuse yolu bozulmaz, ajan katmanına
   dokunulmaz. Ölçüm LLM çağrısını BLOKE ETMEZ: contextvar tamponuna yazılır,
@@ -280,6 +300,11 @@ kopyalanmaz.
   (0–3 bayt tarıyor), çalışma ağacı için `gitleaks dir <yol>` kullan. İstisnalar
   `.gitleaks.toml`da ve yalnız `generic-api-key` kuralı için daraltılmış —
   sağlayıcıya özgü desenler test dosyalarında da bloke eder.
+- **Şema değiştiren backend değişikliğinden sonra sözleşmeyi YENİDEN ÜRET.**
+  `python scripts/export_openapi.py` + `pnpm --filter @tenderiq/api-client generate`.
+  Yerel `pytest`/`mypy` bunu görmez; CI'ın `contract` job'ı görür. Tur 15 tam
+  bu yüzden 8/9 ile döndü — "yerel tam koşum geçti" raporu sözleşme kapısını
+  hiç çalıştırmamıştı.
 - **`5432`/`6379` başka bir projenin konteynerleri tarafından tutulabilir**
   (bu makinede FabrikaOS). O konteynerlere DOKUNMA; TenderIQ'yu yan portlara al:
   compose override'ında `ports: !override` ile (`ports` listeleri normalde
@@ -292,31 +317,33 @@ kopyalanmaz.
 
 ### 2.1 Öncelik sırası
 
-1. **J.6 görünürlük — GA ENGELİ (Tur 15'te fiyat + kota bitti, bu kalmadı):**
-   - **Yönetici görünürlüğü.** Kiracı bazlı dönem harcaması, rezerve tutar ve
-     `unpriced_calls` bir uçtan görünmeli — "tavan neden gevşek davrandı"
-     sorusu ancak böyle yanıtlanır. `BudgetDecision` bu üç sayıyı zaten
-     taşıyor; eksik olan yalnız uç/arayüz. Erişim kiracı yöneticisiyle sınırlı
-     olmalı + sızıntı testi.
-   - **Arayüzde `/usage`.** Ret hâlinde e-posta gidiyor ama ekranda bütçe/kalan
-     gösterilmiyor. Gösterilecekler: dönem harcaması / tavan, kalan, sıfırlanma
-     tarihi, **depolama kullanımı / kota** (Tur 15'te backend hazır:
-     `services.storage_quota.compute_storage_usage` → `used_bytes`,
-     `limit_bytes`, `remaining_bytes`, `ratio`, `soft_exceeded`). Tavana
-     yakınken uyarı, dolunca ne yapabileceği.
-   - Görsel doğrulama DESIGN.md §14 (4 viewport + koyu tema), CSP zorlayıcıyken
-     E2E temiz, `design/decisions.md` güncellenir.
-
-   **Karar bekliyor — plan kotaları kendi bütçeleriyle tutarsız (ürün kararı).**
-   Ücretsiz 5 doküman vaat ediyor, 25 TL bütçesi ~1 tipik analiz finanse ediyor;
-   Pro 100 doküman vaat ediyor, 500 TL ~30 analiz finanse ediyor. Bütçe, doküman
-   kotasından **3-5 kat önce** doluyor — tavanın davranışı doğru olsa bile bu bir
-   VAAT UYUŞMAZLIĞI. Seçenekler ve sayılar `docs/ops/maliyet-tavani.md` §4'te;
-   ölçüm "kotaları bütçeye indir"i destekliyor ama karar fiyatlandırmadır.
-2. **Kuyruk adaleti** (kiracı başına eşzamanlılık + adil sıralama) — hâlâ ertelendi.
-3. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
-4. **Onboarding sihirbazı + demo analiz.**
-5. **Kalan doğrulama borcu:** statik prerender kaybının GERÇEK maliyeti
+1. **`/usage` ARAYÜZÜ — GA ENGELİ (Tur 16'da backend bitti, arayüz kalmadı).**
+   Uçlar hazır ve testli: `GET /api/v1/usage` artık `budget` (harcanan/tavan/
+   kalan/rezerve/yumuşak eşik) ve `storage` (kullanılan/kota/kalan) taşıyor;
+   `GET /api/v1/usage/admin` yönetici teşhisini veriyor (harcama, rezerve,
+   `unpriced_calls`, `calls`, kur eksik/bayat + yaşı, doğrulanmamış modeller).
+   Kalan iş yalnız **ekran**:
+   - Kullanıcı tarafı `/usage` (sayfa VAR, `apps/web/src/app/(app)/usage/page.tsx`;
+     bugün yalnız doküman + sayfa metresi gösteriyor). Bütçe ve depolama
+     eklenecek; tavana yakınken uyarı, dolunca ne yapabileceği.
+   - **Rezerve tutarı "harcanmış" gibi GÖSTERME** — devam eden işler için
+     ayrılmıştır; ayrı alan olarak dönüyor (`budget.reserved_try`).
+   - Yönetici bölümü: yalnız admin görsün (uç zaten 403 veriyor).
+   - **DESIGN.md §14 görsel doğrulama (4 viewport + koyu tema, 2 tur) ve
+     `design/decisions.md` güncellemesi ATLANAMAZ**; CSP zorlayıcıyken E2E temiz.
+     Tur 16'da bu yüzden başlanmadı: doğrulama döngüsüne yer kalmamıştı ve
+     doğrulanmamış UI commit'lemek Bölüm 15 DoD'sini ihlal ederdi.
+2. **Maliyet düşürme (ölçüldü, uygulanmadı — `maliyet-tavani.md` §6).**
+   Sıra önemli: önce **§6.6 çıktıyı kısmak** (maliyetin %73'ü, kalite riski yok:
+   `compliance.rationale` sınırı, şema alanları, faz bazlı
+   `LLM_MAX_OUTPUT_TOKENS`), sonra **§6.5 karma model** (`timeline` ucuz modele,
+   grounding'e dokunan ajanlar güçlü modelde). Tam Sonnet 5 geçişi (%40 kazanç,
+   Pro'yu 100 dokümana geri getirir) **ancak golden-set kalite kapısı yeniden
+   koşulduktan sonra**. §6.3'e (istem önbellekleme) girilmemeli — eşik altında.
+3. **Kuyruk adaleti** (kiracı başına eşzamanlılık + adil sıralama) — hâlâ ertelendi.
+4. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
+5. **Onboarding sihirbazı + demo analiz.**
+6. **Kalan doğrulama borcu:** statik prerender kaybının GERÇEK maliyeti
    (CDN/kenar önbelleği) ölçülmedi — staging olmadan ölçülemez (J.1) ·
    `email_suppression`dan adres çıkarmanın operatör ucu yok (ADR-0015 "Ödünler").
 
@@ -357,6 +384,8 @@ trivy), `image-scan`.
 | CI koşumu (Tur 13, `8f5ff82`) | **9 job'ın tamamı yeşil** | 2026-07-31, Actions REST API'si (run id 30587710454) |
 | CI koşumu (Tur 12, `7a30448`) | **9 job'ın tamamı yeşil** | 2026-07-30, Actions REST API'si (run id 30568253675). Not: derleme kapısı önce `frontend` + `image-scan` job'larını düşürdü — kapı çalıştı, eksik olan bağlantıydı; denetim de o iki hedefi görmüyordu (manifesto listelemiyordu) |
 | CI koşumu (Tur 11, `61a0274`) | **9 job'ın TAMAMI yeşil** (`backend` · `contract` · `frontend` · `e2e` · `a11y` · `security` · `image-scan`×3) | 2026-07-30, Actions REST API'sinden okundu (run id 30537772592). CI ilk kez uçtan uca yeşil |
+| CI koşumu (Tur 15, `b997001`) | **8/9 yeşil · `contract` ❌** — `DocumentCreate.size_bytes` eklenmiş ama `packages/api-client/openapi.json` + üretilmiş TS şeması güncellenmemişti | 2026-07-31, Actions REST API'si (run id 30632395852). Tur 16'da `650b59e` ile düzeltildi |
+| Yerel tam koşum (Tur 16 commit'i `1e72d60`) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (258 dosya) · `mypy` strict 149 dosya · `pytest` (unit) çıkış 0 · `pytest -m integration` çıkış 0 · OpenAPI + api-client şeması yeniden üretildi (drift yok). **CI'da doğrulanmadı** — push sonrası okunmalı |
 | Yerel tam koşum (Tur 15 commit'i `d8963dc`) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (255 dosya) · `mypy` strict 149 dosya · `pytest` (unit) çıkış 0 · `pytest -m integration` çıkış 0 · toplam 581 test toplandı (405 unit + 176 integration). **CI'da doğrulanmadı** — bu turun push'u sonrası Actions'tan okunmalı |
 | Yerel tam koşum (Tur 14 commit'i) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (251 dosya) · `mypy` strict 145 dosya · `pytest` 394 · `pytest -m integration` 168 |
 | Yerel tam koşum (Tur 13 commit'i) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (248 dosya) · `mypy` strict 143 dosya · `pytest` 391 · `pytest -m integration` 160 · migration `0022` temiz DB'de upgrade→downgrade→upgrade |
