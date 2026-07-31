@@ -178,12 +178,41 @@ def _degraded_decision(remaining_micros: int, estimate_micros: int) -> tuple[boo
     return accepted, estimate_micros if accepted else 0
 
 
+def estimate_job_micros(pages: int | None, settings: Settings) -> int:
+    """Bir işin rezerve edilecek muhafazakâr maliyet tahmini (mikro-TL).
+
+    **Neden sabit bir tutar YETMEZ.** Aşım `eşzamanlılık × tahmin` ile sınırlı;
+    bu sınırın anlamlı olması tahminin gerçek maliyetin ALTINDA kalmamasına
+    bağlı. Tur 15'te gerçek şartnamelerle ölçüldü: sabit 5 TL, 12-29 sayfalık
+    tipik bir şartnamenin gerçek maliyetinin (10-25 TL) 2-5 katı ALTINDA kaldı —
+    yani rezervasyon tavanı koruyor görünüp korumuyordu.
+
+    Tahminin iki bileşeni ölçümün yapısını izler:
+
+    - **Sabit**: dört çıkarım ajanının bağlamı `retrieval_agent_context_limit`
+      ile TAVANLIDIR, dolayısıyla doküman büyüdükçe büyümez.
+    - **Sayfa başına**: büyüyen şey bulgu sayısıdır — çıktı token'ları ve
+      compliance isteminin gereksinim listesi.
+
+    ``pages`` bilinmiyorsa (parsing sayfa sayısı yazmamışsa) tavan kullanılır:
+    bilinmeyen boyutu ucuz saymak, tam da korunmak istenen aşımı üretirdi.
+    """
+    if pages is None:
+        return int(settings.llm_job_reservation_max_try * MICROS_PER_TRY)
+    estimate_try = settings.llm_job_reservation_try + max(0, pages) * (
+        settings.llm_job_reservation_page_try
+    )
+    capped = min(estimate_try, settings.llm_job_reservation_max_try)
+    return int(capped * MICROS_PER_TRY)
+
+
 def admit_job_sync(
     session: Session,
     *,
     tenant_id: uuid.UUID,
     job_id: uuid.UUID,
     redis: Any | None,
+    pages: int | None = None,
     settings: Settings | None = None,
     now: datetime | None = None,
 ) -> BudgetDecision:
@@ -219,7 +248,7 @@ def admit_job_sync(
         )
 
     limit_micros = limit_try * MICROS_PER_TRY
-    estimate = int(settings.llm_job_reservation_try * MICROS_PER_TRY)
+    estimate = estimate_job_micros(pages, settings)
     remaining = max(0, limit_micros - snapshot.spent_micros_try)
     soft_exceeded = snapshot.spent_micros_try >= int(
         limit_micros * settings.llm_budget_soft_threshold
@@ -264,12 +293,19 @@ def enforce_llm_budget_sync(
     tenant_id: uuid.UUID,
     job_id: uuid.UUID,
     redis: Any | None,
+    pages: int | None = None,
     settings: Settings | None = None,
     now: datetime | None = None,
 ) -> BudgetDecision:
     """`admit_job_sync` + reddedildiyse `LlmBudgetExceededError`."""
     decision = admit_job_sync(
-        session, tenant_id=tenant_id, job_id=job_id, redis=redis, settings=settings, now=now
+        session,
+        tenant_id=tenant_id,
+        job_id=job_id,
+        redis=redis,
+        pages=pages,
+        settings=settings,
+        now=now,
     )
     if not decision.accepted:
         # Sınırsız kademede ret üretilmez; tip daraltması için açık kontrol

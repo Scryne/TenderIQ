@@ -179,8 +179,15 @@ def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         # yarıda kesmek token'ları geri getirmez, yalnız yarım analiz bırakır.
         try:
             with tenant_session(tenant_id) as session:
+                # Rezervasyon doküman boyutuyla ölçeklenir (Tur 15): sabit tutar
+                # tipik bir şartnamenin gerçek maliyetinin 2-5 katı altında
+                # kalıyordu, yani tavan koruyor görünüp korumuyordu.
                 decision = enforce_llm_budget_sync(
-                    session, tenant_id=tenant_id, job_id=job_id, redis=redis
+                    session,
+                    tenant_id=tenant_id,
+                    job_id=job_id,
+                    redis=redis,
+                    pages=_job_page_count(session, job_id),
                 )
         except LlmBudgetExceededError as exc:
             # Kullanıcı NE OLDUĞUNU ve NE ZAMAN sıfırlanacağını görmeli; işin
@@ -207,6 +214,21 @@ def run_extraction_phase(job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
             release_job_reservation(redis, tenant_id=tenant_id, job_id=job_id)
     finally:
         tenant_id_var.reset(tenant_token)
+
+
+def _job_page_count(session: Any, job_id: uuid.UUID) -> int | None:
+    """İşin dokümanının sayfa sayısı (rezervasyon tahmininin girdisi).
+
+    Parsing fazı extracting'den ÖNCE koştuğu için `page_count` normalde
+    doludur. Okunamazsa ``None`` döner ve tahmin tavana çıkar — bilinmeyen
+    boyutu ucuz saymak, korunmak istenen aşımı üretirdi.
+    """
+    pages: int | None = session.scalar(
+        select(Document.page_count)
+        .join(Job, Job.document_id == Document.id)
+        .where(Job.id == job_id)
+    )
+    return pages
 
 
 def _budget_redis() -> Any | None:

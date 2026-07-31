@@ -71,3 +71,6 @@ spike-out/
 evals/golden/private/
 evals/predictions/private/
 .run/
+
+# Yerel compose override (makineye özgü port çakışmaları) — commit EDİLMEZ.
+infra/compose/docker-compose.override.yml

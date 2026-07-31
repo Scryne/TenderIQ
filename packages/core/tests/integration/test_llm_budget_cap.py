@@ -32,6 +32,7 @@ from tenderiq_core.services.llm_budget import (
     LlmBudgetExceededError,
     admit_job_sync,
     enforce_llm_budget_sync,
+    estimate_job_micros,
     period_key,
     record_llm_calls_sync,
     release_job_reservation,
@@ -45,7 +46,17 @@ TENANT_A = uuid.uuid4()
 TENANT_B = uuid.uuid4()
 
 #: Rezervasyon 5 TL; FREE tavanı 25 TL → 5 iş sığar.
-SETTINGS = Settings(llm_job_reservation_try=5.0, llm_reservation_ttl_seconds=600)
+#:
+#: Sayfa bileşeni bu dosyanın YARIŞ/SIZINTI testlerinde bilinçli olarak
+#: KAPATILDI: oradaki konu tahminin büyüklüğü değil, eşzamanlılığın tavanı
+#: birlikte aşamaması. Tahminin ölçeklenmesi ayrı testlerde sınanır
+#: (`test_rezervasyon_*`), sabitleri karıştırmamak için.
+SETTINGS = Settings(
+    llm_job_reservation_try=5.0,
+    llm_job_reservation_page_try=0.0,
+    llm_job_reservation_max_try=5.0,
+    llm_reservation_ttl_seconds=600,
+)
 
 
 def _now() -> datetime:
@@ -107,6 +118,73 @@ def _admit(engine, redis_client, tenant: uuid.UUID, job_id: uuid.UUID):  # type:
         set_tenant_context_sync(session, tenant)
         return admit_job_sync(
             session, tenant_id=tenant, job_id=job_id, redis=redis_client, settings=SETTINGS
+        )
+
+
+#: Gerçek varsayılanlar (sayfa bileşeni AÇIK) — tahmin testleri bunu kullanır.
+OLCEKLI = Settings(llm_reservation_ttl_seconds=600)
+
+#: Tur 15'te ölçülen tipik şartname boyu (spike-docs/teknik-sartname-1pdf.pdf).
+TIPIK_SAYFA = 29
+
+
+def test_rezervasyon_dokuman_boyutuyla_olceklenir() -> None:
+    """Sabit tahmin, tipik bir şartnamenin gerçek maliyetinin 2-5 katı altındaydı.
+
+    Aşım `eşzamanlılık × tahmin` ile sınırlı; tahmin gerçeğin altında kalırsa
+    bu sınır anlamını yitirir — tavan koruyor GÖRÜNÜP korumaz. Ölçüm
+    `docs/ops/maliyet-tavani.md`de.
+    """
+    kucuk = estimate_job_micros(2, OLCEKLI)
+    tipik = estimate_job_micros(TIPIK_SAYFA, OLCEKLI)
+    buyuk = estimate_job_micros(66, OLCEKLI)
+
+    assert kucuk < tipik < buyuk, "tahmin sayfa sayısıyla artmalı"
+    # Tipik şartnamenin ölçülen maliyeti ~13-25 TL; tahmin bunun altında kalmamalı.
+    assert tipik >= 13 * MICROS_PER_TRY
+
+
+def test_rezervasyon_bilinmeyen_boyutta_tavana_cikar() -> None:
+    """`page_count` yoksa tahmin TAVANDIR — bilinmeyeni ucuz saymak fail-open olurdu."""
+    assert estimate_job_micros(None, OLCEKLI) == int(
+        OLCEKLI.llm_job_reservation_max_try * MICROS_PER_TRY
+    )
+
+
+def test_rezervasyon_patolojik_sayfada_tavanla_sinirli() -> None:
+    """Yanlış ayrıştırılmış doküman kiracıyı kendi bütçesinden kilitlemesin."""
+    tavan = int(OLCEKLI.llm_job_reservation_max_try * MICROS_PER_TRY)
+    assert estimate_job_micros(100_000, OLCEKLI) == tavan
+
+
+def test_ucretsiz_kiraci_temiz_bakiyeyle_tipik_analizi_kosabilir(engine, redis) -> None:  # type: ignore[no-untyped-def]
+    """Ücretsiz kademe KÂĞIT ÜZERİNDE değil PRATİKTE var olmalı.
+
+    Fiilî kabul sınırı `tavan − rezervasyon`. Rezervasyon tahmini tavana
+    yaklaşırsa ücretsiz kullanıcı sıfır harcamayla bile hiçbir analiz
+    başlatamaz — kademe reklam edilir, çalışmaz. Bu test o çöküşü kilitler.
+    """
+    karar = _admit_pages(engine, redis, TENANT_A, uuid.uuid4(), pages=TIPIK_SAYFA)
+    assert karar.accepted, (
+        f"ücretsiz kiracı temiz bakiyeyle {TIPIK_SAYFA} sayfalık tipik bir "
+        f"şartnameyi çalıştıramıyor (rezervasyon "
+        f"{karar.reserved_micros / MICROS_PER_TRY:.2f} TL, tavan "
+        f"{(karar.limit_micros or 0) / MICROS_PER_TRY:.2f} TL)"
+    )
+    assert karar.spent_micros == 0
+
+
+def _admit_pages(engine, redis_client, tenant, job_id, *, pages):  # type: ignore[no-untyped-def]
+    """Gerçek (ölçekli) ayarlarla kabul — sayfa sayısı verilerek."""
+    with Session(engine) as session, session.begin():
+        set_tenant_context_sync(session, tenant)
+        return admit_job_sync(
+            session,
+            tenant_id=tenant,
+            job_id=job_id,
+            redis=redis_client,
+            pages=pages,
+            settings=OLCEKLI,
         )
 
 
