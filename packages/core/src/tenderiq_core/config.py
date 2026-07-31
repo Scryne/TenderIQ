@@ -98,10 +98,35 @@ class Settings(BaseSettings):
     # `pricing_status="no_fx_rate"` ile işaretlenir — 0 TL yazmak tavanı
     # sessizce sonsuz yapardı.
     llm_usd_try_rate: float | None = None
-    # Bir işin kabulünde REZERVE edilen muhafazakâr tutar (TL). Gerçek maliyet
-    # iş bitince yazılır; rezervasyon yalnız eşzamanlı işlerin tavanı BİRLİKTE
-    # aşmasını engeller. Aşım (eşzamanlılık × bu değer) ile sınırlıdır.
+    # Kurun EN SON ne zaman elle güncellendiği (YYYY-AA-GG). Kur statiktir ve
+    # otomatik çekilmez (dış servis bağımlılığı bilinçli olarak eklenmedi);
+    # bunun bedeli kurun sessizce bayatlamasıdır. Tarih, bayatlığı ÖLÇÜLEBİLİR
+    # kılar: yazılmazsa kurun ne kadar eski olduğu bilinemez ve tavan, gerçekte
+    # olduğundan düşük bir TL karşılığıyla hesaplanır.
+    llm_usd_try_rate_date: str | None = None
+    # Bayatlık eşiği (gün). Aşılırsa açılışta uyarı + `ops` metriği üretilir;
+    # iş DURDURULMAZ (bayat kur, kur olmamasından iyidir). 30 gün: TL'nin
+    # oynaklığında bir aydan eski kur tavanı belirgin şekilde yanıltır.
+    llm_usd_try_rate_max_age_days: int = 30
+    # Bir işin kabulünde REZERVE edilen muhafazakâr tutarın SABİT bileşeni (TL).
+    # Gerçek maliyet iş bitince yazılır; rezervasyon yalnız eşzamanlı işlerin
+    # tavanı BİRLİKTE aşmasını engeller. Aşım (eşzamanlılık × tahmin) ile
+    # sınırlıdır — bu yüzden tahmin gerçek maliyetin ALTINDA kalmamalıdır.
+    #
+    # Taban, doküman boyutundan BAĞIMSIZ olan kısmı karşılar: dört çıkarım
+    # ajanı, her biri `retrieval_agent_context_limit` kadar chunk bağlam alır
+    # (tavanlı → doküman büyüdükçe BÜYÜMEZ). Tur 15'te gerçek şartnamelerle
+    # ölçüldü: bu sabit kısım tek başına ~5 TL (bkz. docs/ops/maliyet-tavani.md).
     llm_job_reservation_try: float = 5.0
+    # Rezervasyonun DEĞİŞKEN bileşeni: sayfa başına TL. Sayfa sayısıyla
+    # ölçeklenen şey bağlam değil BULGU sayısıdır — çıktı token'ları ve
+    # compliance isteminin gereksinim listesi. Tur 15 ölçümü: 12 sayfalık
+    # sözleşme ~10 TL, 29 sayfalık teknik şartname ~25 TL.
+    llm_job_reservation_page_try: float = 0.6
+    # Rezervasyon tavanı (TL): sayfa sayısı patolojik olduğunda (yanlış
+    # ayrıştırılmış doküman) rezervasyonun kiracıyı kendi bütçesinden tamamen
+    # kilitlemesini engeller. Gerçek maliyet zaten iş bitince yazılır.
+    llm_job_reservation_max_try: float = 60.0
     # Rezervasyon TTL'i (sn). En uzun işten güvenli marjla uzun olmalı: Celery
     # sert zaman tavanı 30 dk, bu yüzden 2 katı. Kısa olursa hâlâ koşan bir iş
     # rezervasyonunu kaybeder ve tavan birlikte aşılabilir; uzun olursa çöken

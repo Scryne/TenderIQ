@@ -57,7 +57,11 @@ açılışında fail-fast uygulayanlar:
 | `OPS_METRICS_TOKEN` | boşsa `/ops/metrics` 404 döner |
 | `LLM_PRICING_PATH` | okunamazsa her kayıt `unknown_model` olur; tutar hesaplanamaz ve bu KAYITTA görünür |
 | `LLM_USD_TRY_RATE` | boşsa maliyet hesaplanmaz (`no_fx_rate`). **0 yazmayın** — 0 TL tavanı sessizce sonsuz yapar |
-| `LLM_JOB_RESERVATION_TRY` | kabulde rezerve edilen tutar; küçük olursa eşzamanlı işler tavanı birlikte aşabilir |
+| `LLM_USD_TRY_RATE_DATE` | kurun elle güncellendiği tarih; boşsa bayatlık ÖLÇÜLEMEZ (açılışta uyarı) |
+| `LLM_USD_TRY_RATE_MAX_AGE_DAYS` | bayatlık eşiği; aşılırsa uyarı + ops metriği (iş durdurulmaz) |
+| `LLM_JOB_RESERVATION_TRY` | rezervasyonun SABİT bileşeni; küçük olursa eşzamanlı işler tavanı birlikte aşabilir |
+| `LLM_JOB_RESERVATION_PAGE_TRY` | sayfa başına bileşen; 0 yapmak Tur 15'te ölçülen 2-5 kat eksik tahmine geri döner |
+| `LLM_JOB_RESERVATION_MAX_TRY` | rezervasyon tavanı; sayfa sayısı bilinmiyorsa da bu kullanılır (fail-closed) |
 | `LLM_RESERVATION_TTL_SECONDS` | en uzun işten kısa olursa koşan iş rezervasyonunu kaybeder (tavan zayıflar) |
 | `LLM_BUDGET_SOFT_THRESHOLD` | uyarı eşiği; reddetme bundan değil sert tavandan gelir |
 
@@ -71,8 +75,16 @@ açılışında fail-fast uygulayanlar:
 - [ ] `AUTH_SECRET` üretildi (`openssl rand -base64 32`).
 - [ ] `DATABASE_URL` RLS'ye tabi rol, `DATABASE_ADMIN_URL` ayrıcalıklı rol
       (ADR-0003).
-- [ ] Fiyat tablosu (`config/llm-pricing.json`) sağlayıcının güncel fiyatlarıyla
-      doğrulandı ve `LLM_USD_TRY_RATE` güncel.
+- [ ] Fiyat tablosu (`config/llm-pricing.json`): kullanılan modelin satırı
+      `verified: true` **ve** `source` + `verified_at` dolu. Kaynağa ulaşılamıyorsa
+      fiyat **uydurulmaz**; `verified: false` bırakılır (tutar tahmin sayılır ve
+      açılışta uyarı üretir). `verified: true` ama kaynaksız satır kodda
+      doğrulanmamış sayılır — bayrağı elle çevirmek işe yaramaz.
+- [ ] `LLM_USD_TRY_RATE` **dolu** (boşsa harcama hep 0 TL sayılır ve **tavan hiç
+      dolmaz**) ve `LLM_USD_TRY_RATE_DATE` bugüne çekildi. Kur otomatik
+      çekilmez; güncelleme sorumluluğu **operatördedir** ve
+      `LLM_USD_TRY_RATE_MAX_AGE_DAYS` (varsayılan 30 gün) aşılınca açılışta
+      uyarı + `ops` metriği üretilir.
 - [ ] `LLM_REGION` / `LLM_ALLOW_CROSS_BORDER` hukuki beyanla tutarlı (ADR-0013).
 
 > Değişken eklerken: önce `apps/web/env-manifest.json`a (web ise) ya da
