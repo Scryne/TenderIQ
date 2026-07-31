@@ -408,3 +408,142 @@ maliyet yok. Ölçümün görmediği şey CDN önbelleği kaybı (localhost).
 **Bilinen borç.** `design/refs/` hâlâ boş. `sonner` çalışma anında nonce'suz
 `<style>` enjekte ettiği için `style-src 'unsafe-inline'` kalıcı borç oldu
 (ölçülerek doğrulandı; DURUM.md §1.2).
+
+---
+
+## 2026-07-31 · /usage — bütçe, depolama ve yönetici teşhisi · tur 1-3
+
+**Bağlam.** J.6'nın backend'i Tur 13-16'da bitti (ölçüm → tavan → depolama kotası
+→ yönetici teşhis ucu) ama ekran yalnız doküman ve sayfa metresini gösteriyordu.
+Yani ürün, kullanıcıyı **göremediği bir sınırla** reddediyordu — GA engeli.
+
+### Bilgi hiyerarşisi kararı: dört ölçer eşit değildir
+
+Jenerik çözüm dört ölçeri (doküman · sayfa · bütçe · depolama) yan yana dizmekti.
+Bu üründe **yanlış** olurdu: doküman ve sayfa kotaları `plans.py`de bütçeden
+TÜRETİLİYOR ve bütçe pratikte hep önce doluyor. Dördünü eşit göstermek,
+"3 dokümandan 1'ini kullandım" diyen bir kullanıcının neden reddedildiğini
+açıklanamaz hâle getirirdi. Bu yüzden bütçe hero konumunda tek başına; kotalar
+onun altında ikincil satırlar ve aralarında şu cümle var: *"Doküman ve sayfa
+kotası bir üst sınırdır; bir analizi fiilen durduran şey yukarıdaki bütçedir."*
+
+**Depolama ayrı karttadır** çünkü dönemsel değil kümülatiftir. "Bu dönem"
+başlığının altına koymak, ay başında sıfırlanacağını ima ederdi.
+
+### İMZA ÖĞESİ — taralı rezervasyon segmenti
+
+Rezerve tutar ne "harcanmış" ne "kalan"dır: iş bitince serbest kalır (harcanmadı)
+ama o parayla yeni iş başlatılamaz (kabul sınırı `tavan − rezervasyon`). İki uçtan
+birine yuvarlamak yanlış bilgi olurdu — harcamaya katmak "param bitti" dedirtir,
+kalana katmak olmayan bir hakkı vadeder.
+
+Çözüm: aynı çubukta **ayrı segment + ayrı doku**. Birincil seri (harcanan) düz
+dolgu, ikincil seri (ayrılan) 45° taralı dolgu — §8.26.2'nin "ikincil serilerde
+tarama" kuralı. Doku aynı zamanda renk körü yedeğidir (§12) ve §8.13 gereği
+açıklama listesi her zaman yazılır. §13.6 testi: bu kararı herhangi bir dashboard
+için verir miydim? Hayır — çoğu üründe "rezerve" kavramı yok, olsa da harcamaya
+katılır.
+
+**Bunun için backend'e tek satırlık bir düzeltme gerekti:** `GET /usage`
+`reserved_try`i sabit `0.0` döndürüyordu (yalnız yönetici ucu Redis'e bakıyordu).
+Yani alan "ayrı duruyor" ama hep boştu ve `remaining_try`, kabul kontrolünün
+uyguladığı sınırdan büyük çıkıyordu — ekran "₺14 kaldı" derken sunucu reddederdi.
+
+### Tur 1 kritiği (1440 · 375 · koyu)
+
+**İyi:** Bütçe çubuğu tek bakışta okunuyor; taralı segment düz segmentten net
+ayrışıyor. Yönetici uyarıları ciddiyet sırasına göre iniyor (kırmızı → sarı →
+mavi) ve `unpriced_calls` hem sayı hem renk olarak görünür.
+
+**Kötü:**
+1. Hero'da 30px rakam ile "harcandı" arası 4px — 375'te "8,40harcandı" gibi
+   okunuyor (§13.3 optik hizasızlık).
+2. `₺25,00 tavan` 1440'ta kartın sağ ucunda, hero'dan ~1000px uzakta. İki sayı
+   arasındaki ilişki mesafeyle anlatılmaz.
+3. Kur eksikken hem "kur tanımlı değil" hem "3 çağrının tutarı hesaplanamadı"
+   uyarısı çıkıyor. İkincisi birincinin SONUCU — iki bağımsız arıza varmış gibi
+   duruyor ve yöneticiyi olmayan ikinci bir işin peşine düşürüyor.
+4. `Sayfa` ölçerinde eşik uyarısı kapalıydı: sayfa kotası dolduğunda kullanıcı
+   hiçbir cümle görmüyordu. Tur 2'nin `showThresholdNote` gerekçesi ("aynı cümle
+   iki kez") burada geçersiz — iki kota AYRI sebeplerle dolar.
+5. `formatBytes` 500 MB'ı "500,0 MB", 2 KB'ı "2,0 KB" yazıyor.
+6. Sayfa açıklaması hâlâ yalnız "kota"dan söz ediyordu.
+7. Teşhis ızgarasındaki "Dönem" hücresi ₺8,40 ile aynı mono ağırlıkta — tarih
+   aralığı bir metrik değil, üstelik sayfanın üstünde zaten yazılı.
+
+**Uygulanan (tur 2):** 1 → hero iki gruba ayrıldı, `gap-x-2`. 2 → tavan hero'nun
+yanına alındı (`₺8,40 harcandı · ₺25,00 tavan`), sağ uçtaki değer kaldırıldı.
+3 → kur eksikken `unpriced` uyarısı yazılmıyor, sayı fx uyarısının içine
+gömülüyor. 4 → iki ölçere de kendi `noteNear`/`noteFull` cümlesi. 5 →
+`formatBytes` en fazla bir ondalık, zorunlu değil. 6 → açıklama güncellendi.
+7 → dönem, kartın açıklama cümlesine taşındı.
+
+### Tur 2 kritiği — ölçümle bulunan gerçek kusur
+
+**Açıklama listesindeki üç örnek (swatch) hiç çizilmiyordu.** `<span>` satır içi
+kaldığı için `h-2 w-3` yok sayılıyor, kutular sıfır genişlikte bir kenarlığa
+düşüyor ve "Kalan" örneği ince bir dikey çizgi — yani AYIRICI — gibi okunuyordu.
+375'te satır başında yalnız bir "|" kalıyordu. Yani §8.13'ün zorunlu kıldığı
+açıklama listesi fiilen YOKTU ve çubuk tek başına renk/dokuya kalıyordu (§12
+ihlali). Ekran görüntüsüne gerçekten bakılmasaydı bu kusur görülmezdi: kod
+doğru, sınıflar doğru, çıktı yanlıştı.
+
+**Uygulanan (tur 3):** sarmalayıcı `flex`, örnekler `block`; "Kalan" örneği
+`border-strong` (WCAG 1.4.11 için 3:1). Ayrıca "Dönem 01.07.2026 – 01.08.2026 ·
+01.08.2026 tarihinde sıfırlanır" aynı tarihi iki kez yazıyordu → "bitiminde
+sıfırlanır" (eksiz kalıp, Ek B.3).
+
+### Durumlar
+
+Beşi de kodlandı ve **canlı backend'e karşı** çekildi (önizleme mock'u değil):
+- **İlk kullanım** (dört boyut da sıfır): §10.1 daveti — "Bu dönemde henüz analiz
+  yapılmadı" + hakkın tamamı (kota · bütçe · yenilenme tarihi · depolama kotası)
+  + "İhalelere git". Dört boş çubuk çizmek hiçbir soruyu yanıtlamazdı.
+- **Normal**, **tavana yakın** (yumuşak eşik uyarısı), **dolu** (sert ret:
+  ne olduğu · ne zaman sıfırlanacağı · plan yükseltme yolu; sayfanın TEK primary
+  butonu bu durumda beliriyor).
+- **Yükleniyor** iskeleti hero + çubuk + açıklama + iki ölçer şeklini taklit
+  ediyor; **hata** `InlineError` ile kart içinde kalıyor (sayfa çökmüyor).
+
+### Yönetici tarafı
+
+`Yalnız yönetici` rozeti taşıyor ve yalnız `role === "admin"` iken çiziliyor —
+ama asıl kapı sunucuda (403). `e2e/usage.spec.ts` ikisini de sınıyor: üye
+sayfayı açıyor, kendi kullanımını görüyor, teşhis kartının hiçbir izini
+görmüyor (başlık · rozet · sayı · hata kartı yok) ve sayfanın kendi origin'inden
+`fetch` ettiğinde 403 alıyor.
+
+> `page.request` KULLANILMADI: o bağlam oturum çerezini taşımıyor ve isteği
+> kimliksiz gönderiyor (401). "Üye reddedildi" yerine "kimse reddedildi" ölçmüş
+> olurduk — hiçbir şey kanıtlamayan yeşil bir test.
+
+### Yeni paylaşılan bileşen: `components/notice.tsx`
+
+`subscription-card.tsx` içindeki yerel `Notice` çıkarıldı ve üç tonlu
+(info/warning/danger) tek bir bileşene dönüştü. Bütçe ve teşhis ekranları üç ayrı
+ciddiyet seviyesi taşıyor; bunları ayırt eden şey **ton** olmalı, anatomi değil.
+`InlineError` ile karışmasın diye ayrımı dosyaya yazdım: `InlineError` bir
+İSTEĞİN başarısız olduğunu söyler ("yeniden dene"), `Notice` başarıyla dönmüş
+verinin ANLAMINI söyler — tekrar denemek bir şey değiştirmez.
+
+### Spec'ten sapma
+
+§6.5 "para birimi sayıdan küçük ve muted" **uygulandı** ama yalnız bütçe
+hero'sunda: `splitCurrency` Intl'in kendi parçalarından okuyor (sembolün yeri ve
+boşluğu locale kararıdır). Plan kartlarındaki fiyatlar bölünmedi — orada değer
+"Ücretsiz" / "Özel fiyat" gibi metin de olabiliyor ve bölünmüş sembol üç kartta
+iki farklı para anatomisi üretirdi.
+
+### Ortam notu (bir sonraki tur için)
+
+**`next dev` bu projede §14 döngüsü için KULLANILAMAZ.** Zorlayıcı CSP'de
+`'unsafe-eval'` yok; webpack dev bundle'ı `eval` kullandığı için hidrasyon hiç
+çalışmıyor, form gönderimi düz GET'e düşüyor ve ekran görüntüsü "çalışıyor gibi"
+görünüyor. Playwright yapılandırması da bu yüzden `next start` kullanıyor.
+Çekim için: `next build` + `next start`, dev sunucusu KAPALIYKEN.
+
+**Bilinen borç.** `design/refs/` hâlâ boş (bu turda da karşılaştırma mevcut
+ekranlara karşı yapıldı). Kart başlıkları (`CardTitle` h2) ile bölüm başlığı
+(`SectionHeader` h2) tipografik olarak aynı — sayfa dört kart + bir bölümle
+uzadıkça bu düzlük daha görünür oldu; ayrı bir tipografi turu gerektiriyor,
+bu turun kapsamı dışında bırakıldı.

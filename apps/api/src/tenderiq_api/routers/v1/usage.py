@@ -131,7 +131,10 @@ async def _reserved_micros(redis: object, tenant_id: uuid.UUID, period_start: da
 
 @router.get("", response_model=UsageResponse)
 async def get_usage(
-    session: TenantSessionDep, principal: PrincipalDep, settings: SettingsDep
+    session: TenantSessionDep,
+    principal: PrincipalDep,
+    settings: SettingsDep,
+    redis: RedisDep,
 ) -> UsageResponse:
     """Aktif kiracının kullanımını döndürür.
 
@@ -144,7 +147,14 @@ async def get_usage(
     )
 
     limit_try = snapshot.plan.llm_budget_try_per_month
-    reserved_try = 0.0  # kullanıcı görünümü Redis'e bağlanmaz (bkz. admin ucu)
+    # Rezervasyon KULLANICI görünümüne de girer. Girmezse `remaining_try`,
+    # kabul kontrolünün fiilen uyguladığı sınırdan (`tavan − rezervasyon`)
+    # büyük çıkar: ekran "₺14 kaldı" derken sunucu reddeder ve arıza
+    # kullanıcıya sebepsiz görünür. Redis okunamazsa 0'a düşülür — sayı
+    # görüntüdür, karar değil (bkz. `_reserved_micros`).
+    reserved_try = round(
+        await _reserved_micros(redis, principal.tenant_id, spend.period_start) / MICROS_PER_TRY, 2
+    )
     remaining = None if limit_try is None else max(0.0, limit_try - spend.spent_try - reserved_try)
     soft = (
         limit_try is not None and spend.spent_try >= limit_try * settings.llm_budget_soft_threshold
@@ -161,7 +171,7 @@ async def get_usage(
         budget=BudgetUsage(
             spent_try=round(spend.spent_try, 2),
             limit_try=None if limit_try is None else float(limit_try),
-            reserved_try=reserved_try,
+            reserved_try=reserved_try,  # HARCANMIŞ değil — arayüz ayrı segment çizer
             remaining_try=None if remaining is None else round(remaining, 2),
             soft_exceeded=soft,
         ),

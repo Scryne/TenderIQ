@@ -4,15 +4,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
 
+import { AdminUsageCard } from "@/components/billing/admin-usage-card";
 import { SubscriptionCard } from "@/components/billing/subscription-card";
-import { Meter } from "@/components/metric";
+import { PLANS_ANCHOR, UsageSummary } from "@/components/billing/usage-summary";
 import { PageHeader, SectionHeader } from "@/components/shell/page-header";
-import { CardGridSkeleton, ErrorState, InlineError } from "@/components/states";
+import { CardGridSkeleton, ErrorState } from "@/components/states";
 import { StatusPill } from "@/components/status-pill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import { SUBSCRIPTION_STATUS } from "@/lib/tenders";
@@ -109,57 +109,20 @@ export default function UsagePage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Kullanım ve abonelik"
-        description="Bu dönemki kota kullanımınızı görün ve planınızı yönetin."
+        description="Bu dönemki analiz bütçenizi, kotanızı ve depolama alanınızı görün; planınızı yönetin."
         meta={status !== undefined && <StatusPill tone={status.tone} label={status.label} />}
       />
 
       {/* Kartlar arası 24px, "Planlar" bölümünden önce 32px (§5.3): bölüm ayrımı
           kart ayrımından büyük olmalı, yoksa üç blok da eşit uzaklıkta durur ve
           hangisinin bir bütün olduğu okunmaz. */}
-      <Card className="mb-6">
-        <CardHeader>
-          <div className="min-w-0">
-            <CardTitle as="h2">{usage.isPending ? "…" : (usage.data?.plan_name ?? "Plan")}</CardTitle>
-            {usage.data !== undefined && (
-              <p className="mt-1 text-sm text-ink-2">
-                Dönem {formatDate(usage.data.period_start)} – {formatDate(usage.data.period_end)} ·
-                kota her ayın başında sıfırlanır
-              </p>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-6 pt-0">
-          {usage.isPending && (
-            <>
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </>
-          )}
-          {usage.isError && (
-            <InlineError message={usage.error.message} onRetry={() => void usage.refetch()} />
-          )}
-          {usage.data !== undefined && (
-            <>
-              <Meter
-                label="Doküman"
-                used={usage.data.documents.used}
-                limit={usage.data.documents.limit}
-                formatValue={formatNumber}
-              />
-              <Meter
-                label="Sayfa"
-                used={usage.data.pages.used}
-                limit={usage.data.pages.limit}
-                formatValue={formatNumber}
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <UsageSummary isAdmin={isAdmin} />
 
       <SubscriptionCard isAdmin={isAdmin} />
 
       <SectionHeader
+        id={PLANS_ANCHOR}
+        className="mt-2 mb-3"
         title="Planlar"
         description={
           isAdmin
@@ -285,6 +248,15 @@ export default function UsagePage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Teşhis en altta: yöneticinin de ilk sorusu "kotam bitiyor mu"dur.
+          Rolü sunucu belirliyor (`/usage/admin` 403 verir); buradaki koşul
+          yalnız üyeye gereksiz gürültü göstermemek için. */}
+      {isAdmin && (
+        <div className="mt-8">
+          <AdminUsageCard />
         </div>
       )}
     </div>

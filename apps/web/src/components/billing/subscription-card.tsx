@@ -21,10 +21,11 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, RotateCcw, TriangleAlert } from "lucide-react";
+import { CalendarClock, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { Notice } from "@/components/notice";
 import { InlineError } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +42,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 /** Abonelik verisini etkileyen tüm sorgular — mutasyon sonrası birlikte tazelenir. */
 const AFFECTED_QUERIES = [["subscription"], ["usage"], ["billing-plans"]];
@@ -164,7 +164,7 @@ export function SubscriptionCard({ isAdmin }: { isAdmin: boolean }) {
       <CardContent className="flex flex-col gap-4 pt-4">
         {/* İptal edilmiş: erişimin ne zamana kadar sürdüğü EN ÖNEMLİ bilgi. */}
         {canceling && data.current_period_end !== null && (
-          <Notice tone="warning" icon={<TriangleAlert aria-hidden className="size-4" />}>
+          <Notice tone="warning">
             <span>
               <strong className="font-medium text-ink-1">{data.plan_name}</strong> erişiminiz{" "}
               <strong className="font-medium text-ink-1">
@@ -178,7 +178,7 @@ export function SubscriptionCard({ isAdmin }: { isAdmin: boolean }) {
 
         {/* Planlanmış düşürme — iptal gibi bu da geri alınabilir olmalı. */}
         {!canceling && data.pending_plan !== null && data.current_period_end !== null && (
-          <Notice tone="info" icon={<CalendarClock aria-hidden className="size-4" />}>
+          <Notice tone="info" icon={CalendarClock}>
             <span>
               {formatDate(data.current_period_end)} tarihinde{" "}
               <strong className="font-medium text-ink-1">{data.pending_plan_name}</strong> planına
@@ -264,35 +264,5 @@ export function SubscriptionCard({ isAdmin }: { isAdmin: boolean }) {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-/**
- * Satır içi bilgi bloğu — `account-section` ve `legal-shell`deki uyarı kalıbının
- * aynısı (`border-<ton>/30` + `bg-<ton>-weak` + `rounded-sm`). Yeni bir uyarı
- * anatomisi üretmedim: aynı üründe iki farklı uyarı görünümü, kullanıcının
- * "bu ne kadar ciddi" sorusunu her seferinde yeniden sormasına yol açar.
- */
-function Notice({
-  tone,
-  icon,
-  children,
-}: {
-  tone: "warning" | "info";
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-start gap-2.5 rounded-sm border px-3 py-2.5",
-        tone === "warning"
-          ? "border-warning/30 bg-warning-weak text-warning"
-          : "border-info/30 bg-info-weak text-info",
-      )}
-    >
-      <span className="mt-0.5 shrink-0">{icon}</span>
-      <p className="max-w-[68ch] text-sm text-ink-2">{children}</p>
-    </div>
   );
 }

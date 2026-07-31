@@ -34,6 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
+| 17 | `/usage` ARAYÜZÜ: bütçe ölçeri (rezervasyon ayrı segment) · depolama · yönetici teşhis kartı · **kullanıcı ucunda rezervasyon boşluğu kapatıldı** | (bu tur) |
 | 16 | CI sözleşme drift'i düzeltildi · kotalar bütçeden TÜRETİLİYOR · `/usage` bütçe+depolama + yönetici teşhis ucu · maliyet düşürme keşfi | `650b59e`…`1e72d60` |
 | 15 | J.6 madde 0-1-2: rezervasyon ölçeklemesi (**sabit tahmin 2-5 kat düşüktü**) · fiyat doğrulaması + kur/doğrulama görünürlüğü · depolama kotası zorlaması | `2a2b445`…`f45e34a` |
 | 14 | J.6 madde 2: LLM bütçe TAVANI (Redis rezervasyonu · sert ret · yumuşak eşik bildirimi) | `c07af86` |
@@ -131,6 +132,17 @@ kopyalanmaz.
   `UPLOAD_PENDING_TTL_HOURS` sonra sayımdan düşer — yarım kalan yükleme
   kiracıyı kendi kotasına kilitlemez. **Kurumsal "sınırsız"da toplam HİÇ
   hesaplanmaz** (karara girmeyen tarama maliyeti ödenmez).
+- **Rezervasyon KULLANICI görünümüne de girer** (Tur 17). `GET /usage`
+  `reserved_try`i sabit `0.0` döndürüyordu — alan "ayrı duruyor" ama hep boştu ve
+  `remaining_try`, kabul kontrolünün fiilen uyguladığı sınırdan (`tavan −
+  rezervasyon`) BÜYÜK çıkıyordu: ekran "₺14 kaldı" derken sunucu reddedebilirdi.
+  Artık iki uç da aynı Redis toplamını okuyor. Redis okunamazsa 0'a düşülür
+  (sayı bir görüntüdür, karar değil; tavanı uygulayan yol zaten muhafazakâr moda
+  düşüyor ve `llm_budget_degraded` sayıyor).
+- **Arayüzde rezerve tutar "harcanmış" gibi GÖSTERİLMEZ** (Tur 17). Aynı çubukta
+  ama ayrı segment ve ayrı DOKU (45° tarama, DESIGN.md §8.26.2 ikincil seri):
+  harcanmadı ama o parayla yeni iş de başlatılamaz — iki uçtan birine yuvarlamak
+  yanlış bilgi olurdu. Açıklama listesi her zaman yazılır (§8.13/§12).
 - **Plan kotaları BÜTÇEDEN TÜRETİLİR** (Tur 16). Elle yazılmış sayı yok:
   `doküman = ⌊bütçe ÷ MEASURED_AVERAGE_ANALYSIS_COST_TRY⌋`,
   `sayfa = max(doküman × ortalama, TYPICAL_LARGE_DOCUMENT_PAGES)`. Bugünkü
@@ -305,6 +317,18 @@ kopyalanmaz.
   Yerel `pytest`/`mypy` bunu görmez; CI'ın `contract` job'ı görür. Tur 15 tam
   bu yüzden 8/9 ile döndü — "yerel tam koşum geçti" raporu sözleşme kapısını
   hiç çalıştırmamıştı.
+- **`next dev` görsel doğrulama (§14) için KULLANILAMAZ.** Zorlayıcı CSP'de
+  `'unsafe-eval'` yok; webpack dev bundle'ı `eval` kullandığı için hidrasyon hiç
+  çalışmaz — form gönderimi düz GET'e düşer, giriş yapılamaz ve ekran görüntüsü
+  "çalışıyor gibi" görünür. Playwright yapılandırması da bu yüzden `next start`
+  kullanıyor. Çekim için `next build` + `next start`, dev sunucusu KAPALIYKEN.
+- **Ölü PID hâlâ portu tutabiliyor.** Tur 17'de `:8000`'deki uvicorn'un PID'si
+  `tasklist`te YOKTU ama port dinlemedeydi ve **eski kodu servis etmeye devam
+  ediyordu** — düzeltme uygulanmış görünüp uçta eski davranış sürüyordu (bu,
+  §1.4'teki "watchfiles eski bytecode" tuzağının daha kötü hâli: reload da
+  kurtarmıyor). Teşhis: `netstat -ano` PID'sini `tasklist //FI "PID eq <n>"` ile
+  doğrula. Çözüm: yan porta taze sunucu (`.run/<port>.pid`) ve web'i `API_URL`
+  ile oraya yönlendir.
 - **`5432`/`6379` başka bir projenin konteynerleri tarafından tutulabilir**
   (bu makinede FabrikaOS). O konteynerlere DOKUNMA; TenderIQ'yu yan portlara al:
   compose override'ında `ports: !override` ile (`ports` listeleri normalde
@@ -317,33 +341,17 @@ kopyalanmaz.
 
 ### 2.1 Öncelik sırası
 
-1. **`/usage` ARAYÜZÜ — GA ENGELİ (Tur 16'da backend bitti, arayüz kalmadı).**
-   Uçlar hazır ve testli: `GET /api/v1/usage` artık `budget` (harcanan/tavan/
-   kalan/rezerve/yumuşak eşik) ve `storage` (kullanılan/kota/kalan) taşıyor;
-   `GET /api/v1/usage/admin` yönetici teşhisini veriyor (harcama, rezerve,
-   `unpriced_calls`, `calls`, kur eksik/bayat + yaşı, doğrulanmamış modeller).
-   Kalan iş yalnız **ekran**:
-   - Kullanıcı tarafı `/usage` (sayfa VAR, `apps/web/src/app/(app)/usage/page.tsx`;
-     bugün yalnız doküman + sayfa metresi gösteriyor). Bütçe ve depolama
-     eklenecek; tavana yakınken uyarı, dolunca ne yapabileceği.
-   - **Rezerve tutarı "harcanmış" gibi GÖSTERME** — devam eden işler için
-     ayrılmıştır; ayrı alan olarak dönüyor (`budget.reserved_try`).
-   - Yönetici bölümü: yalnız admin görsün (uç zaten 403 veriyor).
-   - **DESIGN.md §14 görsel doğrulama (4 viewport + koyu tema, 2 tur) ve
-     `design/decisions.md` güncellemesi ATLANAMAZ**; CSP zorlayıcıyken E2E temiz.
-     Tur 16'da bu yüzden başlanmadı: doğrulama döngüsüne yer kalmamıştı ve
-     doğrulanmamış UI commit'lemek Bölüm 15 DoD'sini ihlal ederdi.
-2. **Maliyet düşürme (ölçüldü, uygulanmadı — `maliyet-tavani.md` §6).**
+1. **Maliyet düşürme (ölçüldü, uygulanmadı — `maliyet-tavani.md` §6).**
    Sıra önemli: önce **§6.6 çıktıyı kısmak** (maliyetin %73'ü, kalite riski yok:
    `compliance.rationale` sınırı, şema alanları, faz bazlı
    `LLM_MAX_OUTPUT_TOKENS`), sonra **§6.5 karma model** (`timeline` ucuz modele,
    grounding'e dokunan ajanlar güçlü modelde). Tam Sonnet 5 geçişi (%40 kazanç,
    Pro'yu 100 dokümana geri getirir) **ancak golden-set kalite kapısı yeniden
    koşulduktan sonra**. §6.3'e (istem önbellekleme) girilmemeli — eşik altında.
-3. **Kuyruk adaleti** (kiracı başına eşzamanlılık + adil sıralama) — hâlâ ertelendi.
-4. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
-5. **Onboarding sihirbazı + demo analiz.**
-6. **Kalan doğrulama borcu:** statik prerender kaybının GERÇEK maliyeti
+2. **Kuyruk adaleti** (kiracı başına eşzamanlılık + adil sıralama) — hâlâ ertelendi.
+3. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
+4. **Onboarding sihirbazı + demo analiz.**
+5. **Kalan doğrulama borcu:** statik prerender kaybının GERÇEK maliyeti
    (CDN/kenar önbelleği) ölçülmedi — staging olmadan ölçülemez (J.1) ·
    `email_suppression`dan adres çıkarmanın operatör ucu yok (ADR-0015 "Ödünler").
 
@@ -386,6 +394,9 @@ trivy), `image-scan`.
 | CI koşumu (Tur 11, `61a0274`) | **9 job'ın TAMAMI yeşil** (`backend` · `contract` · `frontend` · `e2e` · `a11y` · `security` · `image-scan`×3) | 2026-07-30, Actions REST API'sinden okundu (run id 30537772592). CI ilk kez uçtan uca yeşil |
 | CI koşumu (Tur 16, `ba17493`) | **9 job'ın tamamı yeşil** | 2026-07-31, Actions REST API'si (run id 30634031682) |
 | CI koşumu (Tur 15, `b997001`) | **8/9 yeşil · `contract` ❌** — `DocumentCreate.size_bytes` eklenmiş ama `packages/api-client/openapi.json` + üretilmiş TS şeması güncellenmemişti | 2026-07-31, Actions REST API'si (run id 30632395852). Tur 16'da `650b59e` ile düzeltildi |
+| Yerel tam koşum (Tur 17) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (258 dosya) · `mypy` strict 149 dosya · `pytest` (unit) çıkış 0 (413 test) · `pytest -m integration` çıkış 0 (183 test) · `playwright test` **25/25** (`usage.spec.ts` dâhil) · eslint + tsc + `next build` · OpenAPI + api-client şeması yeniden üretildi, **drift yok** (uç imzası değişti ama şema değişmedi) |
+| `/usage` görsel doğrulama (Tur 17) | 3 tur · 4 viewport + koyu tema · 0 konsol hatası · 0 yatay taşma | 2026-07-31 · `scripts/shoot.mjs`, **canlı backend'e karşı** (mock değil). Beş durum çekildi: ilk kullanım · normal · tavana yakın · dolu · koyu tema. Tur 2'de gerçek kusur bulundu (açıklama listesi örnekleri satır içi `<span>` olduğu için hiç çizilmiyordu) |
+| Lighthouse erişilebilirlik — `/usage` (Tur 17) | **100/100**, düşen denetim yok | 2026-07-31 · `node scripts/lighthouse-a11y.mjs --base http://127.0.0.1:3000 --only /usage` |
 | Yerel tam koşum (Tur 16 commit'i `1e72d60`) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (258 dosya) · `mypy` strict 149 dosya · `pytest` (unit) çıkış 0 · `pytest -m integration` çıkış 0 · OpenAPI + api-client şeması yeniden üretildi (drift yok). CI'da doğrulandı (9/9) |
 | Yerel tam koşum (Tur 15 commit'i `d8963dc`) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (255 dosya) · `mypy` strict 149 dosya · `pytest` (unit) çıkış 0 · `pytest -m integration` çıkış 0 · toplam 581 test toplandı (405 unit + 176 integration). **CI'da doğrulanmadı** — bu turun push'u sonrası Actions'tan okunmalı |
 | Yerel tam koşum (Tur 14 commit'i) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (251 dosya) · `mypy` strict 145 dosya · `pytest` 394 · `pytest -m integration` 168 |
