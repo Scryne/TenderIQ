@@ -34,7 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
-| 17 | `/usage` ARAYÜZÜ: bütçe ölçeri (rezervasyon ayrı segment) · depolama · yönetici teşhis kartı · **kullanıcı ucunda rezervasyon boşluğu kapatıldı** | (bu tur) |
+| 17 | `/usage` ARAYÜZÜ: bütçe ölçeri (rezervasyon ayrı segment) · depolama · yönetici teşhis kartı · **kullanıcı ucunda rezervasyon boşluğu kapatıldı** | `eddc16e` |
 | 16 | CI sözleşme drift'i düzeltildi · kotalar bütçeden TÜRETİLİYOR · `/usage` bütçe+depolama + yönetici teşhis ucu · maliyet düşürme keşfi | `650b59e`…`1e72d60` |
 | 15 | J.6 madde 0-1-2: rezervasyon ölçeklemesi (**sabit tahmin 2-5 kat düşüktü**) · fiyat doğrulaması + kur/doğrulama görünürlüğü · depolama kotası zorlaması | `2a2b445`…`f45e34a` |
 | 14 | J.6 madde 2: LLM bütçe TAVANI (Redis rezervasyonu · sert ret · yumuşak eşik bildirimi) | `c07af86` |
@@ -392,6 +392,7 @@ trivy), `image-scan`.
 | CI koşumu (Tur 13, `8f5ff82`) | **9 job'ın tamamı yeşil** | 2026-07-31, Actions REST API'si (run id 30587710454) |
 | CI koşumu (Tur 12, `7a30448`) | **9 job'ın tamamı yeşil** | 2026-07-30, Actions REST API'si (run id 30568253675). Not: derleme kapısı önce `frontend` + `image-scan` job'larını düşürdü — kapı çalıştı, eksik olan bağlantıydı; denetim de o iki hedefi görmüyordu (manifesto listelemiyordu) |
 | CI koşumu (Tur 11, `61a0274`) | **9 job'ın TAMAMI yeşil** (`backend` · `contract` · `frontend` · `e2e` · `a11y` · `security` · `image-scan`×3) | 2026-07-30, Actions REST API'sinden okundu (run id 30537772592). CI ilk kez uçtan uca yeşil |
+| CI koşumu (Tur 17, `eddc16e`) | **9 job'ın tamamı yeşil** | 2026-07-31, Actions REST API'si (run id 30645835860) |
 | CI koşumu (Tur 16, `ba17493`) | **9 job'ın tamamı yeşil** | 2026-07-31, Actions REST API'si (run id 30634031682) |
 | CI koşumu (Tur 15, `b997001`) | **8/9 yeşil · `contract` ❌** — `DocumentCreate.size_bytes` eklenmiş ama `packages/api-client/openapi.json` + üretilmiş TS şeması güncellenmemişti | 2026-07-31, Actions REST API'si (run id 30632395852). Tur 16'da `650b59e` ile düzeltildi |
 | Yerel tam koşum (Tur 17) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (258 dosya) · `mypy` strict 149 dosya · `pytest` (unit) çıkış 0 (413 test) · `pytest -m integration` çıkış 0 (183 test) · `playwright test` **25/25** (`usage.spec.ts` dâhil) · eslint + tsc + `next build` · OpenAPI + api-client şeması yeniden üretildi, **drift yok** (uç imzası değişti ama şema değişmedi) |
