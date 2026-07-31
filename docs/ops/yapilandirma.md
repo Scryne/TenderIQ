@@ -64,6 +64,7 @@ açılışında fail-fast uygulayanlar:
 | `LLM_JOB_RESERVATION_MAX_TRY` | rezervasyon tavanı; sayfa sayısı bilinmiyorsa da bu kullanılır (fail-closed) |
 | `LLM_RESERVATION_TTL_SECONDS` | en uzun işten kısa olursa koşan iş rezervasyonunu kaybeder (tavan zayıflar) |
 | `LLM_BUDGET_SOFT_THRESHOLD` | uyarı eşiği; reddetme bundan değil sert tavandan gelir |
+| `STORAGE_SOFT_THRESHOLD` | depolama uyarı eşiği; ret bundan değil `Plan.storage_bytes`tan gelir |
 
 ## Dağıtım öncesi kontrol listesi
 
