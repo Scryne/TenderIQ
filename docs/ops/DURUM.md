@@ -34,6 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
+| 15 | J.6 madde 0-1-2: rezervasyon ölçeklemesi (**sabit tahmin 2-5 kat düşüktü**) · fiyat doğrulaması + kur/doğrulama görünürlüğü · depolama kotası zorlaması | `2a2b445`…`f45e34a` |
 | 14 | J.6 madde 2: LLM bütçe TAVANI (Redis rezervasyonu · sert ret · yumuşak eşik bildirimi) | `c07af86` |
 | 13 | J.6 madde 1: LLM kullanım/maliyet ÖLÇÜMÜ (tracer sarmalama · `llm_usage` RLS · fiyat tablosu yapılandırmadan) | `42e2138` |
 | 12 | Derleme-zamanı yapılandırma manifestosu + üç kapı (derleme · açılış · dağıtım-dosyası denetimi) | `0067e70` |
@@ -95,6 +96,40 @@ kopyalanmaz.
   varmış gibi; sınır erken kapanır) ve `ops`ta `llm_budget_degraded` sayılır —
   "sessizce geç" seçenek değildi. Fiilî kabul sınırı `tavan − rezervasyon`;
   son kısmi dilim bilinçli olarak verilmez.
+- **Rezervasyon tahmini doküman boyutuyla ÖLÇEKLENİR** (Tur 15). Tur 14'ün
+  sabit 5 TL'si, gerçek şartnamelerle ölçünce tipik bir analizin maliyetinin
+  **2-5 katı altında** kaldı (en kötü hâlde ~19 katı). Aşım
+  `eşzamanlılık × tahmin` ile sınırlı olduğundan, tahmin gerçeğin altında
+  kalınca **bu sınır anlamını yitirir** — tavan koruyor GÖRÜNÜP korumaz.
+  Formül: `min(5,0 TL + sayfa × 0,6 TL, 60 TL)`. Sayfa sayısı bilinmiyorsa
+  tahmin **tavana** çıkar (fail-closed). Ölçüm ve sayılar:
+  `docs/ops/maliyet-tavani.md`.
+- **Fiyatlar DOĞRULANDI** (Tur 15, 2026-07-31): `claude-opus-4-8` $5/$25 —
+  sağlayıcının kendi fiyat sayfasından. `verified: true` olan satır `source` +
+  `verified_at` taşımak ZORUNDA; taşımıyorsa kod onu **doğrulanmamış sayar**
+  (bayrağı elle çevirmek tavanı denetlenemez bir sayının üstüne oturtmaya
+  yetmez). NVIDIA NIM (`qwen/qwen3.5-122b-a10b`) **doğrulanamadı** — sağlayıcı
+  token başına fiyat yayımlamıyor, üç erişim denemesi de başarısız; uydurulmadı,
+  `verified: false` bırakıldı. Dev katmanı olduğu için üretim yolu etkilenmiyor.
+- **`LLM_USD_TRY_RATE` boşsa TAVAN FİİLEN YOKTUR** — her kayıt `no_fx_rate` ile
+  0 TL yazılır, harcama toplamı sıfır kalır ve tavan hiç dolmaz. `.env.example`de
+  boş olduğu için bu **varsayılan hâldi**. Artık açılışta (API + worker)
+  `error` seviyesinde uyarı + `ops` sayacı. Kur **otomatik çekilmez** (dış servis
+  kesintisi analizleri durdurabilirdi); bayatlığı `LLM_USD_TRY_RATE_DATE` +
+  `LLM_USD_TRY_RATE_MAX_AGE_DAYS` (30 gün) ile ölçülür. Güncelleme sorumluluğu
+  **operatördedir**.
+- **Depolama kotası ZORLANIYOR** (Tur 15). İki kapı: yükleme BAŞLAMADAN
+  (istemcinin beyan ettiği boyutla erken red) ve tamamlanırken (nesnenin GERÇEK
+  boyutuyla yetkili denetim) — tek kapı erken red olsaydı 1 bayt beyan edip
+  90 MB yüklemek kotayı tamamen atlardı. Sayıma **yalnız kullanıcının
+  görebildiği** dosyalar girer: yumuşak silinmiş ve `failed` sayılmaz.
+  **Eşzamanlılık rezervasyonla çözülür** — taze `pending_upload` satırının beyan
+  edilen boyutu toplama girer, ayrı bir rezervasyon deposu (Redis) gerekmez;
+  kararlar kiracının `subscription` satırı `FOR UPDATE` ile kilitlenerek seri
+  hâle getirilir (farklı kiracılar birbirini beklemez). Bayat rezervasyonlar
+  `UPLOAD_PENDING_TTL_HOURS` sonra sayımdan düşer — yarım kalan yükleme
+  kiracıyı kendi kotasına kilitlemez. **Kurumsal "sınırsız"da toplam HİÇ
+  hesaplanmaz** (karara girmeyen tarama maliyeti ödenmez).
 - **LLM maliyeti ÖLÇÜLÜYOR** (J.6 madde 1, Tur 13): `create_llm_tracer` çıktısı
   `CostTracer` ile sarmalanır — Langfuse yolu bozulmaz, ajan katmanına
   dokunulmaz. Ölçüm LLM çağrısını BLOKE ETMEZ: contextvar tamponuna yazılır,
@@ -157,6 +192,17 @@ kopyalanmaz.
 
 ### 1.3 Doğrulanmamış varsayımlar (yayın engeli olabilir)
 
+- **NVIDIA NIM fiyatı DOĞRULANAMADI** (`qwen/qwen3.5-122b-a10b`). Sağlayıcı
+  barındırılan katalog için token başına fiyat YAYIMLAMIYOR; üç erişim denemesi
+  de başarısız (2026-07-31). `verified: false` bırakıldı — uydurulmadı. Dev
+  katmanı olduğu için üretim yolu etkilenmiyor; **üretime alınacaksa fiyat ÖNCE
+  doğrulanmalı.** Devredildi: NVIDIA hesabının faturalandırma sayfası
+  (hesap kullanıcıda).
+- **Bir analizin maliyeti TAHMİNDİR, birebir sayılmadı.** Karakter→token
+  dönüşümü muhafazakâr bir oranla (2,5 kr/token) yapıldı; makinede Anthropic
+  kimlik bilgisi olmadığı için `count_tokens` ile birebir ölçüm YAPILAMADI.
+  Bulgu sayısı varsayımı da (`sayfa × 1,4`) ölçülmedi. Kimlik bilgisi olan bir
+  ortamda yeniden ölçülüp `docs/ops/maliyet-tavani.md` güncellenmeli.
 - **iyzico abonelik istek/yanıt ŞEMASI varsayım.** İmza şeması gerçeğe karşı
   doğrulandı; şema doğrulanamıyor çünkü modül hesapta kapalı. Tur 7'de eklenen
   `resume_subscription` (`/v2/subscription/subscriptions/activate`) ve dönem sonu
@@ -246,26 +292,27 @@ kopyalanmaz.
 
 ### 2.1 Öncelik sırası
 
-1. **J.6 kalanı — GA ENGELİ (Tur 14'te tavan bitti, bunlar başlamadı):**
-   - **Fiyat doğrulama borcu.** `config/llm-pricing.json`daki fiyatların hepsi
-     `verified: false` — yani tavan DOĞRULANMAMIŞ sayıların üstünde duruyor.
-     Fiyatları sağlayıcıların güncel fiyat sayfalarına karşı doğrula, kaynak URL
-     ve tarih yaz, `verified: true` yap; doğrulayamadığını `false` bırak
-     (uydurma). `verified:false` kalan model varsa açılışta uyarı/ops metriği
-     üret. **`LLM_USD_TRY_RATE` statik ve kur kayıyor:** kimin ne sıklıkla
-     güncelleyeceğini yaz, bayatlık eşiğini aşarsa uyarı üret (otomatik kur
-     çekme EKLEME — yalnız bayatlığı görünür kıl).
-   - **Depolama kotası (madde 3).** `Plan.storage_bytes` alanı EKLENDİ
-     (ücretsiz 500 MB, Pro 20 GB, kurumsal sınırsız) ama **hiçbir yerde
-     zorlanmıyor**. Kota kontrolü yükleme BAŞLAMADAN yapılmalı; aşımda ret +
-     bildirim. Mevcut kullanım hesabı silinen dosyalarda doğru kalmalı ve
-     yarım kalan yüklemeler kotayı kalıcı şişirmemeli.
+1. **J.6 görünürlük — GA ENGELİ (Tur 15'te fiyat + kota bitti, bu kalmadı):**
    - **Yönetici görünürlüğü.** Kiracı bazlı dönem harcaması, rezerve tutar ve
      `unpriced_calls` bir uçtan görünmeli — "tavan neden gevşek davrandı"
      sorusu ancak böyle yanıtlanır. `BudgetDecision` bu üç sayıyı zaten
-     taşıyor; eksik olan yalnız uç/arayüz.
-   - **Arayüzde tavan durumu.** Ret hâlinde e-posta gidiyor ama `/usage`
-     ekranında bütçe/kalan gösterilmiyor.
+     taşıyor; eksik olan yalnız uç/arayüz. Erişim kiracı yöneticisiyle sınırlı
+     olmalı + sızıntı testi.
+   - **Arayüzde `/usage`.** Ret hâlinde e-posta gidiyor ama ekranda bütçe/kalan
+     gösterilmiyor. Gösterilecekler: dönem harcaması / tavan, kalan, sıfırlanma
+     tarihi, **depolama kullanımı / kota** (Tur 15'te backend hazır:
+     `services.storage_quota.compute_storage_usage` → `used_bytes`,
+     `limit_bytes`, `remaining_bytes`, `ratio`, `soft_exceeded`). Tavana
+     yakınken uyarı, dolunca ne yapabileceği.
+   - Görsel doğrulama DESIGN.md §14 (4 viewport + koyu tema), CSP zorlayıcıyken
+     E2E temiz, `design/decisions.md` güncellenir.
+
+   **Karar bekliyor — plan kotaları kendi bütçeleriyle tutarsız (ürün kararı).**
+   Ücretsiz 5 doküman vaat ediyor, 25 TL bütçesi ~1 tipik analiz finanse ediyor;
+   Pro 100 doküman vaat ediyor, 500 TL ~30 analiz finanse ediyor. Bütçe, doküman
+   kotasından **3-5 kat önce** doluyor — tavanın davranışı doğru olsa bile bu bir
+   VAAT UYUŞMAZLIĞI. Seçenekler ve sayılar `docs/ops/maliyet-tavani.md` §4'te;
+   ölçüm "kotaları bütçeye indir"i destekliyor ama karar fiyatlandırmadır.
 2. **Kuyruk adaleti** (kiracı başına eşzamanlılık + adil sıralama) — hâlâ ertelendi.
 3. **Havale/EFT ile manuel aktivasyon yolu** (ADR-0014'te korunmuş kart dışı yol).
 4. **Onboarding sihirbazı + demo analiz.**
@@ -310,6 +357,7 @@ trivy), `image-scan`.
 | CI koşumu (Tur 13, `8f5ff82`) | **9 job'ın tamamı yeşil** | 2026-07-31, Actions REST API'si (run id 30587710454) |
 | CI koşumu (Tur 12, `7a30448`) | **9 job'ın tamamı yeşil** | 2026-07-30, Actions REST API'si (run id 30568253675). Not: derleme kapısı önce `frontend` + `image-scan` job'larını düşürdü — kapı çalıştı, eksik olan bağlantıydı; denetim de o iki hedefi görmüyordu (manifesto listelemiyordu) |
 | CI koşumu (Tur 11, `61a0274`) | **9 job'ın TAMAMI yeşil** (`backend` · `contract` · `frontend` · `e2e` · `a11y` · `security` · `image-scan`×3) | 2026-07-30, Actions REST API'sinden okundu (run id 30537772592). CI ilk kez uçtan uca yeşil |
+| Yerel tam koşum (Tur 15 commit'i `d8963dc`) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (255 dosya) · `mypy` strict 149 dosya · `pytest` (unit) çıkış 0 · `pytest -m integration` çıkış 0 · toplam 581 test toplandı (405 unit + 176 integration). **CI'da doğrulanmadı** — bu turun push'u sonrası Actions'tan okunmalı |
 | Yerel tam koşum (Tur 14 commit'i) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (251 dosya) · `mypy` strict 145 dosya · `pytest` 394 · `pytest -m integration` 168 |
 | Yerel tam koşum (Tur 13 commit'i) | geçti | 2026-07-31 · `ruff check` + `ruff format --check` (248 dosya) · `mypy` strict 143 dosya · `pytest` 391 · `pytest -m integration` 160 · migration `0022` temiz DB'de upgrade→downgrade→upgrade |
 | Yerel tam koşum (Tur 12 commit'i) | geçti | 2026-07-30 · `ruff check` + `ruff format --check` (241 dosya) · `mypy` strict 139 dosya · `pytest` 375 · `pytest -m integration` 157 · `playwright test` 23 · eslint + tsc + `next build` · derleme kapısı negatif doğrulandı |
