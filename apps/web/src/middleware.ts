@@ -35,12 +35,13 @@ export function middleware(request: NextRequest): NextResponse {
     url.searchParams.set("next", pathname);
     return withSecurityHeaders(NextResponse.redirect(url), policy);
   }
-  if (pathname === "/login" && hasSession) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/tenders";
-    url.search = "";
-    return withSecurityHeaders(NextResponse.redirect(url), policy);
-  }
+  // `/login` BURADA yönlendirilmez. Middleware yalnız cookie'nin VARLIĞINI
+  // görür, geçerliliğini göremez; "cookie var → /tenders" kuralı bu yüzden bayat
+  // bir oturumda kullanıcıyı kilitliyordu: giriş sayfası erişilemez oluyor,
+  // /tenders ise 401 alıp boş kalıyordu — yani hesaba bir daha hiç girilemiyordu.
+  // Doğrulanmış yönlendirme `app/login/page.tsx` içinde, backend'e sorularak
+  // yapılır (orası Node çalışma zamanı: `API_URL`i çalışma anında okuyabilir,
+  // edge middleware okuyamaz — bkz. `lib/security/csp.ts`deki derleme-anı notu).
 
   // Politika İSTEK başlığına da yazılır — Next nonce'u buradan okuyup kendi
   // `<script>` etiketlerine ekler. Yalnız yanıt başlığını yazsaydık Next

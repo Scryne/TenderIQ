@@ -1,123 +1,53 @@
-"use client";
+// Giriş sayfası — "zaten girişli misin" kontrolü BURADA yapılır, middleware'de değil.
+//
+// Eski davranış: middleware, oturum cookie'si VARSA /login'i koşulsuz /tenders'a
+// yönlendiriyordu. Middleware cookie'nin geçerliliğini göremez; token bayat ya da
+// bozuksa kullanıcı kilitleniyordu — giriş sayfasına ulaşılamıyor, /tenders ise
+// 401 alıp boş kalıyordu. Kurtuluş yalnızca istemci JS'inin 401'i görüp cookie'leri
+// temizlemesine bağlıydı; hidrasyon çalışmadığında (ya da sayfa veri çekmeden hata
+// verdiğinde) çıkış yolu hiç kalmıyordu.
+//
+// Burası Node çalışma zamanıdır: `API_URL` çalışma anında okunabilir (edge
+// middleware'de okunamaz) ve oturumun yaşayıp yaşamadığı backend'e sorulur.
+// Doğrulanamıyorsa giriş formu gösterilir — yanlış tarafa düşmek serbest
+// bırakmaktır, kilitlemek değil.
 
-import { useMutation } from "@tanstack/react-query";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-import { AuthLayout } from "@/components/auth/auth-layout";
-import { InlineError } from "@/components/states";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { API_URL, SESSION_COOKIE } from "@/lib/server/backend";
 
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+import { LoginForm } from "./login-form";
 
-  const login = useMutation({
-    mutationFn: async () => {
-      // Token httpOnly cookie'ye sunucu tarafında yazılır; JS token görmez.
-      const response = await fetch("/api/session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error(
-            "Çok fazla deneme yapıldı. Birkaç dakika bekleyip yeniden deneyin.",
-          );
-        }
-        if (response.status === 401) {
-          throw new Error("E-posta veya parola hatalı.");
-        }
-        throw new Error("Giriş yapılamadı. Biraz sonra yeniden deneyin.");
-      }
-    },
-    onSuccess: () => {
-      const next = searchParams.get("next");
-      // Yalnızca site-içi yollar: "//evil.com" gibi protokol-göreli URL'ler dışarı kaçırır.
-      const isInternal = next !== null && next.startsWith("/") && !next.startsWith("//");
-      router.push(isInternal ? next : "/panel");
-      router.refresh();
-    },
-  });
-
-  return (
-    <AuthLayout
-      title="Giriş yap"
-      description="TenderIQ hesabınızla oturum açın."
-      footer={
-        <span>
-          Hesabınız yok mu?{" "}
-          <Link
-            href="/register"
-            className="text-ink-2 underline decoration-border-strong underline-offset-4 hover:decoration-ink-1"
-          >
-            Ücretsiz hesap oluşturun
-          </Link>
-          .
-        </span>
-      }
-    >
-      <form
-        className="flex flex-col gap-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          login.mutate();
-        }}
-      >
-        {/* Hata form ÜSTÜNDE tek blok, alan altında değil (§9.6). */}
-        {login.isError && <InlineError message={login.error.message} />}
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="email">E-posta</Label>
-          <Input
-            id="email"
-            type="email"
-            required
-            autoComplete="email"
-            autoFocus
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="ad.soyad@firma.com.tr"
-            aria-invalid={login.isError || undefined}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <Label htmlFor="password">Parola</Label>
-            <Link
-              href="/forgot-password"
-              className="text-xs text-ink-3 underline decoration-border-strong underline-offset-4 hover:text-ink-1 hover:decoration-ink-1"
-            >
-              Parolamı unuttum
-            </Link>
-          </div>
-          <Input
-            id="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            aria-invalid={login.isError || undefined}
-          />
-        </div>
-
-        <Button type="submit" className="mt-1 w-full" loading={login.isPending}>
-          Giriş yap
-        </Button>
-      </form>
-    </AuthLayout>
-  );
+/**
+ * Oturumun GERÇEKTEN geçerli olup olmadığını backend'e sorar.
+ *
+ * Erişim token'ı kısa ömürlüdür (≤1 saat) ve refresh cookie'siyle yenilenebilir;
+ * burada yenileme DENENMEZ, çünkü rotasyon eski refresh'i yakar ve sunucu bileşeni
+ * yeni token'ları cookie'ye yazamaz (Next 15). Süresi dolmuş erişim token'ıyla
+ * gelen girişli kullanıcı bu yüzden formu görür — maliyeti bir kez daha parola
+ * girmektir, kilitlenme değil.
+ */
+async function hasLiveSession(): Promise<boolean> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (token === undefined) return false;
+  try {
+    const response = await fetch(`${API_URL}/api/v1/auth/me`, {
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    return response.ok;
+  } catch {
+    // Kimlik servisine ulaşılamıyor: yönlendirme yerine form. Aksi hâlde backend
+    // kesintisi giriş sayfasını da götürürdü.
+    return false;
+  }
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  if (await hasLiveSession()) redirect("/tenders");
+
   return (
     <Suspense>
       <LoginForm />

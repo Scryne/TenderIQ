@@ -110,13 +110,23 @@ export function connectSources(): string[] {
  * uygulamanın kırılmasını tercih ediyoruz (BRIEF: hedef ortam güncel Chrome).
  */
 export function buildContentSecurityPolicy(nonce: string, isProduction: boolean): string {
+  // `'unsafe-eval'` YALNIZ geliştirmede. `next dev`in webpack paketi her modülü
+  // `eval()` ile sarar; izin verilmezse tek bir istemci betiği bile çalışmaz.
+  // Sonuç sessizdir ve "çalışıyor" gibi görünür: SSR HTML'i gelir, hidrasyon hiç
+  // olmaz, form gönderimi düz GET'e düşer, veri çeken sayfalar boş kalır — yani
+  // dev sunucusunda giriş yapmak imkânsızdır. Üretim politikası DEĞİŞMEZ:
+  // `next start` (E2E ve dağıtım) `NODE_ENV=production` ile koştuğu için oraya
+  // girmez ve `csp-policy.spec.ts` bunu kapı olarak doğrular.
+  const scriptSrc = [`'nonce-${nonce}'`, "'strict-dynamic'", "https:"];
+  if (!isProduction) scriptSrc.push("'unsafe-eval'");
+
   const directives = [
     "default-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
     "object-src 'none'",
-    `script-src 'nonce-${nonce}' 'strict-dynamic' https:`,
+    `script-src ${scriptSrc.join(" ")}`,
     // `'unsafe-inline'` KALICI borç — sebebi yukarıda ölçülerek yazıldı (sonner).
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
@@ -124,7 +134,16 @@ export function buildContentSecurityPolicy(nonce: string, isProduction: boolean)
     // PDF.js worker'ı webpack tarafından paketlenir (aynı origin); bazı
     // yapılandırmalarda blob: üzerinden başlatılır.
     "worker-src 'self' blob:",
-    `connect-src ${connectSources().join(" ")}`,
+    // `blob:` — PDF.js'in okuduğu şema. `pdf-viewer.tsx` imzalı URL'in baytlarını
+    // BİR KEZ indirip (yukarıdaki depolama origin'i) `URL.createObjectURL` ile
+    // sarıyor ve PDF.js'e o `blob:` adresini veriyor; PDF.js de onu `fetch` ile
+    // açıyor. `connect-src`te `blob:` yoksa tarayıcı TAM BU adımı keser: R2
+    // isteği 200 döner, dosya inmiştir, ama PDF.js "Unexpected server response
+    // (0)" der ve **tuval boş kalır** — yani depolama origin'i doğru olsa bile
+    // arıza aynen sürer (iki ayrı kusur, aynı belirti). `blob:` yalnız sayfanın
+    // kendi ürettiği, aynı-origin ömürlü nesneleri adresler; dışarı veri
+    // taşımaz. `img-src` ve `worker-src` zaten aynı sebeple `blob:` taşıyor.
+    `connect-src ${connectSources().join(" ")} blob:`,
     `report-uri ${CSP_REPORT_PATH}`,
     `report-to ${CSP_REPORT_GROUP}`,
   ];

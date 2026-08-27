@@ -685,7 +685,7 @@ function FinalCta() {
               İlk ihalenizi ücretsiz planda çözümleyin. Kredi kartı istenmez, kurulum gerekmez.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link href="/login" className={cn(buttonVariants({ size: "lg" }))}>
+              <Link href="/register" className={cn(buttonVariants({ size: "lg" }))}>
                 Ücretsiz başla
                 <ArrowRight strokeWidth={2} />
               </Link>

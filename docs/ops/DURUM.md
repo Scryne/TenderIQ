@@ -255,6 +255,15 @@ kopyalanmaz.
 
 ### 1.4 Tuzaklar (yeniden yaşanmasın)
 
+- **Depolama zinciri İKİ halkalı; belirtileri aynı, sebepleri ayrı** (2026-08-01).
+  Tarayıcı nesne depolamaya doğrudan çıkar (yükleme `PUT`, önizleme `GET`) ve
+  baytları `blob:`e sarıp PDF.js'e verir. `connect-src` (a) depolama origin'ini
+  ve (b) `blob:`i taşımak ZORUNDA; biri eksikse belirti aynıdır — yükleme
+  "Failed to fetch", tuval sessizce boş. (a) yerelde eksikti (`next.config.ts`
+  artık kök `.env`den türetiyor; `process.env`e yazmak YETMEZ, `nextConfig.env`
+  gerekir), (b) üretim dahil her yerde eksikti. **`csp.spec.ts` (b)'yi yapısal
+  olarak göremez:** depolama origin'i ölü bir port olduğu için baytlar hiç gelmez,
+  `createObjectURL` hiç çağrılmaz, ihlal doğamaz. Kapı artık `csp-policy.spec.ts`te.
 - **Windows'ta `uvicorn --reload` olmadan koşmayın.** Reload'suz
   `ProactorEventLoop` kullanılıyor ve async psycopg onunla çalışmıyor: her DB
   isteği 500 verir, oran sınırlayıcı bunu "çok fazla deneme" 429'una çevirir ve
@@ -317,11 +326,16 @@ kopyalanmaz.
   Yerel `pytest`/`mypy` bunu görmez; CI'ın `contract` job'ı görür. Tur 15 tam
   bu yüzden 8/9 ile döndü — "yerel tam koşum geçti" raporu sözleşme kapısını
   hiç çalıştırmamıştı.
-- **`next dev` görsel doğrulama (§14) için KULLANILAMAZ.** Zorlayıcı CSP'de
-  `'unsafe-eval'` yok; webpack dev bundle'ı `eval` kullandığı için hidrasyon hiç
-  çalışmaz — form gönderimi düz GET'e düşer, giriş yapılamaz ve ekran görüntüsü
-  "çalışıyor gibi" görünür. Playwright yapılandırması da bu yüzden `next start`
-  kullanıyor. Çekim için `next build` + `next start`, dev sunucusu KAPALIYKEN.
+- **~~`next dev` görsel doğrulama (§14) için KULLANILAMAZ.~~ ÇÖZÜLDÜ (2026-08-01).**
+  Zorlayıcı CSP'de `'unsafe-eval'` yoktu; webpack dev bundle'ı `eval` kullandığı
+  için hidrasyon hiç çalışmıyor, form gönderimi düz GET'e düşüyor ve ekran
+  görüntüsü "çalışıyor gibi" görünüyordu. `buildContentSecurityPolicy` artık
+  `'unsafe-eval'`i YALNIZ `isProduction=false` dalında veriyor; üretim politikası
+  değişmedi ve `csp-policy.spec.ts` iki yönü de kapı olarak sınıyor (üretimde
+  YOK, dev'de VAR). Ölçüm: dev sunucusunda gerçek Chromium ile giriş yapıldı —
+  `POST /api/session → 200`, `/panel`e yönlendi, konsol 0 hata.
+  Playwright hâlâ `next start` kullanıyor (üretim politikasını sınamak için doğrusu
+  bu) ve **dev sunucusu ayaktayken `next build` yine çalıştırılmaz.**
 - **Ölü PID hâlâ portu tutabiliyor.** Tur 17'de `:8000`'deki uvicorn'un PID'si
   `tasklist`te YOKTU ama port dinlemedeydi ve **eski kodu servis etmeye devam
   ediyordu** — düzeltme uygulanmış görünüp uçta eski davranış sürüyordu (bu,

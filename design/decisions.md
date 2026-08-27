@@ -536,14 +536,103 @@ iki farklı para anatomisi üretirdi.
 
 ### Ortam notu (bir sonraki tur için)
 
-**`next dev` bu projede §14 döngüsü için KULLANILAMAZ.** Zorlayıcı CSP'de
-`'unsafe-eval'` yok; webpack dev bundle'ı `eval` kullandığı için hidrasyon hiç
-çalışmıyor, form gönderimi düz GET'e düşüyor ve ekran görüntüsü "çalışıyor gibi"
-görünüyor. Playwright yapılandırması da bu yüzden `next start` kullanıyor.
-Çekim için: `next build` + `next start`, dev sunucusu KAPALIYKEN.
+**~~`next dev` bu projede §14 döngüsü için KULLANILAMAZ.~~ ÇÖZÜLDÜ — 2026-08-01,
+aşağıdaki turda.** Zorlayıcı CSP'de `'unsafe-eval'` yoktu; webpack dev bundle'ı
+`eval` kullandığı için hidrasyon hiç çalışmıyor, form gönderimi düz GET'e düşüyor
+ve ekran görüntüsü "çalışıyor gibi" görünüyordu. Artık dev politikası
+`'unsafe-eval'` içeriyor (üretim içermiyor) ve `next dev` üzerinde ekran görüntüsü
+alınabiliyor. **Dev sunucusu ayaktayken `next build` yine çalıştırılmaz.**
 
 **Bilinen borç.** `design/refs/` hâlâ boş (bu turda da karşılaştırma mevcut
 ekranlara karşı yapıldı). Kart başlıkları (`CardTitle` h2) ile bölüm başlığı
 (`SectionHeader` h2) tipografik olarak aynı — sayfa dört kart + bir bölümle
 uzadıkça bu düzlük daha görünür oldu; ayrı bir tipografi turu gerektiriyor,
 bu turun kapsamı dışında bırakıldı.
+
+---
+
+## 2026-08-01 · /login + landing "Giriş yap" · giriş kilidi
+
+**Belirti (kullanıcı raporu):** Landing'de "Giriş yap"a tıklayınca giriş sayfası
+yerine `/tenders`'a düşülüyor, `/tenders` da boş çıkıyor — yani hesaba hiç
+girilemiyor.
+
+**Kök neden ÜÇ ayrı kusurdu, ikisi birbirini gizliyordu.**
+
+1. `middleware.ts` oturum cookie'sinin yalnız VARLIĞINA bakıp `/login`i koşulsuz
+   `/tenders`'a yolluyordu. Middleware geçerliliği göremez; bayat/bozuk token'da
+   giriş sayfası erişilemez oluyor, `/tenders` ise 401 alıp boş kalıyordu. Tek
+   kurtuluş yolu istemci JS'inin 401'i görüp cookie'leri temizlemesiydi — yani
+   (2) yüzünden hiç işlemeyen bir yol.
+2. Dev CSP'sinde `'unsafe-eval'` yoktu; `next dev` paketi modülleri `eval()` ile
+   sardığı için **hiçbir istemci betiği çalışmıyordu.** Sayfa SSR HTML'iyle
+   donuyor, veri çekilmiyor, form gönderimi düz GET'e düşüyordu.
+3. Landing `FinalCta`'daki "Ücretsiz başla" `/login`e gidiyordu; aynı etiket
+   sayfanın diğer iki yerinde `/register`e gidiyor.
+
+**Karar — doğrulanmış yönlendirme, middleware'de değil sayfada.** "Zaten girişli
+misin" kontrolü `app/login/page.tsx`e (sunucu bileşeni) taşındı ve backend'e
+`GET /api/v1/auth/me` ile SORULUYOR. Neden middleware değil: edge çalışma
+zamanında `process.env` derleme anında sabitleniyor (§CSP'deki `STORAGE_ORIGIN`
+tuzağının aynısı), yani `API_URL` üretim imajında görünmezdi. Doğrulanamayan her
+durumda **form gösteriliyor** — yanlış tarafa düşmek serbest bırakmaktır,
+kilitlemek değil. Girişli kullanıcı için `/login → /tenders` kolaylığı korundu.
+
+**Görsel doğrulama:** dev sunucusunda gerçek Chromium; 1440×900.
+- `/login` — §9.6 iki sütun (sol form ≤400px, sağda ürünün kendi bulgu satırı),
+  focus halkası görünür, form/istemci-bileşeni ayrımı görünümü bozmadı.
+- `/tenders` — kenar çubuğu + kullanıcı kartı + §10.1 boş durumu ("Henüz ihale
+  projesi yok" + eylem butonu) doğru çiziliyor. Konsol 0 hata.
+
+**Bulunan, DÜZELTİLMEYEN kusur (kapsam dışı):** `/tenders` boş durumunda ekranda
+İKİ primary buton var — başlıktaki "Yeni ihale" ve boş durumdaki "Yeni ihale".
+§13.5 ve §15 "sayfada tek primary buton" der. Boş durum butonu kalmalı (§10.1
+eylem butonu zorunlu), başlıktakinin `secondary`ye inmesi gerekir. Ayrı tur.
+
+---
+
+## 2026-08-01 · yükleme + doküman tuvali · depolama zinciri
+
+**Belirti:** Dosya seçip yükleyince "Failed to fetch"; mevcut ihalenin PDF'i
+görünmüyor. İki belirti, **iki ayrı kusur** — ama tek bir zincirin ardışık iki
+halkası olduğu için biri düzeltilmeden diğeri görünmüyordu.
+
+**Kusur 1 — depolama origin'i yerel çalıştırmada CSP'ye hiç girmiyordu.**
+Tarayıcı nesne depolamaya DOĞRUDAN çıkıyor: yükleme `PUT`, önizleme `GET`.
+`NEXT_PUBLIC_STORAGE_ORIGIN` yalnız `required: "production"` olduğu için dev'de
+sessizce boş kalıyor, `connect-src 'self'` oluyor ve tarayıcı ikisini de kesiyor.
+Tur 11'de üretim için compose build ARG'ıyla çözülmüştü; **yerel `next dev` /
+`next build` yolunun karşılığı yoktu** — Next yalnız `apps/web` altındaki `.env`
+dosyalarını okur, değerin tek gerçek kaynağı olan kök `.env` oraya ulaşmaz.
+Çözüm: `next.config.ts` origin'i kök `.env`den compose ile AYNI zinciri kullanarak
+türetiyor (`NEXT_PUBLIC_STORAGE_ORIGIN` → `STORAGE_ORIGIN` →
+`OBJECT_STORAGE_ENDPOINT_URL`in origin'i). İkinci bir dosyaya elle kopyalamak
+origin'i iki yere yazardı ve R2 hesabı değişince biri sessizce eskirdi.
+
+**Türetme `process.env`e yazmakla OLMUYOR.** Denendi: `connect-src 'self'` olarak
+kaldı. Next `NEXT_PUBLIC_*` değerlerini paketlere gömerken kendi anlık görüntüsünü
+kullanıyor ve `config()` çağrıldığında o görüntü çoktan alınmış oluyor. Değer
+`nextConfig.env` üzerinden veriliyor — gömmeyi yapan belgelenmiş mekanizma bu ve
+edge (middleware) paketini de kapsıyor. Üretim kapısı gevşemedi: kök `.env`
+Docker bağlamına hiç girmiyor (`.dockerignore`), CI değişkeni açıkça veriyor,
+eksik build ARG'ı `assertBuildTimeEnv()` yakalamaya devam ediyor.
+
+**Kusur 2 — `connect-src` `blob:` taşımıyordu. Bu bir ÜRETİM kusuruydu.**
+Origin düzeltilince R2 `GET → 200` geldi, dosya indi — tuval yine boş kaldı.
+`pdf-viewer.tsx` baytları bir kez indirip `URL.createObjectURL` ile sarıyor ve
+PDF.js'e `blob:` adresini veriyor; PDF.js onu `fetch`liyor ve CSP kesiyor
+("Unexpected server response (0)"). `img-src` ve `worker-src` zaten `blob:`
+taşıyordu, `connect-src` atlanmıştı.
+
+**E2E bunu neden görmedi — yapısal kör nokta.** `csp.spec.ts` depolama origin'i
+olarak bilinçli biçimde ölü bir port kullanıyor (hermetiklik için doğru karar).
+Baytlar hiç gelmediği için `createObjectURL` hiç çağrılmıyor, PDF.js hiç `blob:`
+istemiyor ve ihlal **doğamıyor**. Yani test zincirin ilk halkasını doğrularken
+ikincisini yapısal olarak maskeliyor. Kapatan şey `csp-policy.spec.ts`e eklenen
+ağa çıkmayan birim kapısı: politika `blob:` taşıyor mu.
+
+**Doğrulama (gerçek Chromium, dev, 1440×900):** giriş → ihale detayı → gerçek
+şartname (`idari-sartname-6428pdf.pdf`, 337,6 KB) yüklendi: `[R2] PUT → 200`,
+belge listeye düştü, işleme hattı başladı, "Failed to fetch" yok, 0 CSP ihlali.
+İnceleme ekranı: `[R2] GET → 200`, 1 canvas 732×1035, PDF'in ilk sayfası
+("T.C. SAĞLIK BAKANLIĞI … İDARİ ŞARTNAME", 1/15) okunur biçimde çiziliyor.
