@@ -112,3 +112,31 @@ test("politika iskeleti: nonce'lu script-src, frame-ancestors none, rapor ucu", 
   const devPolicy = buildContentSecurityPolicy("N", false);
   expect(devPolicy).not.toContain("upgrade-insecure-requests");
 });
+
+test("connect-src `blob:` taşır — PDF.js tuvalinin şartı", () => {
+  // Depolama origin'i DOĞRU olsa bile `blob:` yoksa doküman tuvali boş kalır:
+  // baytlar R2'den iner (200), `URL.createObjectURL` ile sarılır, PDF.js o
+  // adresi `fetch`lemeye çalışır ve CSP keser. Belirti depolama origin'i eksik
+  // olduğundakiyle AYNI olduğu için ikisi kolayca birbirine karışır; bu yüzden
+  // ayrı bir kapı.
+  const policy = withEnv({ NEXT_PUBLIC_STORAGE_ORIGIN: "https://depo.example.com" }, () =>
+    buildContentSecurityPolicy("N", true),
+  );
+  expect(directive(policy, "connect-src")).toContain("blob:");
+  expect(directive(policy, "connect-src")).toContain("https://depo.example.com");
+});
+
+test("'unsafe-eval' YALNIZ geliştirmede; üretime sızmaz", () => {
+  // İki yönlü kapı. Üretim yönü güvenlik kapısıdır: `'unsafe-eval'` script-src'in
+  // XSS korumasını büyük ölçüde geri verir (enjekte edilen dize kod olarak
+  // çalıştırılabilir), oraya asla girmemeli.
+  expect(directive(buildContentSecurityPolicy("N", true), "script-src")).not.toContain(
+    "'unsafe-eval'",
+  );
+  // Dev yönü kullanılabilirlik kapısıdır: `next dev` paketi modülleri `eval()` ile
+  // sarar; izin yoksa hidrasyon HİÇ olmaz — sayfa "çalışıyor" görünür ama form
+  // gönderimi düz GET'e düşer ve dev sunucusunda giriş yapılamaz.
+  expect(directive(buildContentSecurityPolicy("N", false), "script-src")).toContain(
+    "'unsafe-eval'",
+  );
+});
