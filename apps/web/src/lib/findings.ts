@@ -30,10 +30,14 @@ export type FindingCategory =
   | "timeline"
   | "compliance";
 
+/**
+ * Tekil: segment etiketinde yer kazandırır (beş seçenek + sayaç dar bölmeye sığar)
+ * ve boş durumda "Gereksinim bulgusu çıkarılmadı" diye doğru okunur.
+ */
 export const CATEGORY_LABELS: Record<FindingCategory, string> = {
-  requirements: "Gereksinimler",
-  deliverables: "Belgeler",
-  risks: "Riskler",
+  requirements: "Gereksinim",
+  deliverables: "Belge",
+  risks: "Risk",
   timeline: "Takvim",
   compliance: "Uygunluk",
 };

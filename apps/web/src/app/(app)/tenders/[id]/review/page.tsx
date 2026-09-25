@@ -452,7 +452,7 @@ export default function TenderReviewPage({ params }: { params: Promise<{ id: str
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-12">
         {/* ── Sol bölme: bulgu listesi ───────────────────────────────────── */}
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface lg:col-span-5 xl:col-span-4">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface lg:col-span-5">
           <div className="shrink-0 border-b border-border p-3">
             <SegmentedControl
               label="Bulgu kategorisi"
@@ -460,12 +460,12 @@ export default function TenderReviewPage({ params }: { params: Promise<{ id: str
               onValueChange={switchCategory}
               className="gap-3"
               listClassName="w-full"
-              optionClassName="min-w-0 flex-1 px-1.5 text-xs"
+              optionClassName="flex-1 px-1.5 text-xs"
               options={(Object.keys(CATEGORY_LABELS) as FindingCategory[]).map((key) => ({
                 value: key,
                 label: (
                   <>
-                    <span className="truncate">{CATEGORY_LABELS[key]}</span>
+                    <span>{CATEGORY_LABELS[key]}</span>
                     <span className="font-mono text-[10px] text-ink-3">{counts[key] ?? "·"}</span>
                   </>
                 ),
@@ -565,7 +565,7 @@ export default function TenderReviewPage({ params }: { params: Promise<{ id: str
         </section>
 
         {/* ── Sağ bölme: doküman tuvali ──────────────────────────────────── */}
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface lg:col-span-7 xl:col-span-8">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface lg:col-span-7">
           <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
             <FileText aria-hidden className="size-4 shrink-0 text-ink-3" strokeWidth={1.5} />
             {pdfDocuments.length > 0 ? (

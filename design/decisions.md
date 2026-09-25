@@ -636,3 +636,37 @@ ağa çıkmayan birim kapısı: politika `blob:` taşıyor mu.
 belge listeye düştü, işleme hattı başladı, "Failed to fetch" yok, 0 CSP ihlali.
 İnceleme ekranı: `[R2] GET → 200`, 1 canvas 732×1035, PDF'in ilk sayfası
 ("T.C. SAĞLIK BAKANLIĞI … İDARİ ŞARTNAME", 1/15) okunur biçimde çiziliyor.
+
+---
+
+## 2026-09-25 · landing yeniden kurgusu + inceleme segmentleri · denetim turu
+
+**Bağlam.** Portfolyo öncesi tam denetim. Ekranlar önce/sonra 1440 + 390'da çekildi, uçtan uca
+akış kurgusal bir şartnameyle (Yeşilvadi BŞB, 4 sayfa) koşturuldu: 34 bulgu, konsol hatası 0.
+
+**Landing: aynı iskeletin tekrarı kırıldı.** Hero ile "Kanıt" bölümü aynı "solda metin, sağda kart"
+iskeletindeydi; "Yetenekler" iki sütunlu kart, "Nasıl çalışır" üç eşit kart, "Güvenlik" 2×2 kart.
+Yeni sıra, bitişik iki bölüm aynı iskeleti paylaşmayacak şekilde:
+hero (asimetrik) → mevzuat bandı → **şerhli belge** (tam genişlik şartname sayfası, vurgulu
+pasajlar kenardaki `[n]` şerhlerine bağlı; inceleme ekranının iki bölmeli düzeninin statik
+karşılığı) → **ajan fihristi** (Ajan · Ne arar · Örnek bulgu, `SourceRef` ile) → **hat şeridi**
+(beş istasyon tek çizgide, kanıt kroması yalnız "Çıkar ve bağla"da) → fiyat → **madde madde
+taahhüt** (sözleşme dili, her maddenin kodda karşılığı var: RLS, grounding, denetim izi, hard delete).
+Genel "YETENEKLER" etiketleri yerine şartname numaralandırması: `Bölüm n · Konu` (mono).
+UI metnindeki uzun tireler cümleye bölündü. Hero'daki geçmiş tarih (18.08.2026) ileri alındı.
+
+**İnceleme segmentleri kesiliyordu** ("Ge…", "Bel…"). Sebep: `min-w-0 flex-1 truncate` seçenekleri
+içerik genişliğinin altına sıkıştırıyordu; segment listesi taşmada zaten kendi içinde kayıyor.
+`min-w-0` + `truncate` kaldırıldı, sol bölme `lg:col-span-5`e sabitlendi, etiketler tekil yapıldı
+(Gereksinim/Belge/Risk): hem sayaçlar 12'ye çıkınca sığıyor hem boş durum "Gereksinim bulgusu
+çıkarılmadı" diye doğru okunuyor.
+
+**Küçük düzeltmeler.** Ücretsiz plan kartı başlıkta ve fiyatta iki kez "Ücretsiz" diyordu → `₺0 / ay`
+(landing ile aynı). "Sınırsız" mono dizilmiyor (§6.2 mono rolü sayıdır). Yetkinlik metin alanı mono
+değil gövde fontu; örnekteki gerçek kurum adı uydurma adla değişti (§4 kırmızı çizgi). Başarılı
+yüklemeden sonra bırakma alanı eski dosya adını göstermeye devam ediyordu → sıfırlanıyor.
+"Canlı" rozeti ihalenin durumu sanılıyordu → "Canlı izleniyor". Ham "Failed to fetch" Türkçe
+`userMessage`a çevrildi.
+
+**Doğrulama.** Lighthouse a11y (üretim derlemesi) 18/18 rota = 100. Yatay taşma 0, konsol hatası 0
+(açık + koyu, 1440 + 390). typecheck + lint temiz.
