@@ -156,7 +156,8 @@ class Settings(BaseSettings):
     # KVKK: BULUT sağlayıcı — doküman içeriği NVIDIA'ya gider (bkz. _log_retention_posture).
     nvidia_api_key: str | None = None
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-    nvidia_model: str = "qwen/qwen3.5-122b-a10b"
+    # qwen/qwen3.5-122b-a10b 2026-09-25 itibarıyla NIM'de 410 Gone (end of life); halef aynı sınıf MoE.
+    nvidia_model: str = "nvidia/nemotron-3-super-120b-a12b"
     nvidia_max_output_tokens: int = 4096
 
     # ── Gözlemlenebilirlik ────────────────────────────────────────────────────
@@ -350,6 +351,19 @@ class Settings(BaseSettings):
         """Virgülle ayrılmış env değerini (JSON değil, düz string) listeye ayrıştırır."""
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("llm_usd_try_rate", mode="before")
+    @classmethod
+    def _blank_rate_is_unset(cls, value: object) -> object:
+        """`.env.example`teki `LLM_USD_TRY_RATE=` boş satırı "tanımsız" demektir.
+
+        Belgelenen davranış budur (açılışta uyarı, harcama 0 TL sayılır); ama
+        pydantic boş dizeyi float'a çeviremediği için ayarlar hiç yüklenmiyor ve
+        `cp .env.example .env` sonrası her test toplanmadan düşüyordu.
+        """
+        if isinstance(value, str) and value.strip() == "":
+            return None
         return value
 
     @model_validator(mode="after")

@@ -26,7 +26,9 @@ overrides:
   # bu yüzden yükseltmeleri ancak override ile zorlanabilir. Her biri trivy'nin
   # bloke edici taramasında HIGH olarak çıktı ve yaması mevcut.
   # Üst paket kendi bağımlılığını yamalı sürüme taşıdığında bu satırlar kaldırılır.
-  brace-expansion: ">=5.0.8" # CVE-2026-14257 — ReDoS
-  fast-uri: ">=3.1.4" # CVE-2026-16221
+  brace-expansion: ">=5.0.9" # CVE-2026-14257 — ReDoS; CVE-2026-69152 — ara dizi DoS (5.0.9)
+  fast-uri: ">=4.1.2" # CVE-2026-16221; CVE-2026-18446 — host karışıklığı (4.1.2)
   postcss: ">=8.5.18" # CVE-2026-45623 + GHSA-r28c-9q8g-f849 — sourceMappingURL yol aşımı
-  sharp: ">=0.35.0" # GHSA-f88m-g3jw-g9cj — libvips CVE'leri
+  sharp: ">=0.35.4" # GHSA-f88m-g3jw-g9cj — libvips CVE'leri; GHSA-rgj7-g3m4-5g8c — libheif (0.35.4)
+  browserslist: ">=4.28.7" # CVE-2026-73088 prototip kirliliği + CVE-2026-73089 DoS
+  "nanoid@3": ">=3.3.18 <4" # CVE-2026-67213 — sonsuz döngü DoS (postcss'in 3.x hattı)
