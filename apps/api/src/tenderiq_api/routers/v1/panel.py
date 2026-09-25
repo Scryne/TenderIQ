@@ -117,7 +117,7 @@ async def get_panel(
     counts_result = await session.execute(
         select(Tender.status, func.count()).group_by(Tender.status)
     )
-    by_status: dict[TenderStatus, int] = dict(counts_result.all())  # type: ignore[arg-type]
+    by_status: dict[TenderStatus, int] = dict(counts_result.all())
     counts = PanelTenderCounts(
         total=sum(by_status.values()),
         draft=by_status.get(TenderStatus.DRAFT, 0),
