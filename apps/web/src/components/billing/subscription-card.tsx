@@ -42,6 +42,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { userMessage } from "@/lib/errors";
 
 /** Abonelik verisini etkileyen tüm sorgular — mutasyon sonrası birlikte tazelenir. */
 const AFFECTED_QUERIES = [["subscription"], ["usage"], ["billing-plans"]];
@@ -81,7 +82,7 @@ export function SubscriptionCard({ isAdmin }: { isAdmin: boolean }) {
           : `Abonelik iptal edildi. Erişiminiz ${formatDate(result.current_period_end)} tarihine kadar sürüyor.`,
       );
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   const resume = useMutation({
@@ -94,7 +95,7 @@ export function SubscriptionCard({ isAdmin }: { isAdmin: boolean }) {
       invalidateAll();
       toast.success("İptal geri alındı. Aboneliğiniz devam ediyor.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   const keepPlan = useMutation({
@@ -106,7 +107,7 @@ export function SubscriptionCard({ isAdmin }: { isAdmin: boolean }) {
       invalidateAll();
       toast.success("Plan değişikliği geri alındı.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   if (subscription.isPending) {

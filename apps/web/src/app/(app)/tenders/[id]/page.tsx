@@ -13,6 +13,7 @@ import {
 } from "@/components/tenders/tender-detail-view";
 import { api } from "@/lib/api";
 import { useTenderStream } from "@/lib/tender-stream";
+import { userMessage } from "@/lib/errors";
 
 const EXTENSION_CONTENT_TYPES: Record<string, string> = {
   pdf: "application/pdf",
@@ -73,7 +74,7 @@ export default function TenderDetailPage({ params }: { params: Promise<{ id: str
       toast.success("İşleme yeniden başlatıldı.");
       void queryClient.invalidateQueries({ queryKey: ["documents", tenderId] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   const upload = useMutation({
@@ -91,12 +92,23 @@ export default function TenderDetailPage({ params }: { params: Promise<{ id: str
       }
 
       // 2) Dosya doğrudan nesne depolamaya (imzalı URL) yüklenir.
-      const putResponse = await fetch(created.data.upload_url, {
-        method: "PUT",
-        headers: { "content-type": contentType },
-        body: file,
-      });
-      if (!putResponse.ok) throw new Error("Dosya depolamaya yüklenemedi.");
+      // Ağ/CORS/CSP reddi `fetch`i fırlatır ve tarayıcının ham İngilizce mesajı
+      // ("Failed to fetch") kullanıcıya sızardı; HTTP hatasıyla aynı dile çevrilir.
+      let putResponse: Response;
+      try {
+        putResponse = await fetch(created.data.upload_url, {
+          method: "PUT",
+          headers: { "content-type": contentType },
+          body: file,
+        });
+      } catch {
+        throw new Error(
+          "Dosya depolamaya ulaşamadı. Bağlantınızı kontrol edip yeniden deneyin; sürerse yöneticinize bildirin.",
+        );
+      }
+      if (!putResponse.ok) {
+        throw new Error("Dosya depolamaya yüklenemedi. Birkaç dakika sonra yeniden deneyin.");
+      }
 
       // 3) Tamamlama: sunucu doğrular ve işleme hattını kuyruğa atar.
       const completed = await api.POST("/api/v1/documents/{document_id}/complete", {

@@ -223,3 +223,14 @@ def test_varsayilan_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("BILLING_LIVE_CONFIRMED", raising=False)
 
     assert Settings(_env_file=None).billing_is_live is False
+
+
+def test_blank_usd_try_rate_means_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`.env.example`teki boş `LLM_USD_TRY_RATE=` ayarları düşürmemeli, tanımsız sayılmalı."""
+    monkeypatch.setenv("LLM_USD_TRY_RATE", "")
+    assert Settings(_env_file=None).llm_usd_try_rate is None
+
+
+def test_usd_try_rate_parses_number(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_USD_TRY_RATE", "41.25")
+    assert Settings(_env_file=None).llm_usd_try_rate == 41.25

@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { ROLE_LABELS } from "@/lib/tenders";
 import { cn } from "@/lib/utils";
+import { userMessage } from "@/lib/errors";
 
 export function AccountSection() {
   const router = useRouter();
@@ -44,7 +45,7 @@ export function AccountSection() {
       if (error !== undefined) throw new Error("Doğrulama bağlantısı gönderilemedi.");
     },
     onSuccess: () => toast.success("Doğrulama bağlantısı e-postanıza gönderildi."),
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   async function switchOrg(organizationId: string) {

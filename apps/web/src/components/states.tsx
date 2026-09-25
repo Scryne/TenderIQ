@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { userMessage } from "@/lib/errors";
 
 /* ═════ DURUM TASARIMI — DESIGN.md §10 ═════════════════════════════════════
  * Ekranların %70'i "mutlu yol" için tasarlanır; kaliteyi yargılatan %30 budur.
@@ -156,7 +157,7 @@ export function InlineError({
         className="mt-0.5 size-4 shrink-0 text-danger"
         strokeWidth={1.75}
       />
-      <p className="min-w-0 flex-1 text-sm text-ink-1">{message}</p>
+      <p className="min-w-0 flex-1 text-sm text-ink-1">{userMessage(message)}</p>
       {onRetry !== undefined && (
         <Button variant="ghost" size="xs" onClick={onRetry} className="shrink-0 text-danger">
           Yeniden dene

@@ -39,6 +39,7 @@ import {
 import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import { ROLE_LABELS } from "@/lib/tenders";
+import { userMessage } from "@/lib/errors";
 
 const ROLES = [
   { value: "admin", label: "Yönetici" },
@@ -100,7 +101,7 @@ export function MembersSection({
       toast.success("Rol güncellendi.");
       void queryClient.invalidateQueries({ queryKey: ["members"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   const remove = useMutation({
@@ -118,7 +119,7 @@ export function MembersSection({
       void queryClient.invalidateQueries({ queryKey: ["members"] });
       setRemoving(null);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   const rows = (members.data ?? []) as Member[];
