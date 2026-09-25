@@ -60,7 +60,7 @@
       "verified": false,
       "source": null,
       "verified_at": null,
-      "note": "DOĞRULANAMADI (denendi 2026-07-31). NVIDIA'nın build.nvidia.com barındırılan katalogu için token başına YAYIMLANMIŞ fiyat bulunamadı: build.nvidia.com/pricing bağlantıyı düşürdü (ECONNRESET), www.nvidia.com/en-us/ai/nim-pricing/ 404 döndü, build.nvidia.com zaman aşımına uğradı. Üçüncü taraf toplayıcılar $0.04-$1.20/Mtok aralığı bildiriyor ama bunlar SAĞLAYICI KAYNAĞI DEĞİL, o yüzden yazılmadı. 0.0 değeri 'ücretsiz olduğu doğrulandı' DEMEK DEĞİLDİR; verified=false olduğu için kayıtlar 'unverified' işaretlenir ve tutar TAHMİNDİR. Bu model DEV katmanıdır (üretim birincil modeli claude-opus-4-8); üretimde kullanılacaksa fiyat ÖNCE doğrulanmalıdır."
+      "note": "EMEKLİ (2026-09-25): NIM bu model için 410 Gone döndürüyor; yeni çağrı yapılmaz. Kayıt, geçmiş llm_usage satırları 'unknown_model' üretmesin diye tutuluyor. DOĞRULANAMADI (denendi 2026-07-31). NVIDIA'nın build.nvidia.com barındırılan katalogu için token başına YAYIMLANMIŞ fiyat bulunamadı: build.nvidia.com/pricing bağlantıyı düşürdü (ECONNRESET), www.nvidia.com/en-us/ai/nim-pricing/ 404 döndü, build.nvidia.com zaman aşımına uğradı. Üçüncü taraf toplayıcılar $0.04-$1.20/Mtok aralığı bildiriyor ama bunlar SAĞLAYICI KAYNAĞI DEĞİL, o yüzden yazılmadı. 0.0 değeri 'ücretsiz olduğu doğrulandı' DEMEK DEĞİLDİR; verified=false olduğu için kayıtlar 'unverified' işaretlenir ve tutar TAHMİNDİR. Bu model DEV katmanıdır (üretim birincil modeli claude-opus-4-8); üretimde kullanılacaksa fiyat ÖNCE doğrulanmalıdır."
     },
     "qwen2.5:7b-instruct-q5_K_M": {
       "input_per_mtok": 0.0,
@@ -69,6 +69,14 @@
       "source": "https://ollama.com/library/qwen2.5",
       "verified_at": "2026-07-31",
       "note": "Ollama YEREL: model kendi donanımında koşar, token başına SAĞLAYICI ücreti yoktur — doğrulanacak bir fiyat sayfası da yoktur, 0.0 tanımı gereği doğrudur. Donanım/elektrik maliyeti bu tabloya girmez (token başına faturalanmaz)."
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+      "input_per_mtok": 0.0,
+      "output_per_mtok": 0.0,
+      "verified": false,
+      "source": null,
+      "verified_at": null,
+      "note": "DOĞRULANAMADI (2026-09-25). qwen3.5-122b'nin halefi: aynı sınıf MoE, TenderIQ json_schema çağrısıyla denendi (4/4 bulgu, alıntılar birebir, ~21 sn). NVIDIA barındırılan katalog için token fiyatı yayımlamıyor; 0.0 'ücretsiz doğrulandı' DEMEK DEĞİLDİR. DEV katmanıdır; üretimde kullanılacaksa fiyat ÖNCE doğrulanmalıdır."
     }
   }
 }
