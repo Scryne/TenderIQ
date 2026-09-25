@@ -156,7 +156,8 @@ class Settings(BaseSettings):
     # KVKK: BULUT sağlayıcı — doküman içeriği NVIDIA'ya gider (bkz. _log_retention_posture).
     nvidia_api_key: str | None = None
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-    # qwen/qwen3.5-122b-a10b 2026-09-25 itibarıyla NIM'de 410 Gone (end of life); halef aynı sınıf MoE.
+    # qwen/qwen3.5-122b-a10b 2026-09-25'te NIM'de 410 Gone (end of life);
+    # halef aynı sınıf MoE (docs/ops/DURUM.md §1.4).
     nvidia_model: str = "nvidia/nemotron-3-super-120b-a12b"
     nvidia_max_output_tokens: int = 4096
 
