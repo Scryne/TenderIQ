@@ -2,7 +2,7 @@
 
 import { FileText, ScanSearch, UploadCloud } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
 
 import { PageHeader } from "@/components/shell/page-header";
 import { PipelineProgress } from "@/components/tenders/pipeline";
@@ -76,7 +76,7 @@ export function TenderDetailView({
         meta={
           <StatusPill
             tone={connected ? "success" : "neutral"}
-            label={connected ? "Canlı" : "Bağlanıyor"}
+            label={connected ? "Canlı izleniyor" : "Bağlanıyor"}
           />
         }
         actions={
@@ -213,6 +213,15 @@ export function UploadCard({
 }) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+
+  // Başarılı yüklemede üst bileşen input'u boşaltır; etiket de boşalmalı, yoksa
+  // alan hâlâ yüklenmiş dosyayı "seçili" gösterir. Hatada input dolu kalır ve
+  // ad korunur (aynı dosyayla yeniden deneme).
+  useEffect(() => {
+    if (!pending && fileInputRef.current !== null && fileInputRef.current.value === "") {
+      setFileName(null);
+    }
+  }, [pending, fileInputRef]);
 
   return (
     <Card>

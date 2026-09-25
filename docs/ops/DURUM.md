@@ -34,6 +34,7 @@
 | 8 | Ölü mektup kuyruğu + abonelik bildirimleri | `43dbfcf` |
 | 9 | RLS kiracı ifadesi tek null-safe fonksiyona indirildi + Playwright E2E | `9d0287b` |
 | 10 | Tur 9'un taze doğrulaması · DURUM.md yeniden yapılandırıldı · zorlayıcı nonce CSP · Lighthouse a11y · ADR-0015 + sızıntı testi · bounce webhook testi (**rota bağlanmamış kusuru bulundu**) | `1eae36c` |
+| 18 | 2026-09-25 denetimi: NIM modeli emekliye ayrıldı → `nemotron-3-super-120b-a12b` · 2 KRİTİK + 6 YÜKSEK bağımlılık açığı kapandı (Next 15.5.26, anyio, transformers/docling) · boş `LLM_USD_TRY_RATE` ayarları düşürmüyor · ham "Failed to fetch" Türkçeleşti · inceleme segmentleri kesilmiyor · landing yeniden kurgulandı · README yeniden yazıldı | bu tur |
 | 17 | `/usage` ARAYÜZÜ: bütçe ölçeri (rezervasyon ayrı segment) · depolama · yönetici teşhis kartı · **kullanıcı ucunda rezervasyon boşluğu kapatıldı** | `eddc16e` |
 | 16 | CI sözleşme drift'i düzeltildi · kotalar bütçeden TÜRETİLİYOR · `/usage` bütçe+depolama + yönetici teşhis ucu · maliyet düşürme keşfi | `650b59e`…`1e72d60` |
 | 15 | J.6 madde 0-1-2: rezervasyon ölçeklemesi (**sabit tahmin 2-5 kat düşüktü**) · fiyat doğrulaması + kur/doğrulama görünürlüğü · depolama kotası zorlaması | `2a2b445`…`f45e34a` |
@@ -254,6 +255,18 @@ kopyalanmaz.
   koşulu**.
 
 ### 1.4 Tuzaklar (yeniden yaşanmasın)
+- **NIM modelleri haber vermeden emekliye ayrılıyor** (2026-09-25). `qwen/qwen3.5-122b-a10b`
+  410 Gone döndürmeye başladı; worker her işi yeniden deneyip düştü ve arayüzde yalnız
+  "Çıkarım" adımı takılı kaldı. Belirti: worker logunda `Error code: 410 ... end of life`.
+  Halef `nvidia/nemotron-3-super-120b-a12b` (aynı sınıf MoE); TenderIQ'nun json_schema
+  çağrısıyla 4/4 bulgu, alıntılar birebir. Aynı gün denenen diğer adaylar 503 (aşırı yük),
+  boş yanıt ya da 404 (hesapta yok) verdi: ücretsiz NIM katmanı güvenilir bir bağımlılık
+  değil, yalnız geliştirme içindir.
+- **Worker düz `uv sync` ile PDF işleyemez.** `docling`/`pypdf`/`sentence-transformers`
+  isteğe bağlı gruplardadır; eksikse hat sessizce "Parse zinciri tükendi" ile yeniden dener.
+  `uv sync --all-packages --group parsing --group embedding --group ocr`.
+- **Tarayıcı origin'i `localhost:3000` olmalı.** R2 CORS kuralı bu origin'e yazılı;
+  `127.0.0.1:3000` preflight'ta 403 alır ve yükleme "Dosya depolamaya ulaşamadı" ile düşer.
 
 - **Depolama zinciri İKİ halkalı; belirtileri aynı, sebepleri ayrı** (2026-08-01).
   Tarayıcı nesne depolamaya doğrudan çıkar (yükleme `PUT`, önizleme `GET`) ve
