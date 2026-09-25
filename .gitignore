@@ -74,3 +74,4 @@ evals/predictions/private/
 
 # Yerel compose override (makineye özgü port çakışmaları) — commit EDİLMEZ.
 infra/compose/docker-compose.override.yml
+.venv-ci/

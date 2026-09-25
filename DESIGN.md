@@ -306,7 +306,7 @@ grafik_kutuphanesi: "YOK — kurulu değil ve eklenmeyecek. Bu üründe zaman se
                      sayısal anlatım KPI kartı (§8.1) + sıralı dağılım listesi (§8.12)
                      + ilerleme çubuğu ile çözülür. Yeni bağımlılık = yeni karar."
 
-ikon_seti:        "lucide-react 0.469 — tek set, 16/18px, strokeWidth 1.5 (nav/dekoratif)
+ikon_seti:        "lucide-react 1.x — tek set, 16/18px, strokeWidth 1.5 (nav/dekoratif)
                    ve 1.75 (eylem)."
 
 kirmizi_cizgiler:

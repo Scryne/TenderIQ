@@ -19,7 +19,7 @@ API'den dönmediği için burada da adreslenemez (join → 404).
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -402,7 +402,8 @@ async def bulk_review(
     found: set[uuid.UUID] = set()
     for kind, ids in ids_by_kind.items():
         spec = _SPECS[kind]
-        rows = (
+        # `spec.model` `type[Any]` olduğundan SQLAlchemy 2.1 satır tipini çıkaramıyor.
+        rows: Sequence[Any] = (
             (
                 await session.execute(
                     select(spec.model).where(

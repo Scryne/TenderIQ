@@ -43,6 +43,12 @@ updates:
       # yükseltilir. Bkz. GELISTIRME_PLANI.md Sprint 3.1 notu.
       - dependency-name: pdfjs-dist
       - dependency-name: react-pdf
+      # Tip tanımları çalışma zamanıyla aynı majörde kalır (Node 22 LTS).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # eslint-config-next 15 ESLint 10'u desteklemiyor; Next ile birlikte yükseltilir.
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
 
@@ -63,5 +69,9 @@ updates:
       - /infra/docker
     schedule:
       interval: monthly
+    ignore:
+      # Yalnız LTS hatları: tek numaralı Node sürümleri (25, 27) kısa ömürlüdür.
+      - dependency-name: node
+        versions: ["23.x", "25.x", "27.x"]
     commit-message:
       prefix: "chore(docker)"
