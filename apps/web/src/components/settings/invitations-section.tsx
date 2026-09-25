@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { ROLE_LABELS } from "@/lib/tenders";
+import { userMessage } from "@/lib/errors";
 
 const ROLES = [
   { value: "member", label: "Üye" },
@@ -74,7 +75,7 @@ export function InvitationsSection() {
       setEmail("");
       void queryClient.invalidateQueries({ queryKey: ["invitations"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   const revoke = useMutation({
@@ -88,7 +89,7 @@ export function InvitationsSection() {
       toast.success("Davet iptal edildi.");
       void queryClient.invalidateQueries({ queryKey: ["invitations"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   const rows = (invitations.data ?? []) as Invitation[];

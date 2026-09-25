@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
+import { userMessage } from "@/lib/errors";
 
 /**
  * KVKK veri sahibi hakları: verinin kopyasını alma (md. 11) ve hesabı kapatma (md. 7).
@@ -66,7 +67,7 @@ export function DataRightsSection({ isAdmin }: { isAdmin: boolean }) {
       URL.revokeObjectURL(url);
       toast.success("Verileriniz indirildi.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   const closeAccount = useMutation({

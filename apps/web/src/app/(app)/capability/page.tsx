@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
+import { userMessage } from "@/lib/errors";
 
 /** Bir uygunluk analizinin anlamlı olması için beklenen en az beyan uzunluğu. */
 const MIN_USEFUL_LENGTH = 200;
@@ -53,7 +54,7 @@ export default function CapabilityProfilePage() {
       // Eylem sonucu geçmiş zamanla yazılır (§8.8).
       toast.success("Yetkinlik profili kaydedildi.");
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toast.error(userMessage(error)),
   });
 
   const trimmed = content.trim();
@@ -114,9 +115,9 @@ export default function CapabilityProfilePage() {
               placeholder={
                 "12 yıllık kamu BT entegratörüyüz. ISO 9001 ve ISO 27001 belgelerimiz güncel.\n" +
                 "45 kişilik yazılım ekibi: Java, .NET, PostgreSQL, Kubernetes.\n" +
-                "Referans: 2024 — Sağlık Bakanlığı veri merkezi taşıma projesi (18 ay)."
+                "Referans: 2024 — Karaova İl Özel İdaresi veri merkezi taşıma projesi (18 ay)."
               }
-              className="min-h-56 font-mono text-[13px] leading-5"
+              className="min-h-56 text-sm leading-6"
               aria-describedby="capability-help"
             />
           )}

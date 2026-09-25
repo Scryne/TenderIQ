@@ -21,6 +21,7 @@ import {
   type ReviewAction,
   type ReviewStatus,
 } from "@/lib/findings";
+import { userMessage } from "@/lib/errors";
 
 type Schemas = components["schemas"];
 
@@ -145,7 +146,7 @@ export function useFindingReview(tenderId: string) {
     },
     onError: (error, _variables, context) => {
       if (context !== undefined) queryClient.setQueryData(context.key, context.previous);
-      toast.error(error.message);
+      toast.error(userMessage(error));
     },
     onSuccess: (data, { category, id }) => {
       patchCache(cacheKey(category), id, () => data);
@@ -171,7 +172,7 @@ export function useFindingReview(tenderId: string) {
     },
     onError: (error, _variables, context) => {
       if (context !== undefined) queryClient.setQueryData(context.key, context.previous);
-      toast.error(error.message);
+      toast.error(userMessage(error));
     },
     onSuccess: (data, { category, id }) => {
       patchCache(cacheKey(category), id, () => data);
@@ -219,7 +220,7 @@ export function useFindingReview(tenderId: string) {
     },
     onError: (error, _variables, context) => {
       if (context !== undefined) queryClient.setQueryData(context.key, context.previous);
-      toast.error(error.message);
+      toast.error(userMessage(error));
     },
     onSuccess: (data, { category }) => {
       toast.success(
@@ -270,7 +271,7 @@ export function useAddFindingComment() {
       if (error !== undefined) throw new Error(errorMessage(error, "Yorum eklenemedi."));
       return data;
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toast.error(userMessage(error)),
     onSuccess: (_data, { kind, findingId }) => {
       void queryClient.invalidateQueries({ queryKey: ["finding-comments", kind, findingId] });
       void queryClient.invalidateQueries({ queryKey: ["finding-history", kind, findingId] });

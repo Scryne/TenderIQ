@@ -17,14 +17,18 @@ import { api } from "@/lib/api";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import { SUBSCRIPTION_STATUS } from "@/lib/tenders";
 import { cn } from "@/lib/utils";
+import { userMessage } from "@/lib/errors";
 
-function formatLimit(limit: number | null): string {
-  return limit === null ? "Sınırsız" : formatNumber(limit);
+/** Plan limiti: sayı mono (§6.5 tabular), "Sınırsız" gövde fontunda (§6.2 mono rolü sayıdır). */
+function LimitValue({ limit }: { limit: number | null }) {
+  if (limit === null) return <span className="font-medium text-ink-1">Sınırsız</span>;
+  return <span className="font-mono text-ink-1">{formatNumber(limit)}</span>;
 }
 
 function formatPrice(tier: string, priceTry: number): string {
   if (tier === "enterprise") return "Özel fiyat";
-  if (priceTry === 0) return "Ücretsiz";
+  // 0 TL de tutar olarak yazılır: kart başlığı zaten "Ücretsiz" ve tanıtım
+  // sayfasındaki aynı plan "₺0 / ay" gösteriyor.
   return formatCurrency(priceTry);
 }
 
@@ -89,7 +93,7 @@ export default function UsagePage() {
       void queryClient.invalidateQueries({ queryKey: ["billing-plans"] });
       void queryClient.invalidateQueries({ queryKey: ["subscription"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(userMessage(error)),
   });
 
   const isAdmin = me.data?.role === "admin";
@@ -161,7 +165,7 @@ export default function UsagePage() {
                     <span className="font-display text-2xl font-semibold text-ink-1">
                       {formatPrice(plan.tier, plan.monthly_price_try)}
                     </span>
-                    {plan.tier !== "enterprise" && plan.monthly_price_try > 0 && (
+                    {plan.tier !== "enterprise" && (
                       <span className="text-sm text-ink-3">/ ay</span>
                     )}
                   </p>
@@ -175,9 +179,7 @@ export default function UsagePage() {
                         strokeWidth={2.25}
                       />
                       <span>
-                        <span className="font-mono text-ink-1">
-                          {formatLimit(plan.documents_per_month)}
-                        </span>{" "}
+                        <LimitValue limit={plan.documents_per_month} />{" "}
                         doküman / ay
                       </span>
                     </li>
@@ -188,9 +190,7 @@ export default function UsagePage() {
                         strokeWidth={2.25}
                       />
                       <span>
-                        <span className="font-mono text-ink-1">
-                          {formatLimit(plan.pages_per_month)}
-                        </span>{" "}
+                        <LimitValue limit={plan.pages_per_month} />{" "}
                         sayfa / ay
                       </span>
                     </li>
