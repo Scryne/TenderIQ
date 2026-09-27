@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-03
-- **Karar veren:** Berkay (Scryne)
+- **Karar veren:** Scryne
 
 ## Bağlam
 TenderIQ; Next.js frontend, FastAPI API ve Celery worker'dan oluşur. API ve worker

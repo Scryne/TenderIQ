@@ -1,6 +1,6 @@
 # Güvenlik Öz-Denetimi (OWASP ASVS-hafif)
 
-> **Tur:** #1 · **Tarih:** 2026-07-28 · **Denetleyen:** Berkay + Claude
+> **Tur:** #1 · **Tarih:** 2026-07-28 · **Denetleyen:** Scryne + Claude
 > **Kapsam:** `apps/api`, `apps/worker`, `apps/web`, `packages/core` — tüm kod tabanı
 > **Plan referansı:** `GELISTIRME_PLANI.md` Faz 4 (Güvenlik gözden geçirmesi) + J.2
 

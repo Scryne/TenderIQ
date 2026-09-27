@@ -295,7 +295,7 @@ function UserCard({
             // `aria-label` YOK (bilinçli). Buton görünür metin taşıyor
             // (kullanıcı adı + rol); sabit bir `aria-label` erişilebilir adı
             // "Hesap menüsü"ne indirir ve görünen metni ADIN DIŞINDA bırakır.
-            // Bu WCAG 2.5.3 "Label in Name" ihlalidir: sesli komutla "Berkay"
+            // Bu WCAG 2.5.3 "Label in Name" ihlalidir: sesli komutla "Deniz"
             // diyen kullanıcı butonu çalıştıramaz (Lighthouse
             // `label-content-name-mismatch` — 2026-07-30'da tüm kimlikli
             // sayfalarda ölçüldü). Amaç bilgisi aşağıdaki gizli metinle

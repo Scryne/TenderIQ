@@ -17,7 +17,7 @@ from tenderiq_core.services.invitations import _normalize_email as invitation_no
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        ("Berkay.Test@Example.COM", "berkay.test@example.com"),
+        ("Deniz.Test@Example.COM", "deniz.test@example.com"),
         ("  bosluklu@example.com  ", "bosluklu@example.com"),
         ("ZATEN@example.com", "zaten@example.com"),
         ("kucuk@example.com", "kucuk@example.com"),
@@ -49,6 +49,6 @@ def test_pydantic_email_str_yalniz_alan_adini_kucultur() -> None:
     class _Body(BaseModel):
         email: EmailStr
 
-    parsed = _Body(email="Berkay.Test@Example.COM").email
-    assert parsed == "Berkay.Test@example.com"  # local-part korunur
-    assert normalize_email(parsed) == "berkay.test@example.com"
+    parsed = _Body(email="Deniz.Test@Example.COM").email
+    assert parsed == "Deniz.Test@example.com"  # local-part korunur
+    assert normalize_email(parsed) == "deniz.test@example.com"

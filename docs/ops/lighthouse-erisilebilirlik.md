@@ -144,7 +144,7 @@ gerçek kusur 95–100 aralığında saklanıyordu.
 1. **`label-content-name-mismatch` — hesap menüsü butonu (tüm kimlikli sayfalar).**
    Butonun görünür metni kullanıcının adı ve rolüydü, erişilebilir adı ise sabit
    `aria-label="Hesap menüsü"`. WCAG 2.5.3 "Label in Name" ihlali: sesli komutla
-   "Berkay" diyen kullanıcı butonu çalıştıramaz. `aria-label` kaldırıldı; amaç
+   "Deniz" diyen kullanıcı butonu çalıştıramaz. `aria-label` kaldırıldı; amaç
    bilgisi `sr-only` metinle verildi, böylece erişilebilir ad görünen metni
    **kapsıyor**. (`components/shell/app-shell.tsx`)
 2. **`heading-order` — kart başlıkları (`/usage`, `/settings`, `/capability`).**

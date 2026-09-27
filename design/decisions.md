@@ -223,7 +223,7 @@ kayıt anında da ürünün vaadini gösteriyor.
 3. "Firma unvanı" altında iki ayrı yardım satırı (hint + "kısa adı kendim
    belirlemek istiyorum") yığılmış; form dikey ritmi yalnız bu grupta bozuluyor.
 4. Ad soyad alanı isteğe bağlı ama öyle görünmüyor.
-5. Placeholder "Berkay Yılmaz" — ürünün sahibinin adı; jenerik örnek olmalı.
+5. Placeholder gerçek bir kişinin adıydı; jenerik örnek olmalı.
 
 **Uygulanan (tur 2):** 1 → `disabled` kaldırıldı; submit'te kısa ad geçersizse
 alan açılıp odaklanıyor (ölü buton yerine düzeltilecek yeri gösteriyor).

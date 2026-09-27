@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul (2026-07-04 — dijital **ve** taranmış yol gerçek TR şartnameleriyle doğrulandı; bkz. §"Gerçek Doküman Spike Bulguları")
 - **Tarih:** 2026-07-03 (güncelleme: 2026-07-04 gerçek doküman doğrulaması)
-- **Karar veren:** Berkay (Scryne)
+- **Karar veren:** Scryne
 
 ## Bağlam
 Şartnameler heterojendir: metin katmanlı **dijital** PDF, **taranmış** (görüntü) PDF ve
@@ -51,7 +51,7 @@ fiyat cetveli tablosu, cezai şart maddesi) Docling ile ayrıştırıldı:
 `integration` işaretli).
 
 ## Gerçek Doküman Spike Bulguları (2026-07-04)
-Berkay'in yüklediği **24 gerçek TR şartnamesi** (`spike-docs/`; Sağlık Bakanlığı /
+Scryne'ın yüklediği **24 gerçek TR şartnamesi** (`spike-docs/`; Sağlık Bakanlığı /
 Malatya İl Sağlık Müdürlüğü ağırlıklı: idari şartname, sözleşme tasarısı, teknik
 şartname, yaklaşık maliyet cetvelleri, teklif mektubu, personel/hizmet şartnameleri)
 `pypdf` ile triyaj edildi, sonra Docling ile ayrıştırıldı.

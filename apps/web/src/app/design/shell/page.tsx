@@ -81,7 +81,7 @@ export default function ShellPreviewPage() {
   return (
     <ShellFrame
       pathname="/panel"
-      user={{ name: "Berkay Yıldız", email: "berkay@ornekbilisim.com.tr", role: "admin" }}
+      user={{ name: "Deniz Arslan", email: "deniz@ornekbilisim.com.tr", role: "admin" }}
       orgs={[
         { id: "1", name: "Örnek Bilişim A.Ş.", planName: "Pro", isActive: true },
         { id: "2", name: "Anadolu Sistem Ltd.", planName: "Ücretsiz", isActive: false },

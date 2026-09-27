@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-16 (Sprint 1.2)
-- **Karar veren:** Berkay (Scryne)
+- **Karar veren:** Scryne
 
 ## Bağlam
 Gerçek doküman spike'ı (ADR-0004, 2026-07-04) korpusun **~%54'ünün taranmış** olduğunu

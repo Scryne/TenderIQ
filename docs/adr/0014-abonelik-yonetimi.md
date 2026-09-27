@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-29 (GA turu 3)
-- **Karar veren:** Berkay (Scryne)
+- **Karar veren:** Scryne
 - **İlgili:** ADR-0013, `packages/core/src/tenderiq_core/billing/`, `LEGAL_TODO.md` §E
 
 ## Bağlam

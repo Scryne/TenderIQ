@@ -159,7 +159,7 @@ def test_karisik_harfli_eposta_kayit_sonrasi_normalize_edilir(api_client: TestCl
     arama normalize değerle yapıldığında hesap "kayıp" oluyordu.
     """
     slug = f"case-{uuid.uuid4().hex[:8]}"
-    mixed = f"Berkay.Test@{slug}.Example.COM"
+    mixed = f"Deniz.Test@{slug}.Example.COM"
     _register(api_client, slug=slug, email=mixed)
 
     access_token = _login(api_client, email=mixed).json()["access_token"]

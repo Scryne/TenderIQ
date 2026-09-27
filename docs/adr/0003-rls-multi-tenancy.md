@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-03
-- **Karar veren:** Berkay (Scryne)
+- **Karar veren:** Scryne
 
 ## Bağlam
 İhale dokümanları ticari sır içerir; kiracılar arası veri sızıntısı en kritik

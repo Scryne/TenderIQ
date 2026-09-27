@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-17 (Sprint 2.1)
-- **Karar veren:** Berkay (Scryne)
+- **Karar veren:** Scryne
 
 ## Bağlam
 Faz 2'nin kalbi, uzmanlaşmış çıkarım ajanlarının (gereksinim/belge/risk/takvim,

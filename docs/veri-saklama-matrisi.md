@@ -1,6 +1,6 @@
 # Veri Saklama Matrisi
 
-> **Durum:** taslak · **Son güncelleme:** 2026-07-28 · **Sahibi:** Berkay (Scryne)
+> **Durum:** taslak · **Son güncelleme:** 2026-07-28 · **Sahibi:** Scryne
 >
 > KVKK md. 7 ve md. 11 kapsamında "hangi veri, ne kadar süreyle, hangi mekanizmayla
 > silinir" sorusunun tek cevabı bu tablodur. Plan referansı: `GELISTIRME_PLANI.md`

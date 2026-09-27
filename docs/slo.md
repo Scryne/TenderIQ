@@ -1,6 +1,6 @@
 # SLO'lar ve Ölçüm Kaynakları
 
-> **Durum:** beta hedefleri · **Son güncelleme:** 2026-07-28 · **Sahibi:** Berkay (Scryne)
+> **Durum:** beta hedefleri · **Son güncelleme:** 2026-07-28 · **Sahibi:** Scryne
 >
 > Plan referansı: `GELISTIRME_PLANI.md` J.4. Bu belge "ne kadar iyi çalışmalı"
 > sorusunun tek cevabıdır; olay anında ne yapılacağı `docs/runbook.md`dedir.

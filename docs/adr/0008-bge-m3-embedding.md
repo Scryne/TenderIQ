@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-17 (Sprint 1.3)
-- **Karar veren:** Berkay (Scryne)
+- **Karar veren:** Scryne
 
 ## Bağlam
 RAG hattı (§6.4) chunk'ları yoğun vektörlere gömüp pgvector'da (ADR-0002)

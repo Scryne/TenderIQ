@@ -128,7 +128,7 @@ def test_istisna_listesi_gerekcelendirilmis() -> None:
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        ("berkay@tenderiq.com", "b***@tenderiq.com"),
+        ("deniz@tenderiq.com", "d***@tenderiq.com"),
         ("a@b.co", "a***@b.co"),
         ("bozuk-adres", "***"),
         ("@alansiz.com", "***"),

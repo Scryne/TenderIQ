@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-29 (Faz 4 / GA hazırlığı)
-- **Karar veren:** Berkay (Scryne)
+- **Karar veren:** Scryne
 - **İlgili:** ADR-0007 (zero-retention LLM), `docs/veri-saklama-matrisi.md`, `LEGAL_TODO.md`
 
 ## Bağlam

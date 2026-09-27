@@ -1,6 +1,6 @@
 # Olay Müdahale Runbook'u
 
-> **Durum:** beta · **Son güncelleme:** 2026-07-28 · **Sahibi:** Berkay (Scryne)
+> **Durum:** beta · **Son güncelleme:** 2026-07-28 · **Sahibi:** Scryne
 >
 > Plan referansı: `GELISTIRME_PLANI.md` J.4. Hedefler `docs/slo.md`dedir.
 > Bu belge tek kişilik bir ekip için yazılmıştır: her bölüm **belirti → teşhis →

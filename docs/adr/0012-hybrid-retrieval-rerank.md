@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-17 (Sprint 2.1)
-- **Karar veren:** Berkay (Scryne)
+- **Karar veren:** Scryne
 
 ## Bağlam
 Çıkarım ajanlarının bağlam kalitesi = ürün kalitesi (§6.6; kaçırılan zorunlu
