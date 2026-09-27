@@ -1,6 +1,6 @@
 # LEGAL_TODO — hukuki metinlerde doldurulacaklar
 
-> **Sahibi:** Scryne (Scryne) · **Son güncelleme:** 2026-07-29
+> **Sahibi:** Scryne · **Son güncelleme:** 2026-07-29
 >
 > Bu dosya, hukuki sayfaların (`/kvkk`, `/sartlar`, `/trust`, `/dpa`) yayına
 > çıkabilmesi için **yalnızca sende bulunan** bilgileri listeler. Hepsi tek bir

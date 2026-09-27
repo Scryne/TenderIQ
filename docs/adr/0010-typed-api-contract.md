@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-03
-- **Karar veren:** Scryne (Scryne)
+- **Karar veren:** Scryne
 
 ## Bağlam
 Ayrı frontend (TS) ve backend (Python) arasında sözleşme kayması (drift), sessiz

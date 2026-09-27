@@ -2,7 +2,7 @@
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-07-30
-- **Karar veren:** Scryne (Scryne)
+- **Karar veren:** Scryne
 
 ## Bağlam
 

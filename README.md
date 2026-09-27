@@ -131,4 +131,4 @@ Ekranlardaki kurum ve ihale adları kurgusaldır.
 
 ---
 
-© 2026 Scryne (Scryne)
+© 2026 Scryne
