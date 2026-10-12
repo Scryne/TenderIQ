@@ -32,7 +32,7 @@
     "logs": "docker compose -f infra/compose/docker-compose.yml logs -f"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "lighthouse": "^13.5.0"
   }
 }
