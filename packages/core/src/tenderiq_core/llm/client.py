@@ -14,6 +14,12 @@ yeni bir daldır, testler sahtelerle koşar.
 
 Güvenlik notu: ``stop_reason == "refusal"`` kalıcı hatadır — aynı istem
 tekrarlanmaz (``LLMRefusalError``).
+
+API sürümü notu: anthropic SDK 2.x ``anthropic-version: 2026-10-21`` gönderir. Bu
+sürümde ``temperature``/``top_p``/``top_k`` 400 döner — Anthropic dalına örnekleme
+parametresi EKLENMEZ (Ollama/NVIDIA dallarındaki ``temperature=0`` kendi
+sağlayıcılarına aittir). Tel sözleşmesi ``tests/test_llm_sdk_wire.py``de gerçek SDK
+ile sabitlenmiştir.
 """
 
 from __future__ import annotations
