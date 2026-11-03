@@ -50,3 +50,11 @@ commit'lerle uygulandı; her biri ayrı commit, Dependabot dalından değil main
   `openapi-typescript` (`createKeywordTypeNode` TypeError) ve typescript-eslint (`<6.1.0`) desteklemiyor.
 - Doğrulama (yerel): ruff, mypy strict, pytest (414 geçti, 1 atlandı), OpenAPI/TS drift yok,
   golden-set kapısı; web lint, tsc, `next build` (26 rota). Entegrasyon, E2E, trivy CI'da.
+- **Yeniden değerlendirme (Next 16 #48 sonrası):** #45, #28, #33, #31, #32 main'de zaten
+  karşılanmış (sürümler PR hedefinde ya da üstünde). Kalan iki majör/minör uygulandı:
+  **anthropic 1.11 → 2.3 (#36)** — SDK artık `anthropic-version: 2026-10-21` gönderir
+  (`temperature`/`top_p`/`top_k` 400 döner; Anthropic dalı göndermiyor) ve anahtarı
+  `Authorization: Bearer` ile taşır. `messages.parse` yüzeyi sahte taşıyıcıyla eski/yeni
+  karşılaştırıldı, fark yalnız bu iki başlık. **openai 3.23 → 3.42 (#35)** — tel yüzeyi birebir
+  aynı. Kalıcı kapı: `packages/core/tests/test_llm_sdk_wire.py` (gerçek SDK, ağ yok).
+  #24 TypeScript 7 bilinçli dışarıda.
