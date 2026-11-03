@@ -6,7 +6,7 @@ yalnız HTTP katmanını ``httpx2.MockTransport`` ile keser. Böylece bir SDK ma
 yükseltmesi (ör. anthropic 1.x → 2.x, API sürümü ``2026-10-21``) şunları sessizce
 değiştiremez:
 
-- ``messages.parse`` isteğinin gövdesi (``output_config.format`` + adaptive thinking),
+- Anthropic isteğinin gövdesi (``output_config.format`` + adaptive thinking),
 - yeni API sürümünde 400 dönen örnekleme parametrelerinin (``temperature``/``top_p``/
   ``top_k``) gönderilmemesi,
 - ayrıştırma sonucunun bizim dallarımıza (refusal / şema ihlali → yeniden iste) akışı.
@@ -220,4 +220,16 @@ def test_openai_uyumlu_content_filter_kalici_hata() -> None:
     rec = _Recorder([_chat_completion(finish_reason="content_filter", content=None)])
     with pytest.raises(LLMRefusalError):
         _nvidia_llm(rec).extract(system="s", prompt="istem", schema=RequirementExtraction)
+    assert len(rec.requests) == 1
+
+
+def test_anthropic_refusal_bos_metin_blogu_ile_kalici_hata() -> None:
+    """Ret + boş metin bloğu: SDK ayrıştırması ``""`` üzerinde patlar (ValidationError).
+
+    Bu durumda bile sonuç ``LLMRefusalError`` olmalı ve istem tekrarlanmamalıdır;
+    aksi hâlde ret şema ihlali sanılıp ``max_attempts`` kez yeniden istenir.
+    """
+    rec = _Recorder([_anthropic_message(stop_reason="refusal", text="") for _ in range(3)])
+    with pytest.raises(LLMRefusalError):
+        _anthropic_llm(rec).extract(system="s", prompt="istem", schema=RequirementExtraction)
     assert len(rec.requests) == 1

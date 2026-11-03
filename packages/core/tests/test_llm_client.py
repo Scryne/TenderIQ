@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from anthropic import transform_schema
 
 from tenderiq_core.agents.schemas import RequirementExtraction
 from tenderiq_core.config import Settings
@@ -29,23 +29,27 @@ _VALID_ITEM = {
 }
 
 
-def _validation_error() -> ValidationError:
-    """Gerçek bir pydantic doğrulama hatası üretir (SDK'nın fırlattığıyla aynı tip)."""
-    try:
-        RequirementExtraction.model_validate({"items": [{"bogus": 1}]})
-    except ValidationError as exc:
-        return exc
-    raise AssertionError("doğrulama hatası bekleniyordu")
+# Şemaya uymayan çıktı: zorunlu alanlar eksik (SDK'nın döndürebileceği bozuk metin).
+_INVALID_JSON = json.dumps({"items": [{"bogus": 1}]})
+
+
+class _TextBlock:
+    type = "text"
+
+    def __init__(self, text: str) -> None:
+        self.text = text
 
 
 class _Response:
-    def __init__(self, *, stop_reason: str = "end_turn", parsed: Any = None) -> None:
+    """``messages.create`` dönüşünü taklit eder (``stop_reason`` + içerik blokları)."""
+
+    def __init__(self, *, stop_reason: str = "end_turn", text: str | None = None) -> None:
         self.stop_reason = stop_reason
-        self.parsed_output = parsed
+        self.content = [] if text is None else [_TextBlock(text)]
 
 
 class FakeAnthropicClient:
-    """``messages.parse`` çağrılarını kaydeder; senaryo listesini sırayla oynatır.
+    """``messages.create`` çağrılarını kaydeder; senaryo listesini sırayla oynatır.
 
     Senaryo öğesi bir istisna ise fırlatılır, değilse yanıt olarak döner.
     """
@@ -55,7 +59,7 @@ class FakeAnthropicClient:
         self._script = list(script)
         self.messages = self
 
-    def parse(self, **kwargs: Any) -> Any:
+    def create(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
         step = self._script.pop(0)
         if isinstance(step, BaseException):
@@ -74,19 +78,19 @@ def _llm(client: FakeAnthropicClient, *, max_attempts: int = 3) -> AnthropicStru
 
 
 def test_ilk_denemede_gecerli_cikti() -> None:
-    expected = RequirementExtraction.model_validate({"items": [_VALID_ITEM]})
-    client = FakeAnthropicClient([_Response(parsed=expected)])
+    client = FakeAnthropicClient([_Response(text=_valid_json())])
     result = _llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
     assert result.items[0].text == _VALID_ITEM["text"]
     assert len(client.calls) == 1
-    # Structured output + adaptive thinking istekte olmalı.
-    assert client.calls[0]["output_format"] is RequirementExtraction
+    # Structured output (SDK'nın parse yardımcısıyla aynı şema) + adaptive thinking.
+    assert client.calls[0]["output_config"] == {
+        "format": {"type": "json_schema", "schema": transform_schema(RequirementExtraction)}
+    }
     assert client.calls[0]["thinking"] == {"type": "adaptive"}
 
 
 def test_sema_ihlali_reddedilir_ve_yeniden_istenir() -> None:
-    expected = RequirementExtraction.model_validate({"items": [_VALID_ITEM]})
-    client = FakeAnthropicClient([_validation_error(), _Response(parsed=expected)])
+    client = FakeAnthropicClient([_Response(text=_INVALID_JSON), _Response(text=_valid_json())])
     result = _llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
     assert result.items[0].is_mandatory is True
     assert len(client.calls) == 2
@@ -97,7 +101,7 @@ def test_sema_ihlali_reddedilir_ve_yeniden_istenir() -> None:
 
 
 def test_israrli_ihlal_tavani_asinca_hata() -> None:
-    client = FakeAnthropicClient([_validation_error(), _validation_error()])
+    client = FakeAnthropicClient([_Response(text=_INVALID_JSON), _Response(text=_INVALID_JSON)])
     with pytest.raises(SchemaEnforcementError, match="2 denemede"):
         _llm(client, max_attempts=2).extract(
             system="sys", prompt="istem", schema=RequirementExtraction
@@ -110,6 +114,15 @@ def test_refusal_kalici_hatadir_tekrarlanmaz() -> None:
     with pytest.raises(LLMRefusalError):
         _llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
     assert len(client.calls) == 1  # aynı istem yeniden gönderilmez
+
+
+@pytest.mark.parametrize("text", ["", '{"items": [{"text": "yar', _INVALID_JSON])
+def test_refusal_metin_blogu_dogrulanmadan_once_denetlenir(text: str) -> None:
+    # Ret ile birlikte boş/kesik/şemasız metin bloğu gelse de ret kazanır.
+    client = FakeAnthropicClient([_Response(stop_reason="refusal", text=text)] * 3)
+    with pytest.raises(LLMRefusalError):
+        _llm(client).extract(system="sys", prompt="istem", schema=RequirementExtraction)
+    assert len(client.calls) == 1
 
 
 def test_gecici_api_hatasi_yukselir() -> None:
