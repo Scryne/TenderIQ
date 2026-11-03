@@ -23,6 +23,7 @@ import {
   TIMELINE_KIND_LABELS,
   type FindingKind,
 } from "@/lib/findings";
+import { formatDateTimeMedium } from "@/lib/format";
 
 export type HistoryTarget = { kind: FindingKind; findingId: string; title: string };
 
@@ -61,11 +62,6 @@ function valueLabel(value: unknown): string {
     COMPLIANCE_STATUS[key]?.label;
   return fromDicts ?? key;
 }
-
-const TIME_FORMAT = new Intl.DateTimeFormat("tr-TR", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
 
 type Changes = Record<string, { from: unknown; to: unknown }>;
 
@@ -112,7 +108,7 @@ export function FindingHistoryDialog({
                         {ACTION_LABELS[entry.action] ?? entry.action}
                       </span>
                       <span className="font-mono text-[11px] text-ink-3">
-                        {TIME_FORMAT.format(new Date(entry.created_at))}
+                        {formatDateTimeMedium(entry.created_at)}
                       </span>
                     </div>
                     {changes !== null && (

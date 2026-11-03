@@ -11,6 +11,22 @@
 
 const LOCALE = "tr-TR";
 
+/**
+ * Tarih/saat biçimleyicilerinin SABİT saat dilimi.
+ *
+ * `timeZone` verilmezse `Intl` çalıştığı ortamın dilimini kullanır: sunucu
+ * (UTC) `2026-07-31T23:59:59Z`yi "31.07.2026", İstanbul'daki tarayıcı
+ * "01.08.2026" biçimler — aynı an iki farklı gün olur ve hydration uyuşmaz.
+ * İstanbul seçildi çünkü ürünün kullanıcısı Türkiye'deki istekli ve bugüne
+ * kadar tarayıcıda gördüğü değer zaten buydu: anlam değişmez, yalnız sunucu
+ * çıktısı ve Türkiye dışından açılan tarayıcı ona hizalanır.
+ *
+ * Kapsam: API'den gelen ANLAR (ISO zaman damgası). Şartnameden ayrıştırılan
+ * takvim günleri (`parseTrDate`, `daysUntil`) saat diliminden bağımsız yerel
+ * gün olarak kalır — onları bir dilime çevirmek günü kaydırabilir.
+ */
+export const TIME_ZONE = "Europe/Istanbul";
+
 const number = new Intl.NumberFormat(LOCALE);
 const number1 = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 1,
@@ -30,22 +46,31 @@ const currencyPrecise = new Intl.NumberFormat(LOCALE, {
   maximumFractionDigits: 2,
 });
 const dateShort = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: TIME_ZONE,
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
 });
 const dateLong = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: TIME_ZONE,
   day: "numeric",
   month: "short",
   year: "numeric",
 });
 const dateTime = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: TIME_ZONE,
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
+});
+/** Yorum/geçmiş akışlarındaki zaman damgası biçimi (`3 Kas 2026 17:37`). */
+const dateTimeMedium = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: TIME_ZONE,
+  dateStyle: "medium",
+  timeStyle: "short",
 });
 const relative = new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto" });
 
@@ -119,6 +144,11 @@ export function formatDateLong(value: string | number | Date): string {
 /** `25.07.2026 14:32` — 24 saat (Ek B.1). `title` niteliklerinde tam değer. */
 export function formatDateTime(value: string | number | Date): string {
   return dateTime.format(toDate(value));
+}
+
+/** `3 Kas 2026 17:37` — yorum ve değişiklik geçmişi satırlarında. */
+export function formatDateTimeMedium(value: string | number | Date): string {
+  return dateTimeMedium.format(toDate(value));
 }
 
 const RELATIVE_STEPS: [limitSeconds: number, divisor: number, unit: Intl.RelativeTimeFormatUnit][] =

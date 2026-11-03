@@ -21,13 +21,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import type { FindingKind } from "@/lib/findings";
+import { formatDateTimeMedium } from "@/lib/format";
 
 export type CommentsTarget = { kind: FindingKind; findingId: string; title: string };
-
-const TIME_FORMAT = new Intl.DateTimeFormat("tr-TR", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
 
 export function FindingCommentsDialog({
   target,
@@ -80,7 +76,7 @@ export function FindingCommentsDialog({
                     {comment.body}
                   </p>
                   <p className="mt-1 font-mono text-[11px] text-ink-3">
-                    {TIME_FORMAT.format(new Date(comment.created_at))}
+                    {formatDateTimeMedium(comment.created_at)}
                   </p>
                 </div>
               ))
