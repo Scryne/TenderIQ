@@ -22,8 +22,9 @@ bulgu çıktı; testler, tip denetimi, güvenlik taraması ve erişilebilirlik t
 - Hukuki metinlerde şirket bilgileri (`LEGAL_TODO.md`): gerçek şirket kurulmadan doldurulamaz.
 - Canlı ödeme (iyzico abonelik modülü hesapta kapalı), Resend alan adı doğrulaması.
 - NIM fiyatı doğrulanamıyor (sağlayıcı yayımlamıyor); geliştirme katmanı olduğu için engel değil.
-- Uzak `feat/faz3-sprint-3.3` dalı duruyor. Açık Dependabot PR'ları aşağıda ele alındı ama
-  hiçbiri kapatılmadı.
+- Uzak `feat/faz3-sprint-3.3` dalı duruyor. Dependabot: Next 16 (#48), anthropic 2.3 ve openai 3.42 (#49) birleşti;
+  karşılanan PR'lar kapatıldı, TypeScript 7 (#24) üst akım desteği bekliyor.
+- Anthropic 2.x gerçek API'yle denenmedi: yayın öncesi `live_sandbox` koşusu şart.
 
 ## Bağımlılık turu (2026-11-03)
 
