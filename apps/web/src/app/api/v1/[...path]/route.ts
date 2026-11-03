@@ -117,7 +117,7 @@ async function proxy(
     responseHeaders.append("set-cookie", setCookie(REFRESH_COOKIE, rotated.refresh));
   } else if (backendResponse.status === 401) {
     // Yenilenemedi (refresh yok/geçersiz): oturum cookie'leri temizlenir; aksi
-    // hâlde middleware (cookie var sanıp) /login ↔ /tenders döngüsü kurar.
+    // hâlde proxy (cookie var sanıp) /login ↔ /tenders döngüsü kurar.
     responseHeaders.append("set-cookie", clearCookie(SESSION_COOKIE));
     responseHeaders.append("set-cookie", clearCookie(REFRESH_COOKIE));
   }

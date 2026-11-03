@@ -10,7 +10,7 @@
     "ALANLAR:",
     "  buildTime  — değer DERLEME anında gömülür (NEXT_PUBLIC_* ya da build ARG).",
     "               Çalışma anında verilmesi ETKİSİZDİR.",
-    "  layers     — hangi katmanda okunuyor: edge (middleware), server, client.",
+    "  layers     — hangi katmanda okunuyor: edge (CSP proxy — Next 15te edge middleware idi), server, client.",
     "  required   — 'always' | 'production' | false.",
     "  wiring     — hangi dağıtım dosyalarında görünmesi ZORUNLU (denetim buna bakar).",
     "  failure    — eksikse ne olur (sessiz arıza tarifi; boş bırakılamaz)."

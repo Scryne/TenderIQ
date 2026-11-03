@@ -1,4 +1,4 @@
-// Giriş sayfası — "zaten girişli misin" kontrolü BURADA yapılır, middleware'de değil.
+// Giriş sayfası — "zaten girişli misin" kontrolü BURADA yapılır, proxy'de (eski middleware) değil.
 //
 // Eski davranış: middleware, oturum cookie'si VARSA /login'i koşulsuz /tenders'a
 // yönlendiriyordu. Middleware cookie'nin geçerliliğini göremez; token bayat ya da
@@ -7,8 +7,8 @@
 // temizlemesine bağlıydı; hidrasyon çalışmadığında (ya da sayfa veri çekmeden hata
 // verdiğinde) çıkış yolu hiç kalmıyordu.
 //
-// Burası Node çalışma zamanıdır: `API_URL` çalışma anında okunabilir (edge
-// middleware'de okunamaz) ve oturumun yaşayıp yaşamadığı backend'e sorulur.
+// Burada `API_URL` çalışma anında okunur ve oturumun yaşayıp yaşamadığı backend'e
+// sorulur (proxy'de yapılsaydı her doküman isteğine bir backend gidiş-dönüşü eklenirdi).
 // Doğrulanamıyorsa giriş formu gösterilir — yanlış tarafa düşmek serbest
 // bırakmaktır, kilitlemek değil.
 

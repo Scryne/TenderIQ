@@ -12,7 +12,7 @@
  * Artık her istekte tek kullanımlık bir nonce üretilir; yalnız o nonce'u
  * taşıyan betikler çalışır. Next kendi bootstrap/chunk betiklerine nonce'u
  * `Content-Security-Policy` İSTEK başlığından okuyup kendisi ekler
- * (`middleware.ts`), `next-themes`in satır içi tema betiğine ise nonce
+ * (`proxy.ts`), `next-themes`in satır içi tema betiğine ise nonce
  * `layout.tsx` üzerinden geçirilir.
  *
  * ## Bedeli, bilinerek ödeniyor
@@ -60,9 +60,14 @@ export const CSP_REPORT_GROUP = "tenderiq-csp";
  *
  * ## Depolama origin'i DERLEME anında gömülür — çalışma anında değiştirilemez
  *
- * Bu modül `middleware.ts` içinden çağrılıyor ve middleware **edge çalışma
- * zamanında** koşuyor. Orada `process.env` erişimi derleme sırasında sabite
- * çevrilir: imaja gömülmeyen bir değişken çalışma anında GÖRÜNMEZ. Tur 11'de
+ * Bu modül `proxy.ts` içinden çağrılıyor. Next 15'te bu dosya `middleware.ts`
+ * idi ve **edge çalışma zamanında** koşuyordu; orada `process.env` erişimi
+ * derleme sırasında sabite çevriliyordu. Next 16'da proxy **Node**'da koşar ve
+ * Next derlemede TANIMSIZ bir değişkeni sabite çevirmez — çalışma anında okur.
+ * Değişmez bu yüzden `next.config.ts`teki `env` alanıyla korunur: iki ad da
+ * (boşsa `""`) derlemede gömülür, imaja gömülmeyen bir değer çalışma anında
+ * yine GÖRÜNMEZ (2026-11-03'te üretim derlemesine farklı çalışma anı değerleri
+ * verilerek doğrulandı: politika derleme değerinde kaldı). Tur 11'de
  * `STORAGE_ORIGIN` çalışma anı değişkeni olarak verilip denendi ve politika
  * `connect-src 'self'` olarak kaldı — yani sessizce hiçbir etkisi olmadı.
  * Bu yüzden değer **derleme anında** verilmelidir (compose'da build arg,

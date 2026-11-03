@@ -175,7 +175,7 @@ jobs:
         env:
           # CSP `connect-src` bu origin'i taşımazsa tarayıcı imzalı PDF URL'ini
           # çekemez ve `csp.spec.ts`in kimlikli testi kırılır. DERLEME anında
-          # gömülmek zorunda (middleware edge runtime'da `process.env`i sabitler)
+          # gömülmek zorunda (proxy'nin okuduğu değer derlemede sabitlenir — next.config `env`)
           # ve `playwright.config.ts`teki `STORAGE_ORIGIN` ile AYNI olmalı.
           NEXT_PUBLIC_STORAGE_ORIGIN: http://127.0.0.1:9
       - name: Playwright tarayıcısı

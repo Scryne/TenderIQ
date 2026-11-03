@@ -85,7 +85,7 @@ function deriveStorageOriginFromRootEnv(): string {
  * paketlere gömerken kendi anlık görüntüsünü kullanıyor ve `config()` çağrıldığı
  * anda o görüntü alınmış oluyor — denendi, `connect-src 'self'` olarak kaldı.
  * Bu yüzden değer ayrıca `nextConfig.env` üzerinden veriliyor: gömmeyi yapan
- * belgelenmiş mekanizma budur ve edge (middleware) paketini de kapsar.
+ * belgelenmiş mekanizma budur ve proxy (`src/proxy.ts`) paketini de kapsar.
  */
 const derivedStorageOrigin = deriveStorageOriginFromRootEnv();
 
@@ -94,13 +94,13 @@ const derivedStorageOrigin = deriveStorageOriginFromRootEnv();
  *
  * **CSP burada DEĞİL.** İçerik Güvenlik Politikası artık zorlayıcı ve nonce
  * tabanlı olduğu için istek başına üretilmek zorunda; statik başlık listesinde
- * yeri yok. Tanımı `src/lib/security/csp.ts`, yayını `src/middleware.ts`.
+ * yeri yok. Tanımı `src/lib/security/csp.ts`, yayını `src/proxy.ts`.
  */
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // CSP `frame-ancestors 'none'` taşıyor; bu başlık onu tanımayan eski
-  // tarayıcılar için yedektir ve middleware'in çalışmadığı rotaları
+  // tarayıcılar için yedektir ve proxy'nin çalışmadığı rotaları
   // (statik varlıklar, /api) da kapsar.
   { key: "X-Frame-Options", value: "DENY" },
   {
@@ -117,12 +117,24 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Yalnız türetme gerçekten bir değer bulduysa yazılır; değişken zaten dışarıdan
-  // (build ARG / CI job env) verilmişse `derivedStorageOrigin` boştur ve buraya
-  // hiçbir şey konmaz — dışarıdan gelen değer ezilmez.
-  ...(derivedStorageOrigin === ""
-    ? {}
-    : { env: { NEXT_PUBLIC_STORAGE_ORIGIN: derivedStorageOrigin } }),
+  // Depolama origin'i DERLEME anında dondurulur — iki ad da, değer boş olsa bile.
+  //
+  // Next 16'da CSP'yi üreten `proxy` Node çalışma zamanında koşuyor (eski
+  // `middleware` edge'deydi). Next `process.env.X`i yalnız derleme anında TANIMLI
+  // değişkenler için sabite çeviriyor; tanımsız olan Node'da çalışma anında
+  // gerçek `process.env`ten okunur. Yani buraya hiçbir şey yazılmasaydı, derlemede
+  // verilmemiş bir origin çalışma anında politikaya sızabilirdi — CSP'nin imajla
+  // birlikte sabit olduğu değişmezi sessizce gevşerdi. `env` her iki adı da
+  // (boşsa `""`) gömer; çalışma anı değeri edge'deki gibi yine ETKİSİZDİR.
+  //
+  // Dışarıdan (build ARG / CI job env) gelen değer EZİLMEZ: aynısı geçirilir.
+  // Türetme bir değer bulduysa `process.env`e de yazdığı için o da buradan geçer.
+  // Tarayıcı paketine yalnız zaten herkese açık olan `NEXT_PUBLIC_*` girer;
+  // `STORAGE_ORIGIN`i okuyan kod (`config/env.ts`) yalnız sunucu/proxy paketinde.
+  env: {
+    NEXT_PUBLIC_STORAGE_ORIGIN: derivedStorageOrigin || process.env.NEXT_PUBLIC_STORAGE_ORIGIN || "",
+    STORAGE_ORIGIN: process.env.STORAGE_ORIGIN || "",
+  },
   // Standalone çıktı yalnızca Docker imajında (Linux) etkinleşir: Windows'ta
   // Next'in standalone symlink adımı Developer Mode olmadan EPERM verir. Yerel
   // `pnpm web:build` bu yüzden standart çıktı kullanır (env ile açılmadıkça).
@@ -134,11 +146,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
-  webpack: (config) => {
-    // pdfjs-dist'in Node-only opsiyonel `canvas` bağımlılığı tarayıcı/SSR
-    // paketine girmesin (react-pdf'in Next.js önerisi).
-    config.resolve.alias = { ...config.resolve.alias, canvas: false };
-    return config;
+  // pdfjs-dist'in Node-only opsiyonel `canvas` bağımlılığı tarayıcı/SSR
+  // paketine girmesin (react-pdf'in Next.js önerisi). Next 16'da derleyici
+  // Turbopack: eski `webpack` kancasındaki `resolve.alias.canvas = false`ın
+  // karşılığı budur — Turbopack'te `false` yok, boş bir modüle yönlendirilir.
+  // `webpack` kancası bilerek KALDIRILDI: Turbopack derlemesinde yok sayılır,
+  // varlığı ise Next 16'da derlemeyi "yanlış yapılandırma" diye düşürür.
+  turbopack: {
+    resolveAlias: {
+      canvas: "./src/lib/empty-module.ts",
+    },
   },
 };
 

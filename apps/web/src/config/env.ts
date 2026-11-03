@@ -9,8 +9,8 @@
  * kalmadı. Bu tek bir unutulmuş değişken değil, bir SINIF:
  *
  * - Değer derleme anında gömülür (`NEXT_PUBLIC_*` ya da build ARG), yani
- *   çalışma anında düzeltilemez; üstelik middleware **edge runtime**'da koştuğu
- *   için `process.env` orada derleme sırasında sabite çevrilir.
+ *   çalışma anında düzeltilemez; politikayı üreten proxy'nin okuduğu depolama
+ *   origin'i `next.config.ts` `env` alanıyla derleme sırasında sabite çevrilir.
  * - Eksik değişken `undefined` olur, kod `?? ""` ile devam eder ve arıza
  *   davranışa gömülür.
  *
@@ -125,8 +125,8 @@ export function assertBuildTimeEnv(): void {
     "Derleme durduruldu — zorunlu derleme-zamanı ortam değişkenleri eksik.\n" +
       `${formatMissing(missing)}\n\n` +
       "Bunlar DERLEME argümanıdır (compose `build.args`, Dockerfile `ARG`, CI job env).\n" +
-      "Çalışma anında vermek ETKİSİZDİR: politikayı üreten middleware edge\n" +
-      "runtime'da koşar ve `process.env` orada derleme sırasında sabite çevrilir.",
+      "Çalışma anında vermek ETKİSİZDİR: politikayı üreten proxy'nin okuduğu değer\n" +
+      "derleme sırasında sabite çevrilir (`next.config.ts` → `env`).",
   );
 }
 
@@ -151,7 +151,7 @@ export function assertRuntimeEnv(): void {
  * Nesne depolama origin'i (CSP `connect-src`).
  *
  * İki ad da derleme anında gömülür; `NEXT_PUBLIC_*` olan tarayıcı paketine de
- * girer, diğeri yalnız sunucu/edge paketine.
+ * girer, diğeri yalnız sunucu/proxy paketine.
  */
 export function storageOrigin(): string {
   return (
