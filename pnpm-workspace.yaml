@@ -26,7 +26,13 @@ overrides:
   # bu yüzden yükseltmeleri ancak override ile zorlanabilir. Her biri trivy'nin
   # bloke edici taramasında HIGH olarak çıktı ve yaması mevcut.
   # Üst paket kendi bağımlılığını yamalı sürüme taşıdığında bu satırlar kaldırılır.
-  brace-expansion: ">=5.0.9" # CVE-2026-14257 — ReDoS; CVE-2026-69152 — ara dizi DoS (5.0.9)
+  # brace-expansion majör hatlara bölünür: tek `>=5.0.9` kuralı minimatch@3'e
+  # (eslint, eslint-plugin-import) ESM-öncelikli 5.x'i zorluyordu ve süslü
+  # parantezli her desende `expand is not a function` ile düşüyordu. Her hattın
+  # en yeni sürümü aynı CVE düzeltmelerini taşır (pnpm audit: brace-expansion temiz).
+  "brace-expansion@1": ">=1.1.21 <2" # CVE-2026-14257, CVE-2026-69152 — 1.x hattı yaması
+  "brace-expansion@2": ">=2.1.7 <3" # CVE-2026-14257, CVE-2026-69152 — 2.x hattı yaması
+  "brace-expansion@>=3": ">=5.0.9" # CVE-2026-14257 — ReDoS; CVE-2026-69152 — ara dizi DoS (5.0.9)
   fast-uri: ">=4.2.3" # CVE-2026-16221; CVE-2026-18446 — host karışıklığı (4.1.2); GHSA-w74x-v6f9-j3xg, GHSA-wjr9-j795-jxcr — şema sahteciliği, host karışıklığı (4.2.3)
   postcss: ">=8.5.18" # CVE-2026-45623 + GHSA-r28c-9q8g-f849 — sourceMappingURL yol aşımı
   sharp: ">=0.35.5" # GHSA-f88m-g3jw-g9cj — libvips CVE'leri; GHSA-rgj7-g3m4-5g8c — libheif (0.35.4); GHSA-wq5f-xc86-pv6w — librsvg (0.35.5)

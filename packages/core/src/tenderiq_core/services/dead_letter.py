@@ -87,7 +87,7 @@ async def _mark_pending(redis: Redis | None, dead_letter_id: uuid.UUID) -> None:
     if redis is None:
         return
     try:
-        await redis.sadd(PENDING_SET_KEY, str(dead_letter_id))  # type: ignore[misc]
+        await redis.sadd(PENDING_SET_KEY, str(dead_letter_id))
     except RedisError as exc:
         # Metrik bir kolaylıktır; kuyruğa yazmayı düşürmez.
         logger.warning("dlq_metrik_yazilamadi", error=str(exc))
@@ -97,7 +97,7 @@ async def _clear_pending(redis: Redis | None, dead_letter_id: uuid.UUID) -> None
     if redis is None:
         return
     try:
-        await redis.srem(PENDING_SET_KEY, str(dead_letter_id))  # type: ignore[misc]
+        await redis.srem(PENDING_SET_KEY, str(dead_letter_id))
     except RedisError as exc:
         logger.warning("dlq_metrik_temizlenemedi", error=str(exc))
 
@@ -111,7 +111,7 @@ async def pending_count(redis: Redis) -> int | None:
     demekten iyidir — metriğin tek işi zaten insanı uyandırmak.
     """
     try:
-        return int(await redis.scard(PENDING_SET_KEY))  # type: ignore[misc]
+        return int(await redis.scard(PENDING_SET_KEY))
     except (RedisError, AttributeError, TypeError) as exc:
         # AttributeError/TypeError: Redis devre dışı bırakılmış kurulumlarda
         # yerine geçen boş nesne bu komutu tanımayabilir. Metrik yüzünden ops
