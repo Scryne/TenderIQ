@@ -1,0 +1,42 @@
+# Trivy istisna listesi — J.2 #7
+#
+# Trivy CI'da BLOKE EDİCİDİR (HIGH/CRITICAL). `ignore-unfixed: true` olduğundan
+# yaması OLMAYAN açıklar zaten bloke etmez; buraya yalnız yaması olduğu hâlde
+# bilinçli olarak uygulanmayanlar ve DOĞRULANMIŞ yanlış pozitifler yazılır.
+#
+# Biçim: Trivy YAML istisna dosyası (dosya uzantısı biçimi seçer). Her girdi
+# `statement` ile GEREKÇELİ yazılır; gerekçesiz girdi EKLEMEYİN. Mümkün olan en
+# dar kapsam: kural kimliği + açık dosya yolları (joker yok).
+#
+#   vulnerabilities:
+#     - id: CVE-2026-XXXXX
+#       statement: "2026-07-25 · neden · ne zaman yeniden bakılacak"
+#
+# Açık (CVE) istisnası: yok.
+
+secrets:
+  # 2026-11-03 · anthropic 2.3.0 (#36) · YANLIŞ POZİTİF.
+  # `gcp-service-account` kuralı `"type": "service_account"` dizgesini arıyor. Bu
+  # dizge SDK'nın Managed Agents beta tiplerinde `execution_identity` alanının
+  # varsayılan değerini anlatan DOCSTRING örneği (`{"type": "service_account"}`);
+  # anahtar, private_key ya da client_email içermiyor. 1.11.0'da yok, 2.3.0 ve
+  # 2.4.0'da var. Kural geneli KAPATILMAZ: yalnız bu dosyalar, yalnız bu kural.
+  # Yeniden bakılacak: her anthropic yükseltmesinde (yol/sürüm değişirse girdi
+  # eşleşmez ve tarama yine kırmızıya döner — bu bilinçli).
+  - id: gcp-service-account
+    statement: "anthropic SDK docstring örneği, sır değil (bkz. yukarıdaki not)"
+    paths:
+      - "/app/.venv/lib/python3.12/site-packages/anthropic/types/beta/agent_create_params.py"
+      - "app/.venv/lib/python3.12/site-packages/anthropic/types/beta/agent_create_params.py"
+      - "/app/.venv/lib/python3.12/site-packages/anthropic/types/beta/agent_update_params.py"
+      - "app/.venv/lib/python3.12/site-packages/anthropic/types/beta/agent_update_params.py"
+      - "/app/.venv/lib/python3.12/site-packages/anthropic/types/beta/beta_managed_agents_agent.py"
+      - "app/.venv/lib/python3.12/site-packages/anthropic/types/beta/beta_managed_agents_agent.py"
+      - "/app/.venv/lib/python3.12/site-packages/anthropic/types/beta/beta_managed_agents_session_agent.py"
+      - "app/.venv/lib/python3.12/site-packages/anthropic/types/beta/beta_managed_agents_session_agent.py"
+      - "/app/.venv/lib/python3.12/site-packages/anthropic/types/beta/beta_managed_agents_session_thread_agent.py"
+      - "app/.venv/lib/python3.12/site-packages/anthropic/types/beta/beta_managed_agents_session_thread_agent.py"
+      - "/app/.venv/lib/python3.12/site-packages/anthropic/resources/beta/agents/agents.py"
+      - "app/.venv/lib/python3.12/site-packages/anthropic/resources/beta/agents/agents.py"
+      - "/app/.venv/lib/python3.12/site-packages/anthropic/resources/beta/agents/__pycache__/agents.cpython-312.pyc"
+      - "app/.venv/lib/python3.12/site-packages/anthropic/resources/beta/agents/__pycache__/agents.cpython-312.pyc"

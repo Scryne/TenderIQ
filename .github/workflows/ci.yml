@@ -352,7 +352,7 @@ jobs:
           --scanners vuln,misconfig
           --severity HIGH,CRITICAL
           --ignore-unfixed
-          --ignorefile /repo/.github/trivyignore
+          --ignorefile /repo/.github/trivyignore.yaml
           --skip-dirs node_modules --skip-dirs .venv
           --timeout 15m
           --exit-code 1
@@ -384,7 +384,7 @@ jobs:
           aquasec/trivy:latest image tenderiq-${{ matrix.image }}:ci
           --severity HIGH,CRITICAL
           --ignore-unfixed
-          --ignorefile /cfg/trivyignore
+          --ignorefile /cfg/trivyignore.yaml
           --timeout 15m
           --exit-code 1
 
