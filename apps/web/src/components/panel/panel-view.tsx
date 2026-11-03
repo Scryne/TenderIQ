@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, formatDeadline, formatNumber } from "@/lib/format";
+import { useNow } from "@/lib/use-now";
 import { cn } from "@/lib/utils";
 
 export type DeadlineItem = {
@@ -353,12 +354,13 @@ function DateBlock({ date }: { date: Date | null }) {
 
 /** Kalan süre rozeti — renk yöne değil ANLAMA bağlı (§8.21): yaklaşan = kötü. */
 function DeadlineBadge({ date }: { date: Date }) {
-  const days = Math.round((date.getTime() - Date.now()) / 86_400_000);
+  const now = useNow();
+  const days = Math.round((date.getTime() - now.getTime()) / 86_400_000);
   const tone = days < 0 ? "neutral" : days <= 3 ? "danger" : days <= 10 ? "warning" : "neutral";
   return (
     <Badge tone={tone} className={cn("shrink-0", tone === "danger" && "gap-1")}>
       {tone === "danger" && <TriangleAlert aria-hidden strokeWidth={2} />}
-      {formatDeadline(date)}
+      {formatDeadline(date, now)}
     </Badge>
   );
 }

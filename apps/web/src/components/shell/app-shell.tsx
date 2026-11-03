@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -35,6 +35,7 @@ import {
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { useSidebarCollapsed } from "@/lib/use-sidebar-collapsed";
 import { cn } from "@/lib/utils";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -364,23 +365,11 @@ export function ShellFrame({
   onLogout: () => void;
   children: ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  // Daraltma tercihi oturumlar arasında korunur (bkz. `useSidebarCollapsed`:
+  // ilk boya genişletilmiş, hydration'dan sonra kayıtlı tercih uygulanır).
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const crumbs = breadcrumbFor(pathname);
-
-  // Daraltma tercihi oturumlar arasında korunur; ilk boyada localStorage
-  // okunamayacağı için efektte uygulanır (hydration uyumsuzluğu olmasın).
-  useEffect(() => {
-    setCollapsed(window.localStorage.getItem("tiq.sidebar") === "collapsed");
-  }, []);
-
-  function toggleCollapsed() {
-    setCollapsed((previous) => {
-      const next = !previous;
-      window.localStorage.setItem("tiq.sidebar", next ? "collapsed" : "expanded");
-      return next;
-    });
-  }
 
   const sidebarBody = (mobile: boolean) => {
     const isCollapsed = mobile ? false : collapsed;

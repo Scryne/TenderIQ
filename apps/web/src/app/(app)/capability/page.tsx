@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Info } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/shell/page-header";
@@ -22,8 +22,11 @@ const MIN_USEFUL_LENGTH = 200;
 
 export default function CapabilityProfilePage() {
   const queryClient = useQueryClient();
-  const [content, setContent] = useState("");
-  const [dirty, setDirty] = useState(false);
+  // Kullanıcının düzenlemesi; `null` = henüz dokunulmadı, sunucudaki içerik gösterilir.
+  // Form içeriği bir efektle state'e KOPYALANMAZ, render sırasında türetilir: kopya
+  // her veri gelişinde ek bir render tetikliyor, düzenleme başladıktan sonra gelen
+  // tazelemeyi de ancak ayrı bir `dirty` bayrağıyla engelleyebiliyordu.
+  const [draft, setDraft] = useState<string | null>(null);
 
   const profile = useQuery({
     queryKey: ["capability-profile"],
@@ -37,10 +40,9 @@ export default function CapabilityProfilePage() {
     },
   });
 
-  // Sunucudaki içerik forma bir kez yazılır; kullanıcı düzenlemeye başladıysa ezilmez.
-  useEffect(() => {
-    if (!dirty && profile.data != null) setContent(profile.data.content);
-  }, [dirty, profile.data]);
+  // Kullanıcı düzenlemeye başladıysa sunucu tazelemesi taslağı ezmez.
+  const dirty = draft !== null;
+  const content = draft ?? profile.data?.content ?? "";
 
   const save = useMutation({
     mutationFn: async () => {
@@ -48,8 +50,11 @@ export default function CapabilityProfilePage() {
       if (error !== undefined) throw new Error("Profil kaydedilemedi. Bir kez daha deneyin.");
       return data;
     },
-    onSuccess: () => {
-      setDirty(false);
+    onSuccess: (saved) => {
+      // Kaydedilen içerik önbelleğe hemen yazılır; taslak bırakılınca alan, yeniden
+      // çekim bitmeden eski sunucu metnine bir anlığına geri dönmesin.
+      queryClient.setQueryData(["capability-profile"], saved);
+      setDraft(null);
       void queryClient.invalidateQueries({ queryKey: ["capability-profile"] });
       // Eylem sonucu geçmiş zamanla yazılır (§8.8).
       toast.success("Yetkinlik profili kaydedildi.");
@@ -108,10 +113,7 @@ export default function CapabilityProfilePage() {
             <Textarea
               id="capability-content"
               value={content}
-              onChange={(event) => {
-                setContent(event.target.value);
-                setDirty(true);
-              }}
+              onChange={(event) => setDraft(event.target.value)}
               placeholder={
                 "12 yıllık kamu BT entegratörüyüz. ISO 9001 ve ISO 27001 belgelerimiz güncel.\n" +
                 "45 kişilik yazılım ekibi: Java, .NET, PostgreSQL, Kubernetes.\n" +

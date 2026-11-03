@@ -13,17 +13,17 @@ type State = "pending" | "success" | "error";
 
 function VerifyEmail() {
   const token = useSearchParams().get("token");
-  const [state, setState] = useState<State>("pending");
+  const [result, setResult] = useState<State>("pending");
+  // Bağlantıda token yoksa sonuç render sırasında bellidir; bunu efektte state'e
+  // yazmak gereksiz bir ikinci render (ve bir kare "doğrulanıyor…") demekti.
+  const state: State = token === null ? "error" : result;
 
   useEffect(() => {
-    if (token === null) {
-      setState("error");
-      return;
-    }
+    if (token === null) return;
     let cancelled = false;
     void (async () => {
       const { error } = await api.POST("/api/v1/auth/verify-email", { body: { token } });
-      if (!cancelled) setState(error === undefined ? "success" : "error");
+      if (!cancelled) setResult(error === undefined ? "success" : "error");
     })();
     return () => {
       cancelled = true;

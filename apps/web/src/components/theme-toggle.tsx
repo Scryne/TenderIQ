@@ -2,7 +2,7 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,11 +11,24 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
  * Tema anahtarı. Sunucu render'ında çözünmüş tema bilinmez; ikon yanlış
  * çizilip hydration'da zıplamasın diye monte olana kadar yer tutucu gösterilir.
  */
+const noopSubscribe = () => () => {};
+
+/**
+ * Sunucu render'ında ve hydration'da `false`, sonrasında `true`. Efektte
+ * `setMounted(true)` çağırmanın yerine geçer: React bunu hydration'ın parçası
+ * olarak yönetir, ekstra bir efekt-render zinciri tetiklenmez.
+ */
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
+
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useHydrated();
 
   if (!mounted) {
     return <span aria-hidden className="size-8 shrink-0" />;
