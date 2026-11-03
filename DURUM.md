@@ -39,7 +39,12 @@ commit'lerle uygulandı; her biri ayrı commit, Dependabot dalından değil main
 - **Gizli kırık düzeltildi:** `brace-expansion: >=5.0.9` override'ı minimatch@3'e 5.x'i zorluyor,
   süslü desende `expand is not a function` veriyordu. Override majör hatlara bölündü; `pnpm audit`
   brace-expansion için temiz.
-- **Ertelendi (kanıtıyla):** #32/#31 Next 16 — Turbopack varsayılan, özel `webpack` yapılandırması
+- **#32/#31 Next 16 — ayrı dalda ele alındı (`claude/keen-johnson-13qdrz`, PR açık, birleştirilmedi).**
+  Turbopack'e geçildi (`canvas` takma adı `turbopack.resolveAlias`ta), `middleware.ts` → `proxy.ts`
+  (Node çalışma zamanı; depolama origin'i `next.config.ts` `env` ile derlemede dondurulur,
+  çalışma anı değeri etkisiz — üretim derlemesinde ölçüldü), eslint yerel flat config,
+  react-hooks 7'nin beş hatası kural kapatılmadan düzeltildi. Ayrıntı ve doğrulanamayanlar PR'da.
+- **Aşağıdaki erteleme notu geçmiş kayıttır:** #32/#31 Next 16 — Turbopack varsayılan, özel `webpack` yapılandırması
   (pdfjs `canvas` alias'ı) derlemeyi düşürüyor; `middleware` → `proxy` geçişi CSP nonce'una dokunuyor;
   react-hooks 7 beş UI dosyasında hata veriyor (görsel doğrulama turu gerekir). #24 TypeScript 7 —
   `openapi-typescript` (`createKeywordTypeNode` TypeError) ve typescript-eslint (`<6.1.0`) desteklemiyor.

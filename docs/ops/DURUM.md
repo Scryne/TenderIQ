@@ -77,8 +77,9 @@ kopyalanmaz.
 - **`NEXT_PUBLIC_STORAGE_ORIGIN` DOLDURULMAK ZORUNDA** ve **derleme anında**
   verilir. Boş kalırsa zorlayıcı CSP `connect-src`i aynı-origin'e kilitler,
   tarayıcı imzalı PDF URL'ini çekemez ve **doküman tuvali sessizce boş kalır**.
-  Çalışma anı değişkeni İŞE YARAMAZ: middleware edge runtime'da koşuyor ve
-  `process.env` orada derleme sırasında sabite çevriliyor. Artık production
+  Çalışma anı değişkeni İŞE YARAMAZ: politikayı üreten proxy'nin okuduğu değer
+  `next.config.ts` `env` alanıyla derlemede sabite çevriliyor (Next 15'te bunu
+  edge runtime kendiliğinden yapıyordu; Next 16'da proxy Node'da). Artık production
   derlemesi bu değişken olmadan DÜŞER.
 - **Next yalnız STATİK `process.env.SABIT` erişimini gömer.** `process.env[ad]`
   (dinamik) derlenmiş imajda değeri göremez — doğrulamayı dinamik erişimle
@@ -181,7 +182,7 @@ kopyalanmaz.
   periyotlar makul). Kasıtlı istisnalar o dosyalardaki sözlüklerde **gerekçesiyle**
   durur. Yeni router/task/adaptör eklerken kayıt adımını atlamak artık test kırar.
 - **İçerik Güvenlik Politikası ZORLAYICI ve nonce tabanlıdır** (Tur 10).
-  Tanım `apps/web/src/lib/security/csp.ts`, yayın `middleware.ts`; ihlaller
+  Tanım `apps/web/src/lib/security/csp.ts`, yayın `proxy.ts` (Next 15'te `middleware.ts`); ihlaller
   `/api/csp-report`ta toplanır. `script-src`e `'unsafe-inline'` EKLEME — nonce'un
   tüm değerini iptal eder; `e2e/csp.spec.ts` bunu CI'da yakalar. Nonce istek
   başına değiştiği için kök layout `headers()` okur ve **tüm rotalar dinamik
@@ -319,9 +320,11 @@ kopyalanmaz.
 - **Git Bash argümanı `/x` biçimindeyse Windows yoluna çevirir.**
   `--only /tenders` → `C:/Program Files/Git/tenders`; `git show origin/main:dosya`
   da bozulur. `MSYS_NO_PATHCONV=1` kullan ya da baştaki `/`yi verme.
-- **Middleware'de `process.env` ÇALIŞMA ANI değeri okumaz.** Edge runtime'da
-  derleme sırasında sabite çevrilir; imaja gömülmeyen değişken görünmez. CSP gibi
-  middleware'de üretilen her şey derleme argümanı ister (Tur 11).
+- **Proxy'de (Next 16, eski middleware) `process.env` artık ÇALIŞMA ANI değeri
+  OKUR** — derlemede tanımsız olan her değişken için. Next 15'teki edge middleware
+  bunu kendiliğinden sabitliyordu (Tur 11); Node proxy sabitlemiyor. CSP'nin depolama
+  origin'i bu yüzden `next.config.ts` `env` ile açıkça dondurulur. Proxy'de yeni bir
+  değişken okunacaksa ve imajla sabit kalması gerekiyorsa oraya eklenmeli.
 - **Mypy'yi CI ile aynı görmek için opsiyonel bağımlılıkları override'a yaz.**
   CI `uv sync --frozen` ile yalnız varsayılan grubu kurar; `parsing`/`ocr`/
   `embedding` paketleri orada YOKTUR. Override eksikse mypy CI'da
