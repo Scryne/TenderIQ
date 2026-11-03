@@ -712,3 +712,29 @@ taslağı ezmiyor → kaydet) iki sürümde aynı sonuç. Lighthouse (üretim de
 
 **Uygulanan:** kod değişikliği yok — görsel kimlik korunmuş. Madde 1 ayrı iş (tarih biçiminde
 saat dilimi kararı), bu geçişe katılmadı.
+
+## 2026-11-03 · tarih biçimleyicileri · saat dilimi Europe/Istanbul
+
+**Sorun.** Önceki girdinin "açık kalan" 1. maddesi: `lib/format.ts` biçimleyicilerinde
+`timeZone` yoktu; sunucu (UTC) `2026-07-31T23:59:59Z`yi "31.07.2026", İstanbul'daki tarayıcı
+"01.08.2026" biçimliyordu → `/design/shell` ve `/design/preview`de hydration uyuşmazlığı.
+
+**Karar.** `lib/format.ts` içinde tek sabit `TIME_ZONE = "Europe/Istanbul"`; `formatDate`,
+`formatDateLong`, `formatDateTime` onu kullanır. İnceleme ekranındaki yorum ve değişiklik
+geçmişi diyaloglarının kendi `Intl.DateTimeFormat` kopyaları aynı seçeneklerle
+`formatDateTimeMedium`e taşındı (Ek B.1 "tek kaynak"). İstanbul seçildi çünkü Türkiye'deki
+kullanıcının tarayıcıda gördüğü değer zaten buydu — anlam değişmiyor, sunucu çıktısı ve
+Türkiye dışından açılan tarayıcı ona hizalanıyor.
+
+**Kapsam dışı (bilinçli).** Şartnameden ayrıştırılan takvim günleri (`parseTrDate`,
+`daysUntil`, panelin tarih bloğu) saat diliminden bağımsız yerel gündür; onlara dilim vermek
+ayın ilk gününü önceki aya kaydırabilirdi. Dokunulmadı.
+
+**Doğrulama.** Sunucu `TZ=UTC`, Playwright `timezoneId` İstanbul ve New York:
+- Önce: İstanbul'da SSR "Dönem sonu 31.07.2026", DOM "01.08.2026", rota başına 2 konsol hatası.
+- Sonra: iki dilimde de SSR = DOM = "Dönem sonu 01.08.2026", 0 konsol hatası.
+- Node'da `TZ=UTC / America/New_York / Asia/Tokyo` altında yeni biçimleyicilerin çıktısı,
+  eski biçimleyicilerin İstanbul tarayıcısındaki çıktısıyla birebir aynı (5 an × 4 biçim).
+- 375/768/1440/1920 ekran görüntüleri: düzen, renk, tipografi değişmedi; yalnız sunucu
+  çıktısındaki tarih metni. `/design/preview` 375'teki 6 px yatay taşma değişiklikten önce de
+  ölçüldü (aynı değer) — bu işin parçası değil.

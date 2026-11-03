@@ -108,31 +108,37 @@ class _AnthropicUsage:
         self.output_tokens = output_tokens
 
 
+class _AnthropicTextBlock:
+    type = "text"
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
 class _AnthropicResponse:
-    def __init__(self, parsed: Any) -> None:
+    def __init__(self, text: str) -> None:
         self.stop_reason = "end_turn"
-        self.parsed_output = parsed
+        self.content = [_AnthropicTextBlock(text)]
         self.usage = _AnthropicUsage(1200, 340)
 
 
 class _FakeAnthropicClient:
-    def __init__(self, parsed: Any) -> None:
+    def __init__(self, text: str) -> None:
         self.messages = self
-        self._parsed = parsed
+        self._text = text
 
-    def parse(self, **_kwargs: Any) -> Any:
-        return _AnthropicResponse(self._parsed)
+    def create(self, **_kwargs: Any) -> Any:
+        return _AnthropicResponse(self._text)
 
 
 def test_anthropic_cagrisi_generation_ve_token_kaydeder() -> None:
     tracer = RecordingTracer()
-    expected = RequirementExtraction.model_validate({"items": [_VALID_ITEM]})
     llm = AnthropicStructuredLLM(
         api_key="k",
         model="claude-opus-4-8",
         max_output_tokens=1000,
         max_attempts=1,
-        client=_FakeAnthropicClient(expected),
+        client=_FakeAnthropicClient(json.dumps({"items": [_VALID_ITEM]})),
         tracer=tracer,
     )
     llm.extract(system="sys", prompt="istem", schema=RequirementExtraction)

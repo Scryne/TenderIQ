@@ -5,15 +5,18 @@ Desen embedding/reranker katmanıyla aynıdır (ADR-0008/0012): ajanlar
 yeni bir daldır, testler sahtelerle koşar.
 
 Şema zorlaması iki katmanlıdır:
-1. **API düzeyi:** Anthropic structured outputs (``output_config.format``,
-   SDK'da ``messages.parse``) çıktıyı JSON şemasına token düzeyinde kısıtlar.
+1. **API düzeyi:** Anthropic structured outputs (``output_config.format``; şema
+   SDK'nın ``transform_schema``ıyla ``messages.parse`` ile aynı biçimde üretilir)
+   çıktıyı JSON şemasına token düzeyinde kısıtlar.
 2. **Reddet-ve-yeniden-iste:** yine de şemaya uymayan çıktı (ör. ``max_tokens``
    kesmesi) pydantic doğrulamasından geçemez → ihlal mesajı konuşmaya eklenir
    ve çıktı yeniden istenir (``LLM_SCHEMA_MAX_ATTEMPTS`` tavanına kadar);
    tavan aşılırsa ``SchemaEnforcementError`` yükselir (Celery retry devralır).
 
 Güvenlik notu: ``stop_reason == "refusal"`` kalıcı hatadır — aynı istem
-tekrarlanmaz (``LLMRefusalError``).
+tekrarlanmaz (``LLMRefusalError``). Ret, metin bloğu doğrulanmadan ÖNCE denetlenir;
+bu yüzden çıktı SDK'ya ayrıştırtılmaz (``messages.parse`` doğrulamayı ret
+denetiminden önce yapar ve ret + boş metin bloğunu şema ihlaline çevirirdi).
 
 API sürümü notu: anthropic SDK 2.x ``anthropic-version: 2026-10-21`` gönderir. Bu
 sürümde ``temperature``/``top_p``/``top_k`` 400 döner — Anthropic dalına örnekleme
@@ -84,6 +87,20 @@ _RETRY_TEMPLATE = (
 )
 
 
+def _first_text_block(response: Any) -> str | None:
+    """Yanıttaki ilk metin bloğunun içeriği; hiç metin bloğu yoksa ``None``.
+
+    Structured outputs'ta JSON çıktısı tek metin bloğudur (thinking blokları
+    atlanır). Boş string ``None`` DEĞİLDİR: blok geldi ama boş — doğrulamada
+    şema ihlali olarak görünür.
+    """
+    for block in getattr(response, "content", None) or ():
+        if getattr(block, "type", None) == "text":
+            text: str = block.text
+            return text
+    return None
+
+
 class AnthropicStructuredLLM:
     """Claude ile yapılandırılmış çıkarım (structured outputs + adaptive thinking).
 
@@ -114,62 +131,64 @@ class AnthropicStructuredLLM:
 
     def extract(self, *, system: str, prompt: str, schema: type[SchemaT]) -> SchemaT:
         messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
-        last_error: ValidationError | None = None
+        # SDK'nın ``messages.parse(output_format=...)`` yardımcısıyla AYNI istek
+        # gövdesi (``output_config.format``) — ama ayrıştırmayı SDK'ya bırakmıyoruz:
+        # SDK metin bloğunu ``stop_reason``a bakmadan doğrular; ret + boş metin
+        # bloğunda ``ValidationError`` önce gelir ve ret şema ihlali sanılıp
+        # yeniden istenirdi. Sıra burada sabit: önce ret, sonra doğrulama.
+        from anthropic import transform_schema  # SDK lazy yüklenir (_get_client gibi)
+
+        output_config = {"format": {"type": "json_schema", "schema": transform_schema(schema)}}
+        last_error: ValidationError | str | None = None
         for attempt in range(1, self._max_attempts + 1):
-            try:
-                # Her deneme bir Langfuse generation'ı (kapalıysa no-op); token
-                # kullanımı çağrı içinde kaydedilir, retry'lar da izlenir.
-                with self._tracer.generation(
-                    name=schema.__name__, model=self._model, system=system, prompt=prompt
-                ) as span:
-                    response = self._get_client().messages.parse(
-                        model=self._model,
-                        max_tokens=self._max_output_tokens,
-                        system=system,
-                        thinking={"type": "adaptive"},
-                        messages=messages,
-                        output_format=schema,
-                    )
-                    usage = getattr(response, "usage", None)
-                    span.record(
-                        output=getattr(response, "parsed_output", None),
-                        input_tokens=getattr(usage, "input_tokens", None),
-                        output_tokens=getattr(usage, "output_tokens", None),
-                    )
-            except ValidationError as exc:
-                # Şema ihlali (tipik neden: max_tokens kesmesi) → reddet, ihlali
-                # konuşmaya ekle ve yeniden iste.
-                last_error = exc
-                logger.warning(
-                    "llm_sema_ihlali",
+            # Her deneme bir Langfuse generation'ı (kapalıysa no-op); token
+            # kullanımı çağrı içinde kaydedilir, retry'lar da izlenir.
+            with self._tracer.generation(
+                name=schema.__name__, model=self._model, system=system, prompt=prompt
+            ) as span:
+                response = self._get_client().messages.create(
                     model=self._model,
-                    schema=schema.__name__,
-                    attempt=attempt,
-                    error_count=exc.error_count(),
+                    max_tokens=self._max_output_tokens,
+                    system=system,
+                    thinking={"type": "adaptive"},
+                    messages=messages,
+                    output_config=output_config,
                 )
-                messages = [
-                    {"role": "user", "content": prompt},
-                    {"role": "user", "content": _RETRY_TEMPLATE.format(error=exc)},
-                ]
-                continue
+                text = _first_text_block(response)
+                usage = getattr(response, "usage", None)
+                span.record(
+                    output=text,
+                    input_tokens=getattr(usage, "input_tokens", None),
+                    output_tokens=getattr(usage, "output_tokens", None),
+                )
+            # Ret kalıcı hatadır ve metin bloğunun içeriğinden (boş/kesik/yok)
+            # bağımsız olarak HER ŞEYDEN önce denetlenir — aynı istem tekrarlanmaz.
             if response.stop_reason == "refusal":
                 raise LLMRefusalError(
                     f"Model isteği reddetti (schema={schema.__name__}); istem tekrarlanmayacak."
                 )
-            parsed: object = response.parsed_output
-            if parsed is None:
+            if text is None:
                 # Metin bloğu hiç gelmedi (beklenmedik durum) — şema ihlali say.
-                messages = [
-                    {"role": "user", "content": prompt},
-                    {
-                        "role": "user",
-                        "content": _RETRY_TEMPLATE.format(error="çıktı boş — metin bloğu yok"),
-                    },
-                ]
-                continue
-            # SDK zaten şema örneği döndürür; istemci Any tiplendiği için burada
-            # yeniden doğrulanır (tip güvencesi + sahte istemcilere tolerans).
-            return schema.model_validate(parsed)
+                reason: str | ValidationError = "çıktı boş — metin bloğu yok"
+            else:
+                try:
+                    return schema.model_validate_json(text)
+                except ValidationError as exc:
+                    # Şema ihlali (tipik neden: max_tokens kesmesi) → reddet,
+                    # ihlali konuşmaya ekle ve yeniden iste.
+                    logger.warning(
+                        "llm_sema_ihlali",
+                        model=self._model,
+                        schema=schema.__name__,
+                        attempt=attempt,
+                        error_count=exc.error_count(),
+                    )
+                    reason = exc
+            last_error = reason
+            messages = [
+                {"role": "user", "content": prompt},
+                {"role": "user", "content": _RETRY_TEMPLATE.format(error=reason)},
+            ]
         raise SchemaEnforcementError(
             f"Çıktı {self._max_attempts} denemede şemaya uydurulamadı "
             f"(schema={schema.__name__}): {last_error}"
