@@ -670,3 +670,45 @@ yüklemeden sonra bırakma alanı eski dosya adını göstermeye devam ediyordu 
 
 **Doğrulama.** Lighthouse a11y (üretim derlemesi) 18/18 rota = 100. Yatay taşma 0, konsol hatası 0
 (açık + koyu, 1440 + 390). typecheck + lint temiz.
+
+---
+
+## 2026-11-03 · Next 15 → 16 geçişi · görsel eşdeğerlik turu
+
+**Bağlam.** Çerçeve yükseltmesi (Dependabot #32/#31); tasarım değişikliği DEĞİL. react-hooks 7'nin
+beş hatası `theme-toggle`, `app-shell`, `panel-view`, `capability` ve `verify-email`e dokundu, bu
+yüzden görsel kimliğin kaymadığı ölçülerek gösterilmeli.
+
+**Yöntem.** `main` (Next 15, webpack) ayrı bir çalışma ağacında `:3001`de, bu dal (Next 16,
+Turbopack) `:3000`de. Aynı `shoot.mjs` ile `/`, `/login`, `/verify-email`, `/design/shell`,
+`/design/preview`, `/design/tokens` × 375/768/1440/1920 × açık/koyu = 48 çift; piksel farkı alındı.
+
+**Tur 1 · sonuç.** `/login` ve `/verify-email` 16/16 piksel-özdeş. Kalan farkların hepsi kırpılıp
+yan yana incelendi ve ANİMASYON EVRESİ çıktı: dönen yükleme halkası, nabız atan durum noktası
+(12×12 px), iskelet parıltısı. Düzen, renk, tipografi farkı yok. Yatay taşma iki sürümde aynı
+(yalnız tasarım kataloğu sayfalarında, değişiklikten önce de vardı).
+
+**İyi:**
+1. Daraltılmış kenar çubuğu yeniden yüklemede korunuyor (264 → 64 px, eski ile aynı); tema
+   anahtarı ilk boyada 32 px yer tutucu, hydration sonrası ikon — zıplama yok.
+2. Yetkinlik formu kaydederken eski sürümde metin alanı bir anlığına ESKİ sunucu metnine
+   dönüyordu (30 ms örnekleme ile görüldü); yenisinde dönmüyor.
+
+**Kötü / açık kalan:**
+1. Tasarım kataloğunda (`/design/shell`, `/design/preview`) hydration uyuşmazlığı: sahte
+   veri `2026-07-31T23:59:59Z`, sunucu UTC'de "31.07.2026", tarayıcı İstanbul'da "01.08.2026"
+   biçimliyor. `main`de de var; `Intl` biçimleyicilerinde `timeZone` yok. Next 16 dev'de bu
+   uyuşmazlık kökü istemcide yeniden çizdirdiği için `next-themes` betiği ek bir konsol
+   uyarısı ("Encountered a script tag…") üretiyor. Ürün sayfalarında görülmedi.
+2. `127.0.0.1` üzerinden açılan `next dev`te HMR soketi reddediliyor (Next 16 varsayılanı);
+   `shoot.mjs` zaten `localhost` kullanıyor, yalnız elle `127.0.0.1` verilirse görünür.
+3. Kimlik isteyen rotalar backend'siz çekilemedi; yetkinlik formu tarayıcıda API taklidiyle
+   sınandı, gerçek akış CI'daki E2E'ye kaldı.
+
+**Tur 2.** Davranış: kenar çubuğu daralt/yenile/genişlet, tema geçişi, Tab ile odak, doğrulama
+bağlantısı (geçerli/geçersiz/tokensız), yetkinlik taslağı (yükle → yaz → arka plan tazelemesi
+taslağı ezmiyor → kaydet) iki sürümde aynı sonuç. Lighthouse (üretim derlemesi, backend'siz
+ölçülebilen 10 açık rota) = 100.
+
+**Uygulanan:** kod değişikliği yok — görsel kimlik korunmuş. Madde 1 ayrı iş (tarih biçiminde
+saat dilimi kararı), bu geçişe katılmadı.

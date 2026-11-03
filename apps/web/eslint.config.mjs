@@ -1,15 +1,14 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
 
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({ baseDirectory: __dirname });
-
-const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+// Next 16 ile eslint-config-next yerel flat config yayımlıyor; `FlatCompat`
+// (`@eslint/eslintrc`) köprüsüne artık gerek yok. Kural seti aynı iki ön ayardan
+// gelir: `core-web-vitals` (react, react-hooks, jsx-a11y, import, @next/next) ve
+// `typescript` (typescript-eslint önerilenleri).
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
   {
     rules: {
       // Türkçe metinde kesme işareti (ör. "API'ye") yaygındır; escape zorunluluğu
@@ -17,9 +16,7 @@ const eslintConfig = [
       "react/no-unescaped-entities": "off",
     },
   },
-  {
-    ignores: [".next/**", "node_modules/**", "next-env.d.ts"],
-  },
-];
+  globalIgnores([".next/**", "node_modules/**", "next-env.d.ts"]),
+]);
 
 export default eslintConfig;

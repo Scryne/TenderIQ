@@ -17,8 +17,8 @@ bir sınıfın örneğiydi:
 
 1. Değer **derleme anında** gömülür (`NEXT_PUBLIC_*` ya da build `ARG`), yani
    çalışma anında verilmesi etkisizdir.
-2. Politikayı üreten middleware **edge runtime**'da koşar; orada `process.env`
-   derleme sırasında sabite çevrilir.
+2. Politikayı üreten proxy (Next 16; eski edge middleware) Node'da koşar; okuduğu
+   depolama origin'i `next.config.ts` `env` alanıyla derleme sırasında sabite çevrilir.
 3. Eksik değişken `undefined` olur, kod `?? ""` ile devam eder ve arıza
    **davranışa gömülür** — log üretmez.
 

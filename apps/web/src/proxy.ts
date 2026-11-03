@@ -1,4 +1,4 @@
-// İki iş yapar:
+// Next 16 `proxy` (eski adıyla `middleware`; Node çalışma zamanında koşar). İki iş yapar:
 //
 // 1. **CSP nonce'u üretir** ve zorlayıcı politikayı yayınlar (bkz. `lib/security/csp.ts`).
 //    Nonce hem YANIT başlığına hem İSTEK başlığına yazılır: Next kendi betik
@@ -20,7 +20,7 @@ import {
 
 const PROTECTED_PREFIXES = ["/panel", "/tenders", "/capability", "/usage", "/settings"];
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const nonce = generateNonce();
   const policy = buildContentSecurityPolicy(nonce, process.env.NODE_ENV === "production");
 
@@ -35,13 +35,15 @@ export function middleware(request: NextRequest): NextResponse {
     url.searchParams.set("next", pathname);
     return withSecurityHeaders(NextResponse.redirect(url), policy);
   }
-  // `/login` BURADA yönlendirilmez. Middleware yalnız cookie'nin VARLIĞINI
+  // `/login` BURADA yönlendirilmez. Proxy yalnız cookie'nin VARLIĞINI
   // görür, geçerliliğini göremez; "cookie var → /tenders" kuralı bu yüzden bayat
   // bir oturumda kullanıcıyı kilitliyordu: giriş sayfası erişilemez oluyor,
   // /tenders ise 401 alıp boş kalıyordu — yani hesaba bir daha hiç girilemiyordu.
   // Doğrulanmış yönlendirme `app/login/page.tsx` içinde, backend'e sorularak
-  // yapılır (orası Node çalışma zamanı: `API_URL`i çalışma anında okuyabilir,
-  // edge middleware okuyamaz — bkz. `lib/security/csp.ts`deki derleme-anı notu).
+  // yapılır: sayfa oturumu backend'e sorar. Proxy her doküman isteğinde koşar;
+  // oraya bir backend gidiş-dönüşü eklemek her sayfanın gecikmesine eklenirdi.
+  // (Proxy Next 16'dan beri Node'da koşsa da CSP'nin okuduğu değerler derleme
+  // anında dondurulur — bkz. `next.config.ts` `env` ve `lib/security/csp.ts`.)
 
   // Politika İSTEK başlığına da yazılır — Next nonce'u buradan okuyup kendi
   // `<script>` etiketlerine ekler. Yalnız yanıt başlığını yazsaydık Next

@@ -49,7 +49,7 @@ export const viewport: Viewport = {
  * Kök layout.
  *
  * `headers()` okunuyor çünkü zorlayıcı CSP istek başına nonce üretiyor
- * (`middleware.ts`) ve `next-themes`in satır içi tema betiği o nonce'u taşımak
+ * (`proxy.ts`) ve `next-themes`in satır içi tema betiği o nonce'u taşımak
  * zorunda — taşımazsa politika betiği engeller ve sayfa tema seçimini
  * kaybeder. Bedeli bilinerek ödeniyor: bu okuma tüm rotaları dinamik render'a
  * geçirir (bkz. `lib/security/csp.ts`).
