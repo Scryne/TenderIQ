@@ -22,4 +22,26 @@ bulgu çıktı; testler, tip denetimi, güvenlik taraması ve erişilebilirlik t
 - Hukuki metinlerde şirket bilgileri (`LEGAL_TODO.md`): gerçek şirket kurulmadan doldurulamaz.
 - Canlı ödeme (iyzico abonelik modülü hesapta kapalı), Resend alan adı doğrulaması.
 - NIM fiyatı doğrulanamıyor (sağlayıcı yayımlamıyor); geliştirme katmanı olduğu için engel değil.
-- Uzak `feat/faz3-sprint-3.3` dalı ve açık Dependabot PR'ları duruyor.
+- Uzak `feat/faz3-sprint-3.3` dalı duruyor. Açık Dependabot PR'ları aşağıda ele alındı ama
+  hiçbiri kapatılmadı.
+
+## Bağımlılık turu (2026-11-03)
+
+Açık 9 Dependabot PR'ının 6'sı (#45, #44, #28, #36, #35, #33) `denetim/bagimlilik` dalındaki
+commit'lerle uygulandı; her biri ayrı commit, Dependabot dalından değil main'den yeniden kilitlendi.
+
+- **Kırmızıların sebebi kod değildi:** #45 pip-audit (`opentelemetry-api` 1.44.0, fastapi 0.162 ile
+  üretime girdi → 1.45.2), #44 trivy (main'deki pypdf 6.21.3 → 6.21.4), #36/#35 o tarihteki
+  main'in urllib3/langgraph-sdk açıkları. Tek kod kırığı #28: redis 8 tipleri düzelince
+  `dead_letter.py`'deki 3 `type: ignore` gereksiz kaldı.
+- **Sentry 11 PII duruşu korundu:** `sendDefaultPii` kalktı, yeni `dataCollection`ın varsayılanı
+  "her şeyi topla". `src/lib/sentry-data-collection.ts` eski `false` eşlemesinin karşılığı.
+- **Gizli kırık düzeltildi:** `brace-expansion: >=5.0.9` override'ı minimatch@3'e 5.x'i zorluyor,
+  süslü desende `expand is not a function` veriyordu. Override majör hatlara bölündü; `pnpm audit`
+  brace-expansion için temiz.
+- **Ertelendi (kanıtıyla):** #32/#31 Next 16 — Turbopack varsayılan, özel `webpack` yapılandırması
+  (pdfjs `canvas` alias'ı) derlemeyi düşürüyor; `middleware` → `proxy` geçişi CSP nonce'una dokunuyor;
+  react-hooks 7 beş UI dosyasında hata veriyor (görsel doğrulama turu gerekir). #24 TypeScript 7 —
+  `openapi-typescript` (`createKeywordTypeNode` TypeError) ve typescript-eslint (`<6.1.0`) desteklemiyor.
+- Doğrulama (yerel): ruff, mypy strict, pytest (414 geçti, 1 atlandı), OpenAPI/TS drift yok,
+  golden-set kapısı; web lint, tsc, `next build` (26 rota). Entegrasyon, E2E, trivy CI'da.
