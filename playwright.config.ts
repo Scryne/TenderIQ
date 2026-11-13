@@ -79,13 +79,16 @@ const apiEnv: Record<string, string> = {
 };
 
 /**
- * `--reload` bilinçli: Windows'ta uvicorn reload'suz `ProactorEventLoop`
- * kullanıyor ve async psycopg onunla çalışmıyor (her DB isteği 500 verir).
- * CI (Linux) etkilenmez; tek komut iki ortamda da çalışsın diye açık bırakıldı.
+ * `--loop asyncio:SelectorEventLoop` bilinçli: uvicorn 0.36+ olay döngüsünü
+ * politikadan değil bu ayardan kurar ve Windows'ta varsayılanı
+ * `ProactorEventLoop`tur; async psycopg onunla çalışmaz (her DB isteği 500).
+ * Eskiden `--reload` bu yüzden açıktı (alt süreçte selector seçiliyordu); açık
+ * döngü seçimi reload'un yan etkilerini (eski bytecode, kapanmayan süreç)
+ * taşımaz. Linux'ta da selector döngüsüdür, CI etkilenmez.
  */
 function apiServer(port: number, signupMode: string) {
   return {
-    command: `uv run uvicorn tenderiq_api.main:app --host 127.0.0.1 --port ${port} --reload`,
+    command: `uv run uvicorn tenderiq_api.main:app --host 127.0.0.1 --port ${port} --loop asyncio:SelectorEventLoop`,
     url: `http://127.0.0.1:${port}/healthz`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

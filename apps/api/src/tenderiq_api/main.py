@@ -28,7 +28,10 @@ from tenderiq_core.observability import init_sentry
 from tenderiq_core.storage import StorageNotConfiguredError, StorageService
 
 # Windows'ta psycopg'nin async modu ProactorEventLoop ile çalışmaz; selector
-# event-loop politikası gerekir (Linux/Docker'da bu dal çalışmaz).
+# event-loop politikası gerekir (Linux/Docker'da bu dal çalışmaz). Not: uvicorn
+# 0.36+ döngüyü bu politikadan değil ``--loop``tan kurar ve Windows varsayılanı
+# Proactor'dur; uvicorn'u ``--loop asyncio:SelectorEventLoop`` ile başlatın
+# (``pnpm api:dev`` ve E2E bunu yapar). Politika script/worker yolları için kalır.
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 

@@ -278,7 +278,7 @@ kopyalanmaz.
   gerekir), (b) üretim dahil her yerde eksikti. **`csp.spec.ts` (b)'yi yapısal
   olarak göremez:** depolama origin'i ölü bir port olduğu için baytlar hiç gelmez,
   `createObjectURL` hiç çağrılmaz, ihlal doğamaz. Kapı artık `csp-policy.spec.ts`te.
-- **Windows'ta `uvicorn --reload` olmadan koşmayın.** Reload'suz
+- **(Çözüldü 2026-11-13: `--loop asyncio:SelectorEventLoop`; aşağıdaki not geçmiş kayıttır.)** **Windows'ta `uvicorn --reload` olmadan koşmayın.** Reload'suz
   `ProactorEventLoop` kullanılıyor ve async psycopg onunla çalışmıyor: her DB
   isteği 500 verir, oran sınırlayıcı bunu "çok fazla deneme" 429'una çevirir ve
   sebep hiç görünmez.

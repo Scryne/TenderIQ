@@ -14,7 +14,7 @@
     "format:py:check": "uv run ruff format --check .",
     "typecheck:py": "uv run mypy -p tenderiq_core -p tenderiq_api -p tenderiq_worker",
     "test:py": "uv run pytest",
-    "api:dev": "uv run uvicorn tenderiq_api.main:app --reload --host 0.0.0.0 --port 8000",
+    "api:dev": "uv run uvicorn tenderiq_api.main:app --reload --loop asyncio:SelectorEventLoop --host 0.0.0.0 --port 8000",
     "worker:dev": "uv run celery -A tenderiq_worker.celery_app:celery_app worker --loglevel=info",
     "openapi:export": "uv run python scripts/export_openapi.py",
     "web:dev": "pnpm --filter @tenderiq/web dev",

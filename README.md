@@ -90,8 +90,9 @@ Bilinmesi gerekenler:
   CORS kuralı bu origin'e göre yazılır. `127.0.0.1` ile açılırsa yükleme CORS'a takılır.
 - **Web üretim derlemesi `NEXT_PUBLIC_STORAGE_ORIGIN` ister** ve bu değişken derleme anında verilir
   (CSP `connect-src` buna göre üretilir). Eksikse derleme bilerek durur.
-- **Windows'ta API `--reload` ile çalışır** (`pnpm api:dev` bunu yapar). Reload'suz olay döngüsü
-  async psycopg ile çalışmaz.
+- **Windows'ta API `--loop asyncio:SelectorEventLoop` ile başlatılır** (`pnpm api:dev` bunu yapar).
+  uvicorn'un Windows varsayılanı `ProactorEventLoop`tur ve async psycopg onunla çalışmaz: her DB isteği
+  500 verir, giriş "çok fazla deneme" 429'una döner.
 - **Tam Docker:** `pnpm up` / `pnpm down` tüm servisleri imajlarıyla kaldırır.
 - RLS: uygulama `tenderiq_app` rolüyle (RLS'ye tabi), migration'lar ayrıcalıklı rolle çalışır (ADR-0003).
 
