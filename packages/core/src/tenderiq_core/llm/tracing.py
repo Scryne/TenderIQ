@@ -10,7 +10,7 @@ KVKK / zero-retention (§10.3): getirilen bağlam blokları DOKÜMAN İÇERİĞ�
 Varsayılan olarak Langfuse'a YALNIZ metadata gönderilir (istem/çıktı gönderilmez);
 ``LANGFUSE_CAPTURE_IO=true`` (yalnız self-hosted Langfuse önerilir) tam I/O açar.
 
-Not: langfuse SDK yolu (``start_as_current_generation``) tek bir adaptörde
+Not: langfuse SDK yolu (``start_as_current_observation(as_type="generation")``) tek bir adaptörde
 izole tutulmuştur ve ilk kez etkinleştirildiğinde canlı doğrulanmalıdır; dev'de
 qwen + anahtarsız kurulumda bu yol hiç çalışmaz (no-op).
 """
@@ -115,8 +115,10 @@ class LangfuseTracer(LLMTracer):
     ) -> Iterator[GenerationSpan]:
         # İstem/çıktı = doküman içeriği; capture_io kapalıysa Langfuse'a gitmez.
         input_payload = {"system": system, "prompt": prompt} if self._capture_io else None
-        with self._client.start_as_current_generation(
-            name=name, model=model, input=input_payload
+        # SDK v3+ (4.x ve 5.x dahil) yalnız start_as_current_observation sunar;
+        # eski start_as_current_generation adı yok (gerçek SDK'ya karşı sınandı).
+        with self._client.start_as_current_observation(
+            name=name, as_type="generation", model=model, input=input_payload
         ) as generation:
             yield _LangfuseSpan(generation, capture_io=self._capture_io)
 

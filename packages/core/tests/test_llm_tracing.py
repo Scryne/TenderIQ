@@ -180,10 +180,10 @@ class _FakeLangfuseClient:
         self.flushed = 0
 
     @contextmanager
-    def start_as_current_generation(
-        self, *, name: str, model: str, input: Any
+    def start_as_current_observation(
+        self, *, name: str, as_type: str = "span", model: str | None = None, input: Any = None
     ) -> Iterator[_FakeGeneration]:
-        self.started.append({"name": name, "model": model, "input": input})
+        self.started.append({"name": name, "as_type": as_type, "model": model, "input": input})
         yield self.generation
 
     def flush(self) -> None:
@@ -196,5 +196,6 @@ def test_langfuse_tracer_capture_io_kapali_input_gondermez() -> None:
     with tracer.generation(name="n", model="m", system="s", prompt="p") as span:
         span.record(input_tokens=5, output_tokens=3)
     assert client.started[0]["input"] is None  # istem (doküman) gönderilmedi
+    assert client.started[0]["as_type"] == "generation"  # model/usage yalnız generation'da
     tracer.flush()
     assert client.flushed == 1
