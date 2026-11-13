@@ -106,6 +106,7 @@ Bilinmesi gerekenler:
 | `pnpm test:e2e` | Playwright tarayıcı akışları |
 | `pnpm openapi:export` · `pnpm api-client:generate` | Tip-güvenli API sözleşmesini yeniden üret |
 | `uv run python scripts/seed_e2e.py` | İncelemeye hazır bir demo ihalesi tohumla |
+| `uv run python scripts/yerel_depo.py` | R2'siz yerel geliştirme: yerel S3 ucunda kovayı açar, tohumlanmış belgelere örnek şartname PDF'ini yükler (önizleme ve kaynak vurgusu çalışsın; yalnız `localhost` ucuna yazar, S3 taklidi betiğin başında) |
 
 ## Durum
 
