@@ -1,6 +1,7 @@
 """Export paketi (Sprint 3.2, §4.1): onaylı analizden Word/Excel rapor üretimi."""
 
 from tenderiq_core.export.docx_report import build_docx_report
+from tenderiq_core.export.filename import report_filename
 from tenderiq_core.export.report import (
     COMPLIANCE_STATUS_LABELS,
     DELIVERABLE_KIND_LABELS,
@@ -31,5 +32,6 @@ __all__ = [
     "TenderReport",
     "build_docx_report",
     "build_xlsx_report",
+    "report_filename",
     "truncate_quote",
 ]

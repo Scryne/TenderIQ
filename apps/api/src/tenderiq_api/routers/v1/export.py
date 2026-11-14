@@ -38,6 +38,7 @@ from tenderiq_core.export import (
     TenderReport,
     build_docx_report,
     build_xlsx_report,
+    report_filename,
 )
 from tenderiq_core.findings import ReviewStatus
 from tenderiq_core.models import (
@@ -54,7 +55,6 @@ from tenderiq_core.models import (
     TimelineEvent,
 )
 from tenderiq_core.services.audit import record_audit
-from tenderiq_core.storage import safe_key_component
 
 router = APIRouter(prefix="/tenders", tags=["export"])
 
@@ -250,10 +250,7 @@ async def export_tender(
     )
     await session.flush()
 
-    filename = (
-        f"tenderiq-{safe_key_component(tender.title, max_length=60)}"
-        f"-{report.generated_at:%Y%m%d}.{body.format.value}"
-    )
+    filename = report_filename(tender.title, report.generated_at, body.format.value)
     ascii_fallback = (
         filename.encode("ascii", "ignore").decode() or f"tenderiq-rapor.{body.format.value}"
     )
