@@ -21,6 +21,7 @@ def test_uzun_baslik_kirpilir_kenar_bosluk_kalmaz() -> None:
     assert len(stem) <= 60
     assert stem == stem.strip(" .-_")
     assert stem.startswith("2026-418732 Belediye")
+    assert stem.endswith("Depolama")  # kelime ortasında kesilmez ("Altyapı…" değil)
 
 
 def test_yol_ve_ozel_karakterler_dosya_adina_sizmaz() -> None:

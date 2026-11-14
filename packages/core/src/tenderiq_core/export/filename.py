@@ -26,5 +26,9 @@ def report_filename(
     stem = _SEPARATORS.sub("-", stem)
     stem = _UNSAFE.sub(" ", stem)
     stem = _SPACES.sub(" ", stem).strip(_EDGES)
-    stem = stem[:max_stem].rstrip(_EDGES) or "rapor"
+    if len(stem) > max_stem:
+        cut = stem[:max_stem]
+        # Kelime ortasında kesme ("Altyapı…"): sığan son boşlukta bırak.
+        stem = cut.rsplit(" ", 1)[0] if " " in cut[max_stem // 2 :] else cut
+    stem = stem.rstrip(_EDGES) or "rapor"
     return f"tenderiq-{stem}-{generated_at:%Y%m%d}.{extension}"
