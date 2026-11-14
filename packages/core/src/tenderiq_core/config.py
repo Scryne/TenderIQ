@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     # Fiyat tablosu YAPILANDIRMADIR; kodda rakam yok (bkz. llm/pricing.py).
     # Göreli yol depo köküne göre çözülür.
     llm_pricing_path: str = "config/llm-pricing.json"
+    # LLM_PROVIDER=recorded için kayıtlı yanıt dosyası (llm/recorded.py; depo köküne göre).
+    llm_recorded_path: str = "config/llm-kayitli/yesilvadi-idari-sartname.json"
     # USD→TL kuru. TANIMSIZ ise maliyet HESAPLANMAZ ve kayıtlar
     # `pricing_status="no_fx_rate"` ile işaretlenir — 0 TL yazmak tavanı
     # sessizce sonsuz yapardı.
@@ -409,6 +411,18 @@ class Settings(BaseSettings):
                     "birikir ve HİÇ gönderilmez. `logging`den daha sinsidir — log'a bile "
                     "düşmez, yani kimse fark etmez. Ayrıca test gelen-kutusu ucunu açar."
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _enforce_recorded_llm_dev_only(self) -> Self:
+        """Kayıtlı yanıt kipi yalnız development'ta: staging/production'da gerçek analiz
+        yerine kayıttan bulgu üretmek, sağlıklı görünen ama müşterinin belgesini hiç
+        okumayan bir ürün demektir."""
+        if self.llm_provider == "recorded" and self.environment is not Environment.DEVELOPMENT:
+            raise ValueError(
+                "LLM_PROVIDER=recorded yalnız ENVIRONMENT=development'ta açılabilir "
+                "(kayıtlı yanıtlar müşteri belgesini okumaz)."
+            )
         return self
 
     @model_validator(mode="after")

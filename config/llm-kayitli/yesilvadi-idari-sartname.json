@@ -1,0 +1,44 @@
+{
+  "_aciklama": "LLM_PROVIDER=recorded için kayıtlı yanıtlar (yalnız development). Kurgusal Yeşilvadi Büyükşehir Belediyesi idari şartnamesi (2026/418732). Her source_quote şartnamedeki cümlenin BİREBİR parçasıdır; sağlayıcı yalnız istemdeki bağlam bloklarında geçen öğeleri döndürür (bkz. tenderiq_core/llm/recorded.py).",
+  "RequirementExtraction": [
+    {"source_quote": "İsteklinin TS EN ISO/IEC 27001 Bilgi Güvenliği Yönetim Sistemi belgesine sahip olması zorunludur", "text": "İstekli, son teklif tarihinde geçerli TS EN ISO/IEC 27001 Bilgi Güvenliği Yönetim Sistemi belgesine sahip olmalıdır.", "kind": "technical", "is_mandatory": true},
+    {"source_quote": "Son on beş yıl içinde bedel içeren tek bir sözleşme kapsamında kabul işlemleri tamamlanan ve teklif edilen bedelin %40'ından az olmamak üzere", "text": "Son 15 yıl içinde tek sözleşmede, teklif bedelinin en az %40'ı tutarında benzer iş deneyimi belgelenmelidir.", "kind": "administrative", "is_mandatory": true},
+    {"source_quote": "İstekli, üretici veya üreticinin Türkiye yetkili satıcısı olduğunu gösteren yetki belgesini sunmak zorundadır", "text": "İstekli, üretici ya da Türkiye yetkili satıcısı olduğunu yetki belgesiyle kanıtlamalıdır.", "kind": "administrative", "is_mandatory": true},
+    {"source_quote": "İstekli bünyesinde en az 2 (iki) adet üretici onaylı depolama sertifikasına sahip personel bulunduğunu belgelemelidir", "text": "Kadroda en az 2 üretici onaylı depolama sertifikalı personel bulunmalıdır.", "kind": "technical", "is_mandatory": true},
+    {"source_quote": "12 adet raf tipi sunucu, 2 adet tümüyle yedekli depolama ünitesi (en az 480 TB kullanılabilir alan)", "text": "Teklif 12 raf tipi sunucu ve en az 480 TB kullanılabilir alanlı 2 tümüyle yedekli depolama ünitesini kapsamalıdır.", "kind": "technical", "is_mandatory": true},
+    {"source_quote": "Teklifler, teknik şartnamede belirtilen tüm kalemler için verilecektir. Kısmi teklif verilmesine izin verilmemektedir", "text": "Teklif teknik şartnamedeki tüm kalemleri kapsamalıdır; kısmi teklif kabul edilmez.", "kind": "administrative", "is_mandatory": true},
+    {"source_quote": "Tekliflerin geçerlilik süresi, ihale tarihinden itibaren 120 (yüz yirmi) takvim günüdür", "text": "Teklifler ihale tarihinden itibaren en az 120 takvim günü geçerli olmalıdır.", "kind": "administrative", "is_mandatory": true},
+    {"source_quote": "İstekliler tekliflerini Türk Lirası cinsinden vereceklerdir", "text": "Teklif Türk Lirası cinsinden verilmelidir.", "kind": "financial", "is_mandatory": true},
+    {"source_quote": "Arıza bildirimine en geç 4 (dört) saat içinde yerinde müdahale edilecek, arıza 24 saat içinde giderilecektir", "text": "Arızaya 4 saat içinde yerinde müdahale edilmeli, arıza 24 saat içinde giderilmelidir.", "kind": "technical", "is_mandatory": true}
+  ],
+  "DeliverableExtraction": [
+    {"source_quote": "Teklif vermeye yetkili olduğunu gösteren imza beyannamesi veya imza sirküleri", "name": "İmza beyannamesi veya imza sirküleri", "kind": "document", "is_mandatory": true},
+    {"source_quote": "İstekliler teklif ettikleri bedelin %3'ünden az olmamak üzere, kendi belirleyecekleri tutarda geçici teminat vereceklerdir", "name": "Geçici teminat (teklif bedelinin en az %3'ü)", "kind": "guarantee", "is_mandatory": true},
+    {"source_quote": "İş deneyim belgesi: Son on beş yıl içinde", "name": "İş deneyim belgesi", "kind": "document", "is_mandatory": true},
+    {"source_quote": "üreticinin Türkiye yetkili satıcısı olduğunu gösteren yetki belgesini", "name": "Üretici yetki belgesi", "kind": "certificate", "is_mandatory": true},
+    {"source_quote": "TS EN ISO/IEC 27001 Bilgi Güvenliği Yönetim Sistemi belgesine", "name": "TS EN ISO/IEC 27001 belgesi", "kind": "certificate", "is_mandatory": true},
+    {"source_quote": "İş ortaklığı olarak teklif verilmesi halinde iş ortaklığı beyannamesi", "name": "İş ortaklığı beyannamesi (ortak girişimde)", "kind": "document", "is_mandatory": false}
+  ],
+  "RiskExtraction": [
+    {"source_quote": "gecikilen her takvim günü için sözleşme bedelinin binde 3'ü", "text": "Gecikilen her takvim günü için sözleşme bedelinin binde 3'ü gecikme cezası uygulanır; 90 günlük kurulum takvimiyle birlikte yüksek risk.", "severity": "high", "category": "penalty"},
+    {"source_quote": "Gecikme 30 (otuz) takvim gününü aşarsa idare, protesto çekmeye gerek kalmaksızın sözleşmeyi feshederek kesin teminatı gelir kaydeder", "text": "30 günü aşan gecikmede sözleşme protestosuz feshedilir ve kesin teminat gelir kaydedilir.", "severity": "high", "category": "termination"},
+    {"source_quote": "Teminat mektubu verilmesi durumunda, mektubun geçerlilik tarihi ihale tarihinden itibaren en az 150 (yüz elli) takvim günü olmalıdır", "text": "Geçici teminat mektubu en az 150 gün geçerli olmalı (teklif geçerliliği 120 gün); kısa mektup doğrudan reddedilir.", "severity": "high", "category": "other"},
+    {"source_quote": "Bu ihalede fiyat farkı ödenmeyecektir. Döviz kurundaki değişimler yükleniciye ek bir ödeme hakkı doğurmaz", "text": "Fiyat farkı ödenmez; ithal donanımda kur artışı yükleniciye kalır.", "severity": "medium", "category": "payment"},
+    {"source_quote": "Bu süreye uyulmaması halinde her saat için sözleşme bedelinin on binde 1'i ceza olarak kesilir", "text": "Arıza giderme süresi aşılırsa her saat için sözleşme bedelinin on binde 1'i ceza kesilir.", "severity": "medium", "category": "penalty"},
+    {"source_quote": "Bu ihalede işin tamamı veya bir kısmı alt yükleniciye yaptırılamaz", "text": "Alt yüklenici kullanılamaz; kurulum ve bakım ekibi istekliden olmalıdır.", "severity": "medium", "category": "other"},
+    {"source_quote": "Arızalı disklerin veri merkezi dışına çıkarılması yasaktır", "text": "Arızalı diskler veri merkezinden çıkarılamaz; üretici garanti iadesi (RMA) süreci buna göre planlanmalı.", "severity": "low", "category": "warranty"}
+  ],
+  "TimelineExtraction": [
+    {"source_quote": "İhale (son teklif verme) tarihi ve saati: 18.11.2026 — 10:30", "label": "Son teklif verme tarihi", "kind": "bid_deadline", "value_text": "18.11.2026 — 10:30"},
+    {"source_quote": "İşe başlama tarihinden itibaren 90 (doksan) takvim günü içinde kurulum ve göç tamamlanacak", "label": "Kurulum ve göç süresi", "kind": "delivery", "value_text": "90 takvim günü"},
+    {"source_quote": "Bakım hizmeti kabul tarihinden itibaren 36 ay sürecektir", "label": "Yerinde bakım süresi", "kind": "warranty", "value_text": "36 ay"},
+    {"source_quote": "kabul tarihinden itibaren en az 36 ay üretici garantisi verilecektir", "label": "Üretici garantisi", "kind": "warranty", "value_text": "36 ay"},
+    {"source_quote": "Tekliflerin geçerlilik süresi, ihale tarihinden itibaren 120 (yüz yirmi) takvim günüdür", "label": "Teklif geçerlilik süresi", "kind": "other", "value_text": "120 takvim günü"}
+  ],
+  "ComplianceCheck": [
+    {"requirement_contains": "27001", "profile_contains": ["27001"], "met_rationale": "Profilde geçerli TS EN ISO/IEC 27001 belgesi beyan edilmiş.", "unmet_rationale": "Profilde ISO/IEC 27001 belgesine dair bilgi yok; madde zorunlu olduğundan teklif riskli."},
+    {"requirement_contains": "depolama sertifikalı personel", "profile_contains": ["depolama sertifika", "storage sertifika"], "met_rationale": "Profilde üretici onaylı depolama sertifikalı personel beyan edilmiş.", "unmet_rationale": "Profilde depolama sertifikalı personel bilgisi yok; sayıyı doğrulayın.", "unmet_status": "partial"},
+    {"requirement_contains": "iş deneyimi", "profile_contains": ["veri merkezi", "sunucu"], "met_rationale": "Profildeki veri merkezi ve sunucu projeleri benzer iş tanımına giriyor; tutar ayrıca doğrulanmalı.", "unmet_rationale": "Profilde benzer iş (sunucu/depolama/veri merkezi) referansı yok.", "unmet_status": "partial"},
+    {"requirement_contains": "yetkili satıcı", "profile_contains": ["yetkili satıcı", "iş ortağı", "partner"], "met_rationale": "Profilde üretici yetkili satıcılığı/iş ortaklığı beyan edilmiş.", "unmet_rationale": "Profilde üretici yetkisi bilgisi yok.", "unmet_status": "partial"}
+  ]
+}

@@ -28,6 +28,7 @@ ile sabitlenmiştir.
 from __future__ import annotations
 
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -49,6 +50,8 @@ class LLMProvider(StrEnum):
     OLLAMA = "ollama"  # yerel model (localhost:11434); anahtarsız dev/ucuz iterasyon
     NVIDIA = "nvidia"  # NVIDIA NIM (OpenAI-uyumlu bulut); ücretsiz güçlü modeller (qwen3.5...)
     NONE = "none"  # ajanlar devre dışı (testler/CI; extracting fazı iskelet modunda)
+    # Kayıtlı/deterministik yanıtlar (yalnız development; ağ ve maliyet yok) — llm/recorded.py
+    RECORDED = "recorded"
 
 
 class LLMError(Exception):
@@ -466,12 +469,26 @@ def _log_retention_posture(settings: Settings, provider: LLMProvider) -> None:
     )
 
 
+def _resolve_recorded_path(settings: Settings) -> Path:
+    path = Path(settings.llm_recorded_path)
+    if path.is_absolute():
+        return path
+    # Depo kökü: packages/core/src/tenderiq_core/llm/client.py → 5 seviye yukarı.
+    return Path(__file__).resolve().parents[5] / path
+
+
 def create_structured_llm(settings: Settings | None = None) -> StructuredLLM | None:
     """Ayarlardaki sağlayıcıya göre LLM istemcisi kurar; ``none`` → ``None``."""
     settings = settings or get_settings()
     provider = LLMProvider(settings.llm_provider)
     if provider is LLMProvider.NONE:
         return None
+    if provider is LLMProvider.RECORDED:
+        # Geç içe aktarım: recorded → agents.grounding → agents paketi bu modülü içe aktarır.
+        from tenderiq_core.llm.recorded import RecordedStructuredLLM
+
+        logger.warning("llm_kayitli_kip", path=str(_resolve_recorded_path(settings)))
+        return RecordedStructuredLLM.from_path(_resolve_recorded_path(settings))
     # Langfuse anahtarları yoksa no-op; maliyet ölçümü onu SARMALAR (J.6):
     # Langfuse yolu aynen çalışır, ajan katmanına ve istemcilere dokunulmaz.
     tracer = wrap_tracer_with_cost(create_llm_tracer(settings), settings)
