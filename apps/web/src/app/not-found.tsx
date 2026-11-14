@@ -4,6 +4,8 @@ import Link from "next/link";
 import { BrandLockup } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
 
+export const metadata = { title: "Sayfa bulunamadı" };
+
 /** 404 — DESIGN.md §10.5: dönüş yolu ver, kullanıcıyı boşlukta bırakma. */
 export default function NotFound() {
   return (

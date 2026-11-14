@@ -11,7 +11,7 @@ import type { LegalSectionData } from "@/components/marketing/legal-shell";
 import { LEGAL_CONFIG, LEGAL_TERMS } from "@/config/legal.config";
 
 export const metadata: Metadata = {
-  title: "Veri işleme sözleşmesi (DPA) — TenderIQ",
+  title: "Veri işleme sözleşmesi (DPA)",
   description:
     "Kurumsal müşteriler için veri işleyen sıfatıyla yükümlülükler: işleme konusu, güvenlik önlemleri, alt işleyenler, ihlal bildirimi ve iade/imha.",
 };

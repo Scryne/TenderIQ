@@ -12,7 +12,7 @@ import type { LegalSectionData } from "@/components/marketing/legal-shell";
 import { LEGAL_CONFIG } from "@/config/legal.config";
 
 export const metadata: Metadata = {
-  title: "Güven merkezi — TenderIQ",
+  title: "Güven merkezi",
   description:
     "Verinizin TenderIQ içinde izlediği yol, sıfır saklama yapay zekâ yapılandırması, alt işleyen listesi, veri konumu ve güvenlik önlemleri.",
 };

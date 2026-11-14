@@ -1,10 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FileQuestion } from "lucide-react";
+import Link from "next/link";
 import { use, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/states";
 import { DeleteTenderDialog } from "@/components/tenders/delete-tender-dialog";
+import { Button } from "@/components/ui/button";
 import {
   SideNote,
   TenderDetailView,
@@ -43,9 +47,11 @@ export default function TenderDetailPage({ params }: { params: Promise<{ id: str
   const tender = useQuery({
     queryKey: ["tender", tenderId],
     queryFn: async () => {
-      const { data, error } = await api.GET("/api/v1/tenders/{tender_id}", {
+      const { data, error, response } = await api.GET("/api/v1/tenders/{tender_id}", {
         params: { path: { tender_id: tenderId } },
       });
+      // Yok (ya da başka kiracının): "yeniden dene" anlamsız, ayrı durum gösterilir.
+      if (response.status === 404) return null;
       if (error !== undefined) throw new Error("İhale yüklenemedi.");
       return data;
     },
@@ -153,6 +159,22 @@ export default function TenderDetailPage({ params }: { params: Promise<{ id: str
     })) ?? restRows;
 
   const reviewReady = rows.some((row) => row.job?.status === "review_ready");
+
+  if (tender.data === null) {
+    return (
+      <EmptyState
+        icon={FileQuestion}
+        title="İhale bulunamadı"
+        description="Bu ihale silinmiş ya da çalışma alanınıza ait değil. İhaleler listesinden devam edin."
+        action={
+          <Button asChild variant="secondary">
+            <Link href="/tenders">İhalelerime dön</Link>
+          </Button>
+        }
+        className="mt-10"
+      />
+    );
+  }
 
   return (
     <TenderDetailView

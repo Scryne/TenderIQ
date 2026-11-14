@@ -12,7 +12,7 @@ import type { LegalSectionData } from "@/components/marketing/legal-shell";
 import { LEGAL_CONFIG } from "@/config/legal.config";
 
 export const metadata: Metadata = {
-  title: "Aydınlatma metni — TenderIQ",
+  title: "Aydınlatma metni",
   description:
     "TenderIQ'nun KVKK kapsamında işlediği kişisel veriler, işleme amaçları, aktarımlar, saklama süreleri ve veri sahibi hakları.",
 };

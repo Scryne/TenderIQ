@@ -460,7 +460,7 @@ export default function TenderReviewPage({ params }: { params: Promise<{ id: str
               onValueChange={switchCategory}
               className="gap-3"
               listClassName="w-full"
-              optionClassName="flex-1 px-1.5 text-xs"
+              optionClassName="flex-1 gap-1 px-1 text-xs"
               options={(Object.keys(CATEGORY_LABELS) as FindingCategory[]).map((key) => ({
                 value: key,
                 label: (

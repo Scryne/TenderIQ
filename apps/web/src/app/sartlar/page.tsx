@@ -11,7 +11,7 @@ import type { LegalSectionData } from "@/components/marketing/legal-shell";
 import { LEGAL_CONFIG, LEGAL_TERMS, competentCourts } from "@/config/legal.config";
 
 export const metadata: Metadata = {
-  title: "Kullanım şartları — TenderIQ",
+  title: "Kullanım şartları",
   description:
     "TenderIQ hizmetinin kullanım koşulları: hesap, planlar ve ödeme, kabul edilebilir kullanım, fikri mülkiyet, sorumluluk sınırları ve hizmet seviyesi.",
 };
