@@ -2,7 +2,31 @@
 
 > Envanter, sertifika değil. Ayrıntılı operasyon gerçeği ve tuzaklar: `docs/ops/DURUM.md`.
 
-**Ölçüm tarihi:** 2026-09-25 (denetim turu, commit `a841367`)
+**Ölçüm tarihi:** 2026-11-14 (bitirme denetimi; önceki 2026-09-25, `a841367`)
+
+## 2026-11-13/14: bitirme denetimi
+
+- **Bulunan hata (LLM izleme):** Langfuse adaptörü `start_as_current_generation` çağırıyordu; bu metot
+  langfuse 4.15.6'da da 5.2.0'da da yok. Anahtar tanımlanınca her LLM çağrısı düşerdi; testteki sahte istemci
+  aynı adı taklit ettiği için görünmüyordu. `start_as_current_observation(as_type="generation")`; gerçek
+  SDK'nın iki sürümüyle (ağsız) sürüldü.
+- **Windows'ta API:** uvicorn 0.36+ olay döngüsünü politikadan değil `--loop`tan kuruyor; Windows varsayılanı
+  Proactor → giriş 500. `--loop asyncio:SelectorEventLoop` (`api:dev`, E2E); E2E'de `--reload` kalktı.
+- **Yerel önizleme yedeği:** `scripts/yerel_depo.py` (yalnız localhost S3 ucuna yazar) + kurgusal
+  `scripts/fixtures/ornek-sartname.pdf` (`scripts/ornek_sartname.mjs`): R2'siz geliştirmede inceleme ekranı
+  PDF'i açıp kaynağı vurguluyor.
+- **Ön yüz:** favicon yoktu (her sayfada konsol 404); istemci sayfalarında sekme başlığı yalnız "TenderIQ"
+  → "<Sayfa> · TenderIQ"; hukuki sayfalarda çift marka; olmayan ihale "Yeniden dene" yerine "İhale
+  bulunamadı"; `tw-animate-css` eksikti (diyalog/menü animasyon sınıfları tanımsızdı).
+- **Bağımlılık:** Dependabot #52, #53, #54, #55 (langfuse 5) yerelde birleşti; #24 (TypeScript 7) hâlâ üst
+  akıma bağlı (typescript-eslint 8.72.2 `<6.1.0`, openapi-typescript 7.13.0 `^5.x`). dnspython 2.9.2
+  (CVE-2026-128089).
+- **Gezinti:** 24 rota × 390/768/1280/1440 × açık/koyu = 192 kare, taşma 0. Asıl akış tarayıcıda: yükleme
+  (imzalı PUT → `/complete` → kuyruk), inceleme (PDF + vurgu), onay, Word/Excel dışa aktarma (kaynak
+  sayfa/madde/alıntıyla). **Yerelde sınanamayan:** analiz adımı (worker ayrıştırma grubu docling+torch kurulu
+  değil, projede kayıtlı LLM yanıt kipi yok) ve `-m integration` (testcontainers/Docker).
+- **Bilerek bırakılan:** `/capability` profil yokken 404 (API sözleşmesi, entegrasyon testi bunu bekliyor;
+  tarayıcı konsoluna bir satır düşüyor); inceleme kategori segmenti 1280'de 23 px yatay kaydırma.
 
 **Tek cümle:** Uçtan uca çalışıyor: kurgusal bir şartname yüklendi, ~5 dakikada 34 kaynağa bağlı
 bulgu çıktı; testler, tip denetimi, güvenlik taraması ve erişilebilirlik temiz.
