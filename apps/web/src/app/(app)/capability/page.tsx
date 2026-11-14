@@ -1,24 +1,37 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Info } from "lucide-react";
+import { CheckCircle2, ClipboardList, Info } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/shell/page-header";
-import { InlineError } from "@/components/states";
+import { EmptyState, InlineError } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import type { components } from "@tenderiq/api-client";
+
 import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import { userMessage } from "@/lib/errors";
 
 /** Bir uygunluk analizinin anlamlı olması için beklenen en az beyan uzunluğu. */
 const MIN_USEFUL_LENGTH = 200;
+
+type CapabilityProfile = components["schemas"]["CapabilityProfileResponse"];
+
+/** İlk beyan için başlık iskeleti: boş sayfa yerine neyin yazılacağını gösterir. */
+const STARTER = [
+  "Firma: (kuruluş yılı, uzmanlık alanı)",
+  "Sertifikalar: (ör. ISO 9001, TS EN ISO/IEC 27001 — geçerlilik tarihleriyle)",
+  "Ekip: (kadro sayısı, üretici sertifikalı uzmanlar)",
+  "Referanslar: (yıl — kurum — iş — süre)",
+  "Üretici yetkileri: (yetkili satıcı / iş ortağı olunan markalar)",
+].join("\n");
 
 export default function CapabilityProfilePage() {
   const queryClient = useQueryClient();
@@ -31,12 +44,11 @@ export default function CapabilityProfilePage() {
   const profile = useQuery({
     queryKey: ["capability-profile"],
     queryFn: async () => {
-      const { data, error, response } = await api.GET("/api/v1/capability-profile");
-      if (error !== undefined) {
-        if (response.status === 404) return null; // henüz tanımlanmamış
-        throw new Error("Yetkinlik profili yüklenemedi.");
-      }
-      return data;
+      // Okuma ayrı uçtan: API'de "profil yok" 404'tür ve tarayıcı her 404'ü konsola ağ
+      // hatası yazar; bu uç onu `null`a çevirir (bkz. app/api/capability-profile/route.ts).
+      const response = await fetch("/api/capability-profile", { cache: "no-store" });
+      if (!response.ok) throw new Error("Yetkinlik profili yüklenemedi.");
+      return (await response.json()) as CapabilityProfile | null;
     },
   });
 
@@ -107,6 +119,20 @@ export default function CapabilityProfilePage() {
           <Label htmlFor="capability-content" className="sr-only">
             Yetkinlik beyanı
           </Label>
+          {!profile.isPending && !profile.isError && !defined && !dirty && (
+            <EmptyState
+              compact
+              icon={ClipboardList}
+              title="Henüz yetkinlik profili yok"
+              description="Uygunluk sekmesi bu beyan olmadan sonuç üretmez. Başlıklarla başlayıp kendi bilgilerinizi yazın."
+              action={
+                <Button variant="secondary" onClick={() => setDraft(STARTER)}>
+                  Başlıklarla başla
+                </Button>
+              }
+              className="mb-2"
+            />
+          )}
           {profile.isPending ? (
             <Skeleton className="h-56 w-full" />
           ) : (
