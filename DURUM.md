@@ -2,7 +2,17 @@
 
 > Envanter, sertifika değil. Ayrıntılı operasyon gerçeği ve tuzaklar: `docs/ops/DURUM.md`.
 
-**Ölçüm tarihi:** 2026-11-14 (bitirme denetimi; önceki 2026-09-25, `a841367`)
+**Ölçüm tarihi:** 2026-11-16 (önceki 2026-11-14)
+
+## 2026-11-14/16: analiz adımı, kayıtlı LLM kipi
+
+- **Kayıtlı yanıt kipi** (`LLM_PROVIDER=recorded`, yalnız development, `6f4aaa0`): anahtarsız, ağsız, maliyetsiz;
+  yalnız alıntısı bağlam bloğunda birebir geçen öğeyi döndürür (uydurmaz).
+- **Arayüzden uçtan uca (11-14):** kurgusal Yeşilvadi şartnamesi → yükleme → Docling → BGE-M3 → çıkarım → "Bulgular
+  incelemenizi bekliyor" 25 sn; 24/24 bulgunun alıntısı bildirilen PDF sayfasında birebir; onay → Word/Excel.
+- **Hattın kendisi (11-16, `scripts/faz2_gate_check.py`, Celery'siz, yerel PG):** 7 gereksinim + 6 belge + 6 risk +
+  5 takvim, hepsi kaynağa bağlı, bağlantısız 0, 50 sn. Kayıttaki 2 gereksinim ve 1 risk getirilen bağlamda
+  olmadığı için üretilmedi (uydurmama kuralı). Betikte göreli `--out` ile çöken çıktı satırı düzeltildi.
 
 ## 2026-11-13/14: bitirme denetimi
 
@@ -23,8 +33,8 @@
   (CVE-2026-128089).
 - **Gezinti:** 24 rota × 390/768/1280/1440 × açık/koyu = 192 kare, taşma 0. Asıl akış tarayıcıda: yükleme
   (imzalı PUT → `/complete` → kuyruk), inceleme (PDF + vurgu), onay, Word/Excel dışa aktarma (kaynak
-  sayfa/madde/alıntıyla). **Yerelde sınanamayan:** analiz adımı (worker ayrıştırma grubu docling+torch kurulu
-  değil, projede kayıtlı LLM yanıt kipi yok) ve `-m integration` (testcontainers/Docker).
+  sayfa/madde/alıntıyla). Analiz adımı da sınandı (aşağıda, kayıtlı LLM kipi). **Yerelde sınanamayan:**
+  `-m integration` (testcontainers/Docker; CI'da koşuyor).
 - **Bilerek bırakılan:** `/capability` profil yokken 404 (API sözleşmesi, entegrasyon testi bunu bekliyor;
   tarayıcı konsoluna bir satır düşüyor); inceleme kategori segmenti 1280'de 23 px yatay kaydırma.
 

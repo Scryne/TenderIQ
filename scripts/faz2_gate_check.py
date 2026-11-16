@@ -275,7 +275,11 @@ def main() -> int:
                 )
             match_pct = f"{correct}/{total} = {correct / total:.0%}" if total else "n/a"
             print(f"  kaynak-eşleme (sayfa): {match_pct}")
-            print(f"  prediction yazıldı: {path.relative_to(_REPO_ROOT)}")
+            # --out göreli ya da depo dışında olabilir: relative_to atınca temizlik kesiliyordu.
+            shown = path.resolve()
+            if shown.is_relative_to(_REPO_ROOT):
+                shown = shown.relative_to(_REPO_ROOT)
+            print(f"  prediction yazıldı: {shown}")
         finally:
             if args.keep:
                 print(f"  kayıtlar korundu (tenant={tenant_id})")
