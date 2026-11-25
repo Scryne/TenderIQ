@@ -2,7 +2,28 @@
 
 > Envanter, sertifika değil. Ayrıntılı operasyon gerçeği ve tuzaklar: `docs/ops/DURUM.md`.
 
-**Ölçüm tarihi:** 2026-11-16 (önceki 2026-11-14)
+**Ölçüm tarihi:** 2026-11-25 (yayına hazır turu; önceki 2026-11-16)
+
+**Yayına hazır karnesi (2026-11-25):** Kod ✅ · Ürün ✅ (CI'da E2E tarayıcı akışları + Lighthouse yeşil; analiz hattı 11-14'te
+arayüzden uçtan uca) · Ön yüz ✅ (vitrin: siniyor) · Belge ✅ · Kapı ✅ · Dış: şirket bilgisi, iyzico, Resend alan adı,
+hukuki metinler. Bundan sonra bulunan "v2 fikirleri"ne girer.
+
+## 2026-11-25
+
+- **CI imaj işleri 11-23'ten beri kırmızıydı:** Debian bash 5.2.15-2+b13 kurulumda `builtins.7.gz` alternatifini bağlıyor, slim
+  imaj man sayfalarını hariç tuttuğu için `apt-get upgrade` düşüyordu → üç Dockerfile'da yer tutucu (`4dc25d6`).
+- **Güvenlik:** `mail-parser` 4.4.0 (CVE-2026-129295, yüksek; Trivy fs + worker imajı) → 4.11.0 (`5fa5d13`).
+- **Dependabot:** #59 (js, 10), #60 (python, 13), #58 pypdf 7.0.1 birleşti (pypdf 7 Yeşilvadi şartnamesinde 4/4 dijital sayfa,
+  yönlendirme doğru). #24 TypeScript 7 kapatıldı, `dependabot.yml` TS ana sürümünü atlar (typescript-eslint yüklenemiyor).
+- **Ölçüm:** pytest 437 (+1 atlanan; entegrasyon CI'da), ruff, mypy 151 dosya, eslint, tsc, `next build`, `pnpm audit --prod` 0.
+
+## v2 fikirleri
+
+- TypeScript 7 göçü, typescript-eslint desteğinden sonra.
+
+---
+
+**Önceki ölçüm: 2026-11-16**
 
 ## 2026-11-14/16: analiz adımı, kayıtlı LLM kipi
 
