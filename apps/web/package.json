@@ -12,12 +12,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sentry/nextjs": "^11.15.0",
-    "@tanstack/react-query": "^5.108.1",
+    "@sentry/nextjs": "^11.16.0",
+    "@tanstack/react-query": "^5.108.2",
     "@tenderiq/api-client": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.76.0",
+    "lucide-react": "^1.77.0",
     "next": "^16.4.6",
     "next-themes": "^0.4.6",
     "pdfjs-dist": "4.8.69",
