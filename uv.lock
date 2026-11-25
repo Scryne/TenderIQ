@@ -1790,11 +1790,11 @@ wheels = [
 
 [[package]]
 name = "mail-parser"
-version = "4.4.0"
+version = "4.11.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/9c/6e/2cee08e0d6fbce02a301d5ab72ef5ffe8f47dd59ac3d8ce61324d8a9143a/mail_parser-4.4.0.tar.gz", hash = "sha256:82d2c0fa98a138620feaa87a378af2a2643b2941b2e125d7abfc65dd21094b33", size = 2852896, upload-time = "2026-06-11T06:56:49.789Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/b9/743e3c677f2adcd93b2a5739663f549d22506edced9e6d9416e9b6fd8f90/mail_parser-4.11.0.tar.gz", hash = "sha256:8bb90074f07a881f362e2d2cff75181cf85696ce6aff4b27f2604040c13d13b5", size = 3012705, upload-time = "2026-11-15T11:48:12.705Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/a7/99dfed167ba728384521acd54fadbb7649ce49333018f42e1f190ed25911/mail_parser-4.4.0-py3-none-any.whl", hash = "sha256:46f7931817660fec4f7723e6f1722e66a9cce44c2daeacbeb9e705078379561f", size = 35504, upload-time = "2026-06-11T06:56:48.348Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/9a/294765f556d0799893892a9011221e1e05d4471a6e4f18792f9c8d04186d/mail_parser-4.11.0-py3-none-any.whl", hash = "sha256:adb466cd96cfccc0ab2fc52e571565afa5073a85b47ea12037b2b98057a7a5f0", size = 71355, upload-time = "2026-11-15T11:48:11.427Z" },
 ]
 
 [[package]]
