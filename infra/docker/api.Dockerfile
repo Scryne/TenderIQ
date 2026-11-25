@@ -6,7 +6,11 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 # J.2 #7). Upstream imaj her CVE'de yeniden derlenmediğinden openssl/krb5/gnutls
 # gibi paketler yamalı sürümün gerisinde kalıyor; bunlar bizim eklediğimiz değil,
 # devraldığımız açıklar. `upgrade` yeni paket KURMAZ, yalnız mevcutları tazeler.
-RUN apt-get update \
+# bash 5.2.15-2+b13 (2026-11) kurulumda builtins.7.gz alternatifini bağlıyor; slim imaj man sayfalarını hariç tuttuğu
+# için dosya yok ve dpkg düşüyordu (CI imaj işi 11-23). Boş yer tutucu bağlantıyı mümkün kılar.
+RUN mkdir -p /usr/share/man/man7 \
+    && touch /usr/share/man/man7/bash-builtins.7.gz \
+    && apt-get update \
     && apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
